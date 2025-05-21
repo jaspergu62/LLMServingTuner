@@ -1,0 +1,118 @@
+# -*- coding: utf-8 -*-
+# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# modelevalstate
+import os
+
+from loguru import logger
+
+from msserviceprofiler.modelevalstate.inference.simulate import Simulate, ServiceField
+
+MODEL_EVAL_STATE_COLLECT = "MODEL_EVAL_STATE_COLLECT"
+MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
+MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
+collection_env = os.getenv(MODEL_EVAL_STATE_COLLECT) or os.getenv(MODEL_EVAL_STATE_COLLECT.lower())
+collect_flag = collection_env and (collection_env.lower() == "true" or collection_env.lower() != "false")
+simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
+simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
+optimizer_env = os.getenv(MODEL_EVAL_STATE_ALL) or os.getenv(MODEL_EVAL_STATE_ALL.lower())
+optimizer_flag = optimizer_env and (optimizer_env.lower() == "true" or optimizer_env.lower() != "false")
+
+
+class PatchPluginManager(PluginManager):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            if simulate_flag or optimizer_flag:
+                Simulate.init(self)
+        except Exception as e:
+            logger.error(f"Failed in simulate init. error {e}")
+            logger.exception("what?!")
+            raise e
+
+    @timer.track_time_async('generate_token')
+    def generate_token(self, input_metadata: InputMetadata):
+        prof = span_start("preprocess")
+        self.plugin_data_param.q_len = None
+        self.plugin_data_param.mask = None
+        cache_ids, model_inputs, sampling_metadata, trace_ids = self.preprocess(input_metadata)
+        model_inputs, qlen, mask = self.model_inputs_update_manager(model_inputs, input_metadata, cache_ids)
+        self.plugin_data_param.q_len = qlen if qlen is not None else self.plugin_data_param.q_len
+        self.plugin_data_param.mask = mask if mask is not None else self.plugin_data_param.mask
+
+        try:
+            if simulate_flag or optimizer_flag:
+                Simulate.generate_features(self, input_metadata, cache_ids)
+        except Exception as e:
+            logger.error(f"Failed in generate features, error {e}")
+            logger.exception("what?!")
+            raise e
+        if collect_flag:
+            prof.attr("blocks", [int(x) for x in np.count_nonzero(input_metadata.block_tables > -1, axis=1)])
+        span_req(prof, trace_ids)
+        span_end(prof)
+
+        prof = span_start("forward", True)
+        if (simulate_flag or optimizer_flag) and ServiceField.batch_field:
+            try:
+                Simulate.predict_and_save()
+                result = Simulate.generate_logits(input_metadata.block_tables.shape[0],
+                                              self.model_wrapper.config.vocab_size, self.model_wrapper.device)
+            except Exception as e:
+                logger.error(f"Failed in generate features, error {e}")
+                logger.exception("what?!")
+                raise e
+        else:
+            if ENV.framework_backend == BackendType.ATB:
+                if (self.plugin_list and "mtp" not in self.plugin_list) or self.is_mix_model:
+                    result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
+                                                            attn_mask=self.plugin_data_param.mask)  # q_len spec_mask
+                # old graph forward
+                else:
+                    result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
+                                                            spec_mask=self.plugin_data_param.mask)
+            else:
+                result = self.generator_backend.forward(model_inputs, q_lens=self.plugin_data_param.q_len,
+                                                        spec_mask=self.plugin_data_param.mask)  # q_len spec_mask
+
+        if isinstance(result, tuple):
+            logits, hidden_states = result
+        else:
+            logits = result
+
+        span_end(prof, True)
+
+        prof = span_start("sample")
+        draft_filtered_logits = self.sample_preprocess_manager(logits, sampling_metadata, input_metadata)
+        sampling_output = self.generator_backend.sample(draft_filtered_logits, sampling_metadata)
+        span_end(prof)
+        if (simulate_flag or optimizer_flag) and ServiceField.batch_field:
+            try:
+                Simulate.update_token(self, input_metadata, cache_ids, sampling_output)
+            except Exception as e:
+                logger.exception("what?!")
+                raise e
+
+        prof = span_start("postprocess")
+        generation_output = self.postprocess(
+            cache_ids, input_metadata, result, sampling_metadata, sampling_output)
+        span_end(prof)
+
+        generation_output.trace_ids = trace_ids
+        return generation_output
+
+
+PluginManager = PatchPluginManager
+
