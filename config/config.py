@@ -13,10 +13,10 @@ from loguru import logger
 from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
 
-import modelevalstate
+import msserviceprofiler.modelevalstate
 
 RUN_TIME = time.strftime("%Y%m%d%H%M%S", time.localtime())
-INSTALL_PATH = Path(modelevalstate.__path__[0])
+INSTALL_PATH = Path(msserviceprofiler.modelevalstate.__path__[0])
 RUN_PATH = Path(os.getcwd())
 MODEL_EVAL_STATE_CONFIG_PATH = "MODEL_EVAL_STATE_CONFIG_PATH"
 modelevalstate_config_path = os.getenv(MODEL_EVAL_STATE_CONFIG_PATH) or os.getenv(MODEL_EVAL_STATE_CONFIG_PATH.lower())
