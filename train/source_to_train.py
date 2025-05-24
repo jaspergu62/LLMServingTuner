@@ -311,10 +311,19 @@ def req_decodetimes(input_path, output_path):
     # 打开并读取CSV文件
     with open(csv_file, 'r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
+        req_id = 0
         for row in reader:
+            # 检查reply_token_size是否为空
+            if row['reply_token_size'].strip() == '':
+                continue
             http_reqid = row['http_rid']
-            reply_token_size = int(float(row['reply_token_size']))
-            data[http_reqid] = reply_token_size
+            try:
+                reply_token_size = int(float(row['reply_token_size']))
+                data[req_id] = reply_token_size
+                req_id += 1
+            except ValueError:
+                # 跳过无法转换为整数的行
+                continue
 
     # 将字典写入JSON文件
     with open(json_file, 'w', encoding='utf-8') as file:
