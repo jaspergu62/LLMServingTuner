@@ -858,9 +858,6 @@ class PSOOptimizer:
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
                                         breakpoint_cost=self.history_cost, **self.pso_init_kwargs)
         cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
-        logger.info(
-            f"best cost {cost}, best joint_vars: "
-            f"{[self.target_field[i].format_func(k) for i, k in enumerate(joint_vars)]}")
 
 
 def main(args: argparse.Namespace):

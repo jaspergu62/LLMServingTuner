@@ -148,9 +148,12 @@ class XGBStateEvaluate:
             cache = None
             if cache_data:
                 global sub_thread
-                cache, cache_predict = self.load_cache_predict(cache_data)
-                sub_thread = Thread(target=update_cache, args=(cache_predict,))
-                sub_thread.start()
+                try:
+                    cache, cache_predict = self.load_cache_predict(cache_data)
+                    sub_thread = Thread(target=update_cache, args=(cache_predict,))
+                    sub_thread.start()
+                except Exception:
+                    logger.exception("cache failure")
             self.xgb_model = self.load_model(self.xgb_model_path, cache)
             self.data_processor = dataprocessor
             XGBStateEvaluate._initialized = True
@@ -183,6 +186,7 @@ class XGBStateEvaluate:
                                  cache_data, _child, e)
         if read_datas:
             data = pd.concat(read_datas)
+            data = data.dropna()
             _label = "label"
             if _label not in data.columns:
                 _label = data.columns[-1]
