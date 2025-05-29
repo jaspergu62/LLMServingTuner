@@ -152,8 +152,8 @@ class XGBStateEvaluate:
                     cache, cache_predict = self.load_cache_predict(cache_data)
                     sub_thread = Thread(target=update_cache, args=(cache_predict,))
                     sub_thread.start()
-                except Exception:
-                    logger.exception("cache failure")
+                except Exception as ee:
+                    logger.exception(f"cache failure {ee}")
             self.xgb_model = self.load_model(self.xgb_model_path, cache)
             self.data_processor = dataprocessor
             XGBStateEvaluate._initialized = True
