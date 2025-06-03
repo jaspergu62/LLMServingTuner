@@ -34,7 +34,7 @@ def fetch_rids_from_db(db_path):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         # 执行查询
-        cursor.execute("SELECT * FROM batch WHERE name = 'modelExec';")
+        cursor.execute("SELECT * FROM batch WHERE name IN ('BatchSchedule', 'batchFrameworkProcessing');")
         batch_rows = cursor.fetchall()
 
         rids = []
@@ -106,7 +106,7 @@ def group_exec_data_by_pid(exec_rows: List[Tuple]) -> Dict[int, List[Tuple]]:
 def read_batch_data(cursor) -> List[Tuple]:
     """读取 batch 表中的数据"""
     try:
-        cursor.execute("SELECT * FROM batch WHERE name = 'modelExec';")
+        cursor.execute("SELECT * FROM batch WHERE name IN ('BatchSchedule', 'batchFrameworkProcessing');")
         return cursor.fetchall()
     except sqlite3.Error as e:
         raise ValueError(f"读取 batch 表时出错: {e}") from e
@@ -163,7 +163,16 @@ def write_csv_header(csvfile) -> None:
 
 
 @dataclass
-class ExecutionData:
+class ExecutionData_vllm:
+    exec_data: List[Tuple]
+    batch_data: List[Tuple]
+    req_df: pd.DataFrame
+    rids_ori: List[Any]
+    kvcache_df: pd.DataFrame
+
+
+@dataclass
+class ExecutionData_mindie:
     exec_data: List[Tuple]
     batch_data: List[Tuple]
     req_df: pd.DataFrame
@@ -172,7 +181,64 @@ class ExecutionData:
     batch_id_block_sum: Dict[int, float]
 
 
-def process_execution_data(csv_data: ExecutionData) -> List[Tuple]:
+def process_execution_data_vllm(csv_data: ExecutionData_vllm) -> List[Tuple]:
+
+    processed_data = []
+    for i, _ in enumerate(csv_data.exec_data):
+        exec_row = csv_data.exec_data[i]
+        batch_row = csv_data.batch_data[i]
+        total_prefill_token = 0
+        max_seq_len = 0
+        total_req_info = []
+        data = ast.literal_eval(csv_data.rids_ori[i])
+        rids = []
+        iters = []
+        req_df = csv_data.req_df
+        kvcache_df = csv_data.kvcache_df
+        for item in data:
+            try:
+                rid = item['rid']
+                rids.append(rid)
+                iter_val = item['iter_size']
+                iters.append(iter_val)
+            except KeyError as e:
+                logger.error(f"缺少键 '{e}'，跳过该条目")
+        block_sum = 0
+        for j, _ in enumerate(rids):
+            recv_token = req_df[req_df['http_rid'] == rids[j]]['recv_token_size'].values[0]
+            total_prefill_token += recv_token
+            if recv_token > max_seq_len:
+                max_seq_len = recv_token
+            filtered_df = kvcache_df[(kvcache_df['rid'] == rids[j]) & (kvcache_df['name'].isin(['blocks', 'Allocate']))]
+            target_row = filtered_df.iloc[iters[j] - 1]
+            req_blcok = target_row['device_kvcache_left']
+            block_sum += req_blcok
+            req_info = (int(recv_token), req_blcok, iters[j])
+            total_req_info.append(req_info)
+        process_req_info = tuple(total_req_info)
+        start = exec_row[3]
+        end = exec_row[4]
+        model_exec = end - start
+        current_batch_id = i
+        combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
+        if combined_row[10] == 'prefill':
+            combined_row[10] = 'prefill'
+        else:
+            combined_row[10] = 'decode'
+        tuple_elements = (
+            combined_row[10],
+            combined_row[9],
+            combined_row[13],
+            int(combined_row[14]),
+            int(combined_row[15]),
+            combined_row[12]
+        )
+        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
+        processed_data.append(combined_row)
+    return processed_data
+
+
+def process_execution_data_mindie(csv_data: ExecutionData_mindie) -> List[Tuple]:
 
     processed_data = []
     for i, _ in enumerate(csv_data.exec_data):
@@ -207,7 +273,6 @@ def process_execution_data(csv_data: ExecutionData) -> List[Tuple]:
         model_exec = end - start
         current_batch_id = i
         block_sum = csv_data.batch_id_block_sum.get(current_batch_id + 1, 0)
-
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
         if combined_row[10] == 'Prefill':
             combined_row[10] = 'prefill'
@@ -216,10 +281,10 @@ def process_execution_data(csv_data: ExecutionData) -> List[Tuple]:
         tuple_elements = (
             combined_row[10],
             combined_row[9],
-            combined_row[16],
-            int(combined_row[17]),
-            int(combined_row[18]),
-            combined_row[15]
+            combined_row[13],
+            int(combined_row[14]),
+            int(combined_row[15]),
+            combined_row[12]
         )
         combined_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(combined_row)
@@ -232,7 +297,17 @@ def write_csv_row(csvfile, row: Tuple) -> None:
 
 
 @dataclass
-class ProcessedData:
+class ProcessedData_vllm:
+    input_path: str
+    data_by_pid: Dict[int, List[Tuple]]
+    batch_rows: List[Tuple]
+    kvcache_df: pd.DataFrame
+    req_df: pd.DataFrame
+    rids_ori: List[Any]
+
+
+@dataclass
+class ProcessedData_mindie:
     input_path: str
     data_by_pid: Dict[int, List[Tuple]]
     batch_rows: List[Tuple]
@@ -242,8 +317,8 @@ class ProcessedData:
     index_dict: Dict[Tuple, Any]
 
 
-def save_processed_data_to_csv(
-        processed_data: ProcessedData
+def save_processed_data_to_csv_vllm(
+        processed_data: ProcessedData_vllm
 ) -> None:
     output_folder = create_output_folder(processed_data.input_path)
     batch_rows = processed_data.batch_rows
@@ -257,43 +332,73 @@ def save_processed_data_to_csv(
 
         with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
-            an_data = ExecutionData(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
-                                    processed_data.index_dict, processed_data.batch_id_block_sum)
-            feature_data = process_execution_data(an_data)
+            an_data = ExecutionData_vllm(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
+                                    processed_data.kvcache_df)
+            feature_data = process_execution_data_vllm(an_data)
             for row in feature_data:
                 write_csv_row(csvfile, row)
 
 
-def source_to_model(input_path: str):
+def save_processed_data_to_csv_mindie(
+        processed_data: ProcessedData_mindie
+) -> None:
+    output_folder = create_output_folder(processed_data.input_path)
+    batch_rows = processed_data.batch_rows
+    for pid, exec_data in processed_data.data_by_pid.items():
+        current_batch_index = 0
+        batch_data = process_batch_data(exec_data, batch_rows, current_batch_index)
+
+        parrent_path = os.path.join(output_folder, f'pid_{pid}')
+        os.makedirs(parrent_path, exist_ok=True)
+        file_path = os.path.join(parrent_path, 'feature.csv')
+
+        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+            write_csv_header(csvfile)
+            an_data = ExecutionData_mindie(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
+                                    processed_data.index_dict, processed_data.batch_id_block_sum)
+            feature_data = process_execution_data_mindie(an_data)
+            for row in feature_data:
+                write_csv_row(csvfile, row)
+
+
+def source_to_model(input_path: str, model_type: str):
     ori_db_path = os.path.join(input_path, 'profiler.db')
     db_connector = DatabaseConnector(ori_db_path)
     cursor = db_connector.connect()
-
     try:
         exec_rows = read_batch_exec_data(cursor)
         batch_rows = read_batch_data(cursor)
-        req_rows = read_batch_req_data(cursor)
-        index_dict = {}
-        for row in req_rows:
-            key = (row[1], row[3])
-            value = row[4]
-            index_dict[key] = value
         data_by_pid = group_exec_data_by_pid(exec_rows)
-        batch_id_block_sum = calculate_block_sums(req_rows)
-
         csv_file = os.path.join(input_path, 'request.csv')
+        model_type
         req_df = pd.read_csv(csv_file, header=0)
-
         rids_ori = fetch_rids_from_db(ori_db_path)
-        csv_data = ProcessedData(input_path,
-            data_by_pid,
-            batch_rows,
-            batch_id_block_sum,
-            req_df,
-            rids_ori,
-            index_dict)
-        save_processed_data_to_csv(csv_data)
-
+        if model_type == 'vllm':
+            kvcache_file = os.path.join(input_path, 'kvcache.csv')
+            kvcache_df = pd.read_csv(kvcache_file, header=0)
+            csv_data = ProcessedData_vllm(input_path,
+                data_by_pid,
+                batch_rows,
+                kvcache_df,
+                req_df,
+                rids_ori)
+            save_processed_data_to_csv_vllm(csv_data)
+        else:
+            req_rows = read_batch_req_data(cursor)
+            index_dict = {}
+            for row in req_rows:
+                key = (row[1], row[3])
+                value = row[4]
+                index_dict[key] = value
+                batch_id_block_sum = calculate_block_sums(req_rows)
+                csv_data = ProcessedData_mindie(input_path,
+                data_by_pid,
+                batch_rows,
+                batch_id_block_sum,
+                req_df,
+                rids_ori,
+                index_dict)
+            save_processed_data_to_csv_mindie(csv_data)
     except Exception as e:
         logger.error(f"处理过程中出错: {e}")
         raise e
@@ -333,14 +438,23 @@ def req_decodetimes(input_path, output_path):
 parser = argparse.ArgumentParser(prog="Train Model.")
 parser.add_argument("-i", "--input", default=None, type=Path, required=True)
 parser.add_argument("-o", "--output", default=Path("output"), type=Path)
+parser.add_argument(
+        "-t", 
+        "--type", 
+        type=str, 
+        choices=["vllm", "mindie"], 
+        default="mindie",
+        help="Specify the type, either 'vllm' or 'mindie' (default: mindie)"
+    )
 
 
 def main(args):
     input_path = args.input
     output_path = args.output
+    model_type = args.type
     # 读取输入文件
     try:
-        source_to_model(input_path)
+        source_to_model(input_path, model_type)
     except IOError as e:
         logger.error(f"无法读取输入文件: {e}")
         raise e
