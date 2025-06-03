@@ -163,7 +163,7 @@ def write_csv_header(csvfile) -> None:
 
 
 @dataclass
-class ExecutionData_vllm:
+class ExecutionDataVllm:
     exec_data: List[Tuple]
     batch_data: List[Tuple]
     req_df: pd.DataFrame
@@ -172,7 +172,7 @@ class ExecutionData_vllm:
 
 
 @dataclass
-class ExecutionData_mindie:
+class ExecutionDataMindie:
     exec_data: List[Tuple]
     batch_data: List[Tuple]
     req_df: pd.DataFrame
@@ -181,7 +181,7 @@ class ExecutionData_mindie:
     batch_id_block_sum: Dict[int, float]
 
 
-def process_execution_data_vllm(csv_data: ExecutionData_vllm) -> List[Tuple]:
+def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
 
     processed_data = []
     for i, _ in enumerate(csv_data.exec_data):
@@ -238,7 +238,7 @@ def process_execution_data_vllm(csv_data: ExecutionData_vllm) -> List[Tuple]:
     return processed_data
 
 
-def process_execution_data_mindie(csv_data: ExecutionData_mindie) -> List[Tuple]:
+def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
 
     processed_data = []
     for i, _ in enumerate(csv_data.exec_data):
@@ -297,7 +297,7 @@ def write_csv_row(csvfile, row: Tuple) -> None:
 
 
 @dataclass
-class ProcessedData_vllm:
+class ProcessedDataVllm:
     input_path: str
     data_by_pid: Dict[int, List[Tuple]]
     batch_rows: List[Tuple]
@@ -307,7 +307,7 @@ class ProcessedData_vllm:
 
 
 @dataclass
-class ProcessedData_mindie:
+class ProcessedDataMindie:
     input_path: str
     data_by_pid: Dict[int, List[Tuple]]
     batch_rows: List[Tuple]
@@ -318,7 +318,7 @@ class ProcessedData_mindie:
 
 
 def save_processed_data_to_csv_vllm(
-        processed_data: ProcessedData_vllm
+        processed_data: ProcessedDataVllm
 ) -> None:
     output_folder = create_output_folder(processed_data.input_path)
     batch_rows = processed_data.batch_rows
@@ -332,7 +332,7 @@ def save_processed_data_to_csv_vllm(
 
         with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
-            an_data = ExecutionData_vllm(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
+            an_data = ExecutionDataVllm(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
                                     processed_data.kvcache_df)
             feature_data = process_execution_data_vllm(an_data)
             for row in feature_data:
@@ -340,7 +340,7 @@ def save_processed_data_to_csv_vllm(
 
 
 def save_processed_data_to_csv_mindie(
-        processed_data: ProcessedData_mindie
+        processed_data: ProcessedDataMindie
 ) -> None:
     output_folder = create_output_folder(processed_data.input_path)
     batch_rows = processed_data.batch_rows
@@ -354,7 +354,7 @@ def save_processed_data_to_csv_mindie(
 
         with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
-            an_data = ExecutionData_mindie(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
+            an_data = ExecutionDataMindie(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
                                     processed_data.index_dict, processed_data.batch_id_block_sum)
             feature_data = process_execution_data_mindie(an_data)
             for row in feature_data:
@@ -376,7 +376,7 @@ def source_to_model(input_path: str, model_type: str):
         if model_type == 'vllm':
             kvcache_file = os.path.join(input_path, 'kvcache.csv')
             kvcache_df = pd.read_csv(kvcache_file, header=0)
-            csv_data = ProcessedData_vllm(input_path,
+            csv_data = ProcessedDataVllm(input_path,
                 data_by_pid,
                 batch_rows,
                 kvcache_df,
@@ -391,7 +391,7 @@ def source_to_model(input_path: str, model_type: str):
                 value = row[4]
                 index_dict[key] = value
                 batch_id_block_sum = calculate_block_sums(req_rows)
-                csv_data = ProcessedData_mindie(input_path,
+                csv_data = ProcessedDataMindie(input_path,
                 data_by_pid,
                 batch_rows,
                 batch_id_block_sum,
