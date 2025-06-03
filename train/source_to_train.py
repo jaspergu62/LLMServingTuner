@@ -297,23 +297,22 @@ def write_csv_row(csvfile, row: Tuple) -> None:
 
 
 @dataclass
-class ProcessedDataVllm:
+class ProcessedData:
     input_path: str
     data_by_pid: Dict[int, List[Tuple]]
     batch_rows: List[Tuple]
-    kvcache_df: pd.DataFrame
     req_df: pd.DataFrame
     rids_ori: List[Any]
 
 
 @dataclass
-class ProcessedDataMindie:
-    input_path: str
-    data_by_pid: Dict[int, List[Tuple]]
-    batch_rows: List[Tuple]
+class ProcessedDataVllm(ProcessedData):
+    kvcache_df: pd.DataFrame
+
+
+@dataclass
+class ProcessedDataMindie(ProcessedData):
     batch_id_block_sum: Dict[int, float]
-    req_df: pd.DataFrame
-    rids_ori: List[Any]
     index_dict: Dict[Tuple, Any]
 
 
@@ -379,9 +378,9 @@ def source_to_model(input_path: str, model_type: str):
             csv_data = ProcessedDataVllm(input_path,
                 data_by_pid,
                 batch_rows,
-                kvcache_df,
                 req_df,
-                rids_ori)
+                rids_ori,
+                kvcache_df)
             save_processed_data_to_csv_vllm(csv_data)
         else:
             req_rows = read_batch_req_data(cursor)
@@ -394,9 +393,9 @@ def source_to_model(input_path: str, model_type: str):
                 csv_data = ProcessedDataMindie(input_path,
                 data_by_pid,
                 batch_rows,
-                batch_id_block_sum,
                 req_df,
                 rids_ori,
+                batch_id_block_sum,
                 index_dict)
             save_processed_data_to_csv_mindie(csv_data)
     except Exception as e:
