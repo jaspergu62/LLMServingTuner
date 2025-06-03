@@ -216,8 +216,8 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
             req_info = (int(recv_token), req_blcok, iters[j])
             total_req_info.append(req_info)
         process_req_info = tuple(total_req_info)
-        start = exec_row[3] #forward 开始时间
-        end = exec_row[4] #forward结束时间
+        start = exec_row[3]  # forward 开始时间
+        end = exec_row[4]  # forward结束时间
         model_exec = end - start
         current_batch_id = i
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
@@ -226,12 +226,12 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         else:
             combined_row[10] = 'decode'
         tuple_elements = (
-            combined_row[10], #batch_type
-            combined_row[9],  #batch_size
-            combined_row[13],  #total_need_blocks
-            int(combined_row[14]), #total_prefill_token
-            int(combined_row[15]), #max_seq_len
-            combined_row[12]  #forwar时长
+            combined_row[10],  # batch_type
+            combined_row[9],   # batch_size
+            combined_row[13],   # total_need_blocks
+            int(combined_row[14]),  # total_prefill_token
+            int(combined_row[15]),  # max_seq_len
+            combined_row[12]  # forwar时长
         )
         combined_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(combined_row)
@@ -268,8 +268,8 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
             req_info = (int(recv_token), req_blcok, iters[j])
             total_req_info.append(req_info)
         process_req_info = tuple(total_req_info)
-        start = exec_row[3] #forward开始时间
-        end = exec_row[4] #forward结束时间
+        start = exec_row[3]  # forward开始时间
+        end = exec_row[4]  # forward结束时间
         model_exec = end - start
         current_batch_id = i
         block_sum = csv_data.batch_id_block_sum.get(current_batch_id + 1, 0)
@@ -279,12 +279,12 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         else:
             combined_row[10] = 'decode'
         tuple_elements = (
-            combined_row[10],  #batch_type
-            combined_row[9],  #batch_size
-            combined_row[13],  #total_need_blocks
-            int(combined_row[14]),  #total_prefill_token
-            int(combined_row[15]),  #max_seq_len
-            combined_row[12]   #forwar时长
+            combined_row[10],  # batch_type
+            combined_row[9],  # batch_size
+            combined_row[13],  # total_need_blocks
+            int(combined_row[14]),  # total_prefill_token
+            int(combined_row[15]),  # max_seq_len
+            combined_row[12]  # forwar时长
         )
         combined_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(combined_row)
