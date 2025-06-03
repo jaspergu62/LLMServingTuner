@@ -182,8 +182,17 @@ class ExecutionDataMindie:
 
 
 def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
-
     processed_data = []
+    if csv_data.exec_data is None:
+        raise ValueError("'exec_data' cannot be None")
+    if csv_data.batch_data is None:
+        raise ValueError("'batch_data' cannot be None")
+    if csv_data.req_df is None:
+        raise ValueError("'req_df' cannot be None")
+    if csv_data.rids_ori is None:
+        raise ValueError("'rids_ori' cannot be None")
+    if csv_data.kvcache_df is None:
+        raise ValueError("'kvcache_df' cannot be None")
     for i, _ in enumerate(csv_data.exec_data):
         exec_row = csv_data.exec_data[i]
         batch_row = csv_data.batch_data[i]
@@ -211,9 +220,9 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
                 max_seq_len = recv_token
             filtered_df = kvcache_df[(kvcache_df['rid'] == rids[j]) & (kvcache_df['name'].isin(['blocks', 'Allocate']))]
             target_row = filtered_df.iloc[iters[j] - 1]
-            req_blcok = target_row['device_kvcache_left']
-            block_sum += req_blcok
-            req_info = (int(recv_token), req_blcok, iters[j])
+            req_block = target_row['device_kvcache_left']
+            block_sum += req_block
+            req_info = (int(recv_token), req_block, iters[j])
             total_req_info.append(req_info)
         process_req_info = tuple(total_req_info)
         start = exec_row[3]  # forward 开始时间
@@ -221,10 +230,6 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         model_exec = end - start
         current_batch_id = i
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        if combined_row[10] == 'prefill':
-            combined_row[10] = 'prefill'
-        else:
-            combined_row[10] = 'decode'
         tuple_elements = (
             combined_row[10],  # batch_type
             combined_row[9],   # batch_size
@@ -239,8 +244,19 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
 
 
 def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
-
     processed_data = []
+    if csv_data.exec_data is None:
+        raise ValueError("'exec_data' cannot be None")
+    if csv_data.batch_data is None:
+        raise ValueError("'batch_data' cannot be None")
+    if csv_data.req_df is None:
+        raise ValueError("'req_df' cannot be None")
+    if csv_data.rids_ori is None:
+        raise ValueError("'rids_ori' cannot be None")
+    if csv_data.index_dict is None:
+        raise ValueError("'index_dict' cannot be None")
+    if csv_data.batch_id_block_sum is None:
+        raise ValueError("'batch_id_block_sum' cannot be None")
     for i, _ in enumerate(csv_data.exec_data):
         exec_row = csv_data.exec_data[i]
         batch_row = csv_data.batch_data[i]
@@ -264,8 +280,8 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
             total_prefill_token += recv_token
             if recv_token > max_seq_len:
                 max_seq_len = recv_token
-            req_blcok = csv_data.index_dict.get((rids[j], iters[j]), 0)
-            req_info = (int(recv_token), req_blcok, iters[j])
+            req_block = csv_data.index_dict.get((rids[j], iters[j]), 0)
+            req_info = (int(recv_token), req_block, iters[j])
             total_req_info.append(req_info)
         process_req_info = tuple(total_req_info)
         start = exec_row[3]  # forward开始时间
