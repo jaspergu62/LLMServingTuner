@@ -56,15 +56,17 @@ sub_thread: Optional[Thread] = None
 
 
 class FileLogger:
-    def __init__(self, file_path, mode="w"):
+    def __init__(self, file_path, mode="a"):
         self.file_path = file_path
         self.fout = None
         self.lock = threading.Lock()
         self.mode = mode
 
     def open_file(self):
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        flags = os.O_WRONLY | os.O_CREAT
         modes = stat.S_IWUSR | stat.S_IRUSR
+        if not isinstance(self.file_path, Path):
+            self.file_path = Path(self.file_path)
         self.fout = os.fdopen(os.open(self.file_path, flags, modes), self.mode, buffering=1024)
 
     def write(self, message):

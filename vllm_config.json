@@ -1,0 +1,79 @@
+{
+    "n_particles": 30,
+    "iters": 100,
+    "prefill_lam": 0,
+    "decode_lam": 0,
+    "prefill_constrain": 0.5,
+    "decode_constrain": 0.05,
+    "server": ["http://127.0.0.1:8080"],
+    "benchmark": {
+        "work_path": "PATH_TO_BENCHMARK",
+        "command": "/usr/bin/bash ./run_vllm_benchmark.sh"
+    },
+    "smulator": {
+        "process_name": "vllm",
+        "work_path": "PATH_TO_SIMULATOR",
+        "command": "/usr/bin/bash ./run_vllm.sh"
+    },
+    "target_feild": [
+        {
+            "name": "MAX_NUM_BATCHED_TOKENS",
+            "config_position": "env",
+            "min": 8192,
+            "max": 65536,
+            "dtype": "int"
+        },
+        {
+            "name": "MAX_NUM_SEQS",
+            "config_position": "env",
+            "min": 32,
+            "max": 512,
+            "dtype": "int"
+        },
+        {
+            "name": "PREEMPTION_MODE",
+            "config_position": "env",
+            "min": 0,
+            "max": 1,
+            "dtype": "enum",
+            "dtype_param": ["recompute", "swap"]
+        },
+        {
+            "name": "MAX_SCHEDULER_STEPS",
+            "config_position": "env",
+            "min": 1,
+            "max": 5,
+            "dtype": "int"
+        },
+        {
+            "name": "ENABLE_PREFIX_CACHING",
+            "config_position": "env",
+            "min": 0,
+            "max": 1,
+            "dtype": "enum",
+            "dtype_param": ["true", "false"]
+        },
+        {
+            "name": "PREFIX_CACHING_HASH_ALGO",
+            "config_position": "env",
+            "min": 0,
+            "max": 1,
+            "dtype": "enum",
+            "dtype_param": ["builtin", "sha256"]
+        },
+        {
+            "name": "MAXCONCURRENCY",
+            "config_position": "env",
+            "min": 10,
+            "max": 1000,
+            "dtype": "int"
+        },
+        {
+            "name": "REQUESTRATE",
+            "config_position": "env",
+            "min": 10,
+            "max": 10000,
+            "dtype": "int"
+        }
+    ]
+}

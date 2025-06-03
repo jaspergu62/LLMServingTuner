@@ -178,6 +178,10 @@ class XGBStateEvaluate:
         read_datas = []
         if cache_data and cache_data.exists():
             for _child in cache_data.iterdir():
+                p = Path(_child)
+                if p.stats().st_size == 0 and p.is_file():
+                    p.unlink()
+                    continue
                 try:
                     _df = pd.read_csv(_child)
                     read_datas.append(_df)

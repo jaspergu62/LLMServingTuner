@@ -21,6 +21,7 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.common import get_module_version
 
 MINDIE_LLM = "mindie_llm"
+VLLM_Ascend = "vllm_ascend"
 
 simulate_patch = []
 optimize_patch = []
@@ -28,6 +29,8 @@ collection_patch = []
 simulate_patch_elegant = []
 optimize_patch_elegant = []
 collection_patch_elegant = []
+vllm_simulate_patch = []
+vllm_optimize_patch = []
 
 env_patch = {
     "MODEL_EVAL_STATE_COLLECT": collection_patch,
@@ -39,7 +42,7 @@ env_patch = {
 }
 
 try:
-    from .patch_manager import Patch2rc1
+    from modelevalstate.patch.patch_manager import Patch2rc1
 
     simulate_patch.append(Patch2rc1)
     optimize_patch.append(Patch2rc1)
@@ -48,7 +51,7 @@ except ImportError as e:
     warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
 try:
-    from .plugin_simulate_patch import Patch2rc1
+    from modelevalstate.patch.plugin_simulate_patch import Patch2rc1
 
     simulate_patch_elegant.append(Patch2rc1)
     optimize_patch_elegant.append(Patch2rc1)
@@ -57,13 +60,41 @@ except ImportError as e:
     warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
 
+try:
+    from modelevalstate.patch.patch_vllm import PatchVllm
+
+    vllm_simulate_patch.append(PatchVllm)
+    vllm_optimize_patch.append(PatchVllm)
+except ImportError as e:
+    warn(f"Failed from .patch_manager import PatchVllm. error: {e}")
+
+
 def enable_patch(targer_env):
-    mindie_llm_version = get_module_version(MINDIE_LLM)
+    # mindie_llm_version = get_module_version(MINDIE_LLM)
+    # flag = []
+    # for _p in env_patch.get(targer_env):
+    #     if _p.check_version(mindie_llm_version):
+    #         _p.patch()
+    #         flag.append(_p)
     flag = []
-    for _p in env_patch.get(targer_env):
-        if _p.check_version(mindie_llm_version):
-            _p.patch()
-            flag.append(_p)
+    try:
+        mindie_llm_version = get_module_version(MINDIE_LLM)
+        for _p in env_patch.get(targer_env):
+             if _p.check_version(mindie_llm_version):
+                _p.patch()
+                flag.append(_p)
+    except (ModuleNotFoundError, ValueError): 
+        pass
+
+    try:
+        vllm_ascend_version = get_module_version(VLLM_Ascend)
+        for _p in env_patch.get(targer_env):
+             if _p.check_version(vllm_ascend_version):
+                _p.patch()
+                flag.append(_p)
+    except (ModuleNotFoundError, ValueError):
+        pass
+
     if flag:
         logger.info(f"Installed patch list {flag}.")
     else:

@@ -35,11 +35,13 @@ else:
 class AnalyzeTool(Enum):
     default = "default"
     profiler = "profiler"
+    vllm_benchmark = "vllm"
 
 
 class BenchMarkPolicy(Enum):
     benchmark = "benchmark"
     profiler_benchmark = "profiler_benchmark"
+    vllm_benchmark = "vllm_benchmark"
 
 
 class DeployPolicy(Enum):
@@ -252,7 +254,7 @@ class Settings(BaseSettings):
         env_prefix="model_eval_state_")
     output: Path = Field(default_factory=lambda: custom_output.joinpath("result").resolve(), validate_default=True)
     latency_model: LatencyModel = LatencyModel()
-    mindie: MindieConfig = MindieConfig()
+    simulator: MindieConfig = MindieConfig()
     benchmark: BenchMarkConfig = BenchMarkConfig()
     data_storage: DataStorageConfig = DataStorageConfig()
     pso_options: PsoOptions = PsoOptions()
