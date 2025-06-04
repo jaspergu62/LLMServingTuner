@@ -183,16 +183,10 @@ class ExecutionDataMindie:
 
 def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
     processed_data = []
-    if csv_data.exec_data is None:
-        raise ValueError("'exec_data' cannot be None")
-    if csv_data.batch_data is None:
-        raise ValueError("'batch_data' cannot be None")
-    if csv_data.req_df is None:
-        raise ValueError("'req_df' cannot be None")
-    if csv_data.rids_ori is None:
-        raise ValueError("'rids_ori' cannot be None")
-    if csv_data.kvcache_df is None:
-        raise ValueError("'kvcache_df' cannot be None")
+    check_attrs = ["exec_data", "batch_data", "req_df", "rids_ori", "kvcache_df"]
+    for attr in check_attrs:
+        if getattr(csv_data, attr, None) is None:
+            raise ValueError(f"{attr} cannot be None")
     for i, _ in enumerate(csv_data.exec_data):
         exec_row = csv_data.exec_data[i]
         batch_row = csv_data.batch_data[i]
@@ -230,33 +224,28 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         model_exec = end - start
         current_batch_id = i
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        tuple_elements = (
-            combined_row[10],  # batch_type
-            combined_row[9],   # batch_size
-            combined_row[13],   # total_need_blocks
-            int(combined_row[14]),  # total_prefill_token
-            int(combined_row[15]),  # max_seq_len
-            combined_row[12]  # forwar时长
-        )
-        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
-        processed_data.append(combined_row)
+        if len(combined_row) >= 16:
+            tuple_elements = (
+                combined_row[10],  # batch_type
+                combined_row[9],   # batch_size
+                combined_row[13],   # total_need_blocks
+                int(combined_row[14]),  # total_prefill_token
+                int(combined_row[15]),  # max_seq_len
+                combined_row[12]  # forwar时长
+            )
+            combined_row = tuple([tuple_elements]) + tuple([process_req_info])
+            processed_data.append(combined_row)
+        else:
+            logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
     return processed_data
 
 
 def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
     processed_data = []
-    if csv_data.exec_data is None:
-        raise ValueError("'exec_data' cannot be None")
-    if csv_data.batch_data is None:
-        raise ValueError("'batch_data' cannot be None")
-    if csv_data.req_df is None:
-        raise ValueError("'req_df' cannot be None")
-    if csv_data.rids_ori is None:
-        raise ValueError("'rids_ori' cannot be None")
-    if csv_data.index_dict is None:
-        raise ValueError("'index_dict' cannot be None")
-    if csv_data.batch_id_block_sum is None:
-        raise ValueError("'batch_id_block_sum' cannot be None")
+    check_attrs = ["exec_data", "batch_data", "req_df", "rids_ori", "index_dict", "batch_id_block_sum"]
+    for attr in check_attrs:
+        if getattr(csv_data, attr, None) is None:
+            raise ValueError(f"{attr} cannot be None")
     for i, _ in enumerate(csv_data.exec_data):
         exec_row = csv_data.exec_data[i]
         batch_row = csv_data.batch_data[i]
@@ -290,20 +279,23 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         current_batch_id = i
         block_sum = csv_data.batch_id_block_sum.get(current_batch_id + 1, 0)
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        if combined_row[10] == 'Prefill':
-            combined_row[10] = 'prefill'
+        if len(combined_row) >= 19:
+            if combined_row[10] == 'Prefill':
+                combined_row[10] = 'prefill'
+            else:
+                combined_row[10] = 'decode'
+            tuple_elements = (
+                combined_row[10],  # batch_type
+                combined_row[9],  # batch_size
+                combined_row[16],  # total_need_blocks
+                int(combined_row[17]),  # total_prefill_token
+                int(combined_row[18]),  # max_seq_len
+                combined_row[15]  # forwar时长
+            )
+            combined_row = tuple([tuple_elements]) + tuple([process_req_info])
+            processed_data.append(combined_row)
         else:
-            combined_row[10] = 'decode'
-        tuple_elements = (
-            combined_row[10],  # batch_type
-            combined_row[9],  # batch_size
-            combined_row[16],  # total_need_blocks
-            int(combined_row[17]),  # total_prefill_token
-            int(combined_row[18]),  # max_seq_len
-            combined_row[15]  # forwar时长
-        )
-        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
-        processed_data.append(combined_row)
+            logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
     return processed_data
 
 
@@ -450,18 +442,6 @@ def req_decodetimes(input_path, output_path):
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
-parser = argparse.ArgumentParser(prog="Train Model.")
-parser.add_argument("-i", "--input", default=None, type=Path, required=True)
-parser.add_argument("-o", "--output", default=Path("output"), type=Path)
-parser.add_argument(
-        "-t", 
-        "--type", 
-        type=str, 
-        choices=["vllm", "mindie"], 
-        default="mindie",
-        help="Specify the type, either 'vllm' or 'mindie' (default: mindie)"
-    )
-
 
 def main(args):
     input_path = args.input
@@ -479,6 +459,3 @@ def main(args):
     req_decodetimes(input_path, output_path)
 
 
-if __name__ == '__main__':
-    _args = parser.parse_args()
-    main(_args)
