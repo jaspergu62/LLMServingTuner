@@ -109,6 +109,7 @@ def signal_handler(signum, frame):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
+    exit(0)
 
 
 file_log = FileLogger(Path(settings.benchmark.custom_collect_output_path).joinpath(f"simulate_{os.getpid()}.csv"))
@@ -199,7 +200,7 @@ class Simulate:
     @staticmethod
     def update_token(plugin_object, input_metadata, cached_ids, sampling_output):
         output_len_count = plugin_object.input_manager.cache.output_len_count[cached_ids]
-        for i, _ in enumerate(sampling_output.token_ids):
+        for i in range(len(sampling_output.token_ids)):
             _cur_out_len = output_len_count[i]
             if input_metadata.batch_request_ids[i] not in ServiceField.req_id_and_max_decode_length:
                 continue

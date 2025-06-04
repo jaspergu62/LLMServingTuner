@@ -10,12 +10,12 @@
         "work_path": "PATH_TO_BENCHMARK",
         "command": "/usr/bin/bash ./run_vllm_benchmark.sh"
     },
-    "smulator": {
+    "simulator": {
         "process_name": "vllm",
         "work_path": "PATH_TO_SIMULATOR",
         "command": "/usr/bin/bash ./run_vllm.sh"
     },
-    "target_feild": [
+    "target_field": [
         {
             "name": "MAX_NUM_BATCHED_TOKENS",
             "config_position": "env",

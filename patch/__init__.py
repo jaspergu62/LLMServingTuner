@@ -21,7 +21,7 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.common import get_module_version
 
 MINDIE_LLM = "mindie_llm"
-VLLM_Ascend = "vllm_ascend"
+VLLM_ASCEND = "vllm_ascend"
 
 simulate_patch = []
 optimize_patch = []
@@ -39,6 +39,11 @@ env_patch = {
     "MODEL_EVAL_STATE_COLLECT_ELEGANT": collection_patch_elegant,
     "MODEL_EVAL_STATE_SIMULATE_ELEGANT": simulate_patch_elegant,
     "MODEL_EVAL_STATE_ALL_ELEGANT": optimize_patch_elegant
+}
+
+vllm_env_patch = {
+    "MODEL_EVAL_STATE_SIMULATE": vllm_simulate_patch,
+    "MODEL_EVAL_STATE_ALL": vllm_optimize_patch
 }
 
 try:
@@ -59,31 +64,30 @@ try:
 except ImportError as e:
     warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
-
 try:
     from modelevalstate.patch.patch_vllm import PatchVllm
 
-    vllm_simulate_patch.append(PatchVllm)
     vllm_optimize_patch.append(PatchVllm)
+    vllm_simulate_patch.append(PatchVllm)
 except ImportError as e:
-    warn(f"Failed from .patch_manager import PatchVllm. error: {e}")
-
+    warn(f"Failed from .patch_vllm import PatchVllm. error: {e}")
 
 def enable_patch(targer_env):
     flag = []
     try:
         mindie_llm_version = get_module_version(MINDIE_LLM)
+
         for _p in env_patch.get(targer_env):
-             if _p.check_version(mindie_llm_version):
+            if _p.check_version(mindie_llm_version):
                 _p.patch()
                 flag.append(_p)
-    except (ModuleNotFoundError, ValueError): 
+    except (ModuleNotFoundError, ValueError):
         pass
 
     try:
-        vllm_ascend_version = get_module_version(VLLM_Ascend)
-        for _p in env_patch.get(targer_env):
-             if _p.check_version(vllm_ascend_version):
+        vllm_ascend_version = get_module_version(VLLM_ASCEND)
+        for _p in vllm_env_patch.get(targer_env):
+            if _p.check_version(vllm_ascend_version):
                 _p.patch()
                 flag.append(_p)
     except (ModuleNotFoundError, ValueError):
@@ -91,10 +95,3 @@ def enable_patch(targer_env):
 
     if flag:
         logger.info(f"Installed patch list {flag}.")
-    else:
-        logger.error(
-            f"No match patch version is found. current version: {mindie_llm_version}, "
-            f"support mindie_llm version {[getattr(_p, MINDIE_LLM) for _p in env_patch.get(targer_env)]}")
-        raise ValueError(
-            f"No match patch version is found. current version: {mindie_llm_version}, "
-            f"support mindie_llm version {[getattr(_p, MINDIE_LLM) for _p in env_patch.get(targer_env)]}")

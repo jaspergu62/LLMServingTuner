@@ -14,6 +14,8 @@
 # limitations under the License.
 
 
+import os
+import stat
 from pathlib import Path
 
 from loguru import logger
@@ -79,33 +81,13 @@ class Patch2rc1:
         plugin_manager_file = Path(file_path).joinpath("text_generator/plugins/plugin_manager.py").resolve()
         if not plugin_manager_file.exists():
             raise FileNotFoundError(plugin_manager_file)
-        # 读取文件，检查是否已经打过补丁
-        with open(plugin_manager_file, "r", encoding="utf-8") as f:
-            data = f.readlines()
-        with open(_patch_dir.joinpath("plugin_manager_patch.patch"), "r", encoding="utf-8") as f:
-            patch_data = f.readlines()
-        i = 0
-        diff_flag = True
-        for _o_row in data:
-            # 原来的代码
-            if i == 0 and _o_row != patch_data[0]:
-                continue
-            if i >= len(patch_data):
-                break
-            # 发现有补丁代码
-            if _o_row == patch_data[i]:
-                i += 1
-                diff_flag = False
-            else:
-                diff_flag = True
+        plugin_manager_patch = _patch_dir.joinpath("plugin_manager_patch.patch")
+        diff_flag = check_flag(plugin_manager_file, plugin_manager_patch)
         if not diff_flag:
             # 已经打过补丁，不需要打了
             logger.info("The patch aleady exists.")
-            return
-        with open(plugin_manager_file, 'a') as f:
-            for _row in patch_data:
-                f.write(_row)
-        # 没有打补丁的，添加补丁文件内容
-        logger.info("The patch is installed successfully.")
+        add_patch(plugin_manager_file, plugin_manager_patch)
 
 
+if __name__ == '__main__':
+    Patch2rc1.patch()

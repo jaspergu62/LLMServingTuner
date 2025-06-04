@@ -121,6 +121,7 @@ def signal_handler(signum, frame):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
+    exit(0)
 
 
 signal.signal(signal.SIGINT, signal_handler)

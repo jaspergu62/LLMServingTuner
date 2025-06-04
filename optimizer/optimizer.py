@@ -651,7 +651,7 @@ class VllmSimulator(Simulator):
         try:
             super().__init__(mindie_config, bak_path)
         except Exception as e:
-            pass
+            logger.info('VllmSimulator init failed')
         self.mindie_config = mindie_config
         self.mindie_log = None
         self.mindie_log_offset = 0
@@ -773,7 +773,7 @@ class Scheduler:
             try:
                 self.run_simulate(params, params_field)
             except Exception as e:
-                logger.error(f"Failed in Simulator Running. error: {e}， mindie log {self.simulator.mindie_log}")
+                logger.error(f"Failed in Simulator Running. error: {e}， simulator log {self.simulator.mindie_log}")
                 logger.exception("What?!")
                 self.stop_target_server(del_log=False)
                 continue

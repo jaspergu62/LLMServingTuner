@@ -108,15 +108,15 @@ class BenchMarkConfig(BaseModel):
     command: str = "/usr/bin/bash ./run_benchmark.sh"
     output_path: Path = custom_output.joinpath("instance")
     custom_collect_output_path: Path = Field(
-        default_factory=lambda: custom_output.joinpath("/result/custom_collect_output_path").resolve(),
+        default_factory=lambda: custom_output.joinpath("result/custom_collect_output_path").resolve(),
         validate_default=True
     )
     profile_input_path: Path = Field(
-        default_factory=lambda: custom_output.joinpath("/result/profile_input_path").resolve(),
+        default_factory=lambda: custom_output.joinpath("result/profile_input_path").resolve(),
         validate_default=True
     )
     profile_output_path: Path = Field(
-        default_factory=lambda: custom_output.joinpath("/result/profile_output_path").resolve(),
+        default_factory=lambda: custom_output.joinpath("result/profile_output_path").resolve(),
         validate_default=True
     )
 
