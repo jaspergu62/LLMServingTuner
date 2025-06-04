@@ -22,6 +22,40 @@ from packaging import version
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
 
+def check_flag(target_file, patch_file):
+    with open(target_file, "r", encoding="utf-8") as f:
+        data = f.readlines()
+    with open(patch_file, "r", encoding="utf-8") as f:
+        patch_data = f.readlines()
+    i = 0
+    diff_flag = True
+    for _o_row in data:
+        # 原来的代码
+        if i == 0 and _o_row != patch_data[0]:
+            continue
+        if i >= len(patch_data):
+            break
+        # 发现有补丁代码
+        if _o_row == patch_data[i]:
+            i += 1
+            diff_flag = False
+        else:
+            diff_flag = True
+    return diff_flag
+ 
+ 
+def add_patch(target_file, patch_file):
+    flags = os.O_WRONLY | os.O_CREAT
+    modes = stat.S_IWUSR | stat.S_IRUSR
+    with open(patch_file, "r", encoding="utf-8") as f:
+        patch_data = f.readlines()
+    with os.fdopen(os.open(target_file, flags, modes), "a") as f:
+        for _row in patch_data:
+            f.write(_row)
+    # 没有打补丁的，添加补丁文件内容
+    logger.info("The patch is installed successfully.")
+
+
 class Patch2rc1:
     mindie_llm = "2.0"
     mindie_llm_low = "2.0a9"

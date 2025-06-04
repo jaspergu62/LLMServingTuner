@@ -12,3 +12,37 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from pathlib import Path
+ 
+from loguru import logger
+ 
+from modelevalstate.patch.patch_manager import check_flag, add_patch
+ 
+_patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
+ 
+ 
+class PatchVllm:
+ 
+    @staticmethod
+    def check_version(target_version):
+        return True
+ 
+    @staticmethod
+    def patch():
+        import vllm_ascend
+        file_path = vllm_ascend.__path__[0]
+        # 检查文件是否存在
+        model_runner_file = Path(file_path).joinpath("worker/model_runner.py").resolve()
+        if not model_runner_file.exists():
+            raise FileNotFoundError(model_runner_file)
+        plugin_manager_patch = _patch_dir.joinpath("model_runner_patch.patch")
+        diff_flag = check_flag(model_runner_file, plugin_manager_patch)
+        if not diff_flag:
+            # 已经打过补丁，不需要打了
+            logger.info("The patch aleady exists.")
+        add_patch(model_runner_file, plugin_manager_patch)
+ 
+ 
+if __name__ == '__main__':
+    PatchVllm.patch()

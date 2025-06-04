@@ -388,6 +388,64 @@ class ProfilerBenchmark(BenchMark):
             logger.error(f"Failed to kill process. error {e}")
 
 
+class VllmBenchMark(BenchMark):
+    def __init__(self, benchmark_config: BenchMarkConfig, throughput_type: str = "common",
+                 bak_path: Optional[Path] = None):
+        super().__init__(benchmark_config, throughput_type, bak_path)
+        self.output_path = benchmark_config.output_path
+        if not self.output_path.exists():
+            self.output_path.mkdir(parents=True)
+ 
+    def get_performance_index(self):
+        output_path = Path(self.benchmark_config.output_path)
+        generate_speed = None
+        time_per_output_token = None
+        time_to_first_token = None
+        success_rate = None
+        for file in output_path.iterdir():
+            if not file.name.endswith(".json"):
+                continue
+            with open(file, mode='r', encoding="utf-8") as f:
+                data = json.load(f)
+            generate_speed = data.get("output_throughput", 0)
+            time_to_first_token = data.get("mean_ttft_ms", 0) / 10 ** 3
+            time_per_output_token = data.get("mean_tpot_ms", 0) / 10 ** 3
+            num_prompts = data.get("num_prompts", 1)
+            completed = data.get("completed", 0)
+            success_rate = completed / num_prompts
+        return PerformanceIndex(generate_speed=generate_speed,
+                                time_to_first_token=time_to_first_token,
+                                time_per_output_token=time_per_output_token,
+                                success_rate=success_rate)
+ 
+    def run(self, run_params: Tuple[OptimizerConfigField]):
+        # 启动测试
+        logger.info("Start the benchmark test.")
+        self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_benchmark")
+        self.run_log_offset = 0
+        if self.benchmark_config.work_path:
+            cwd = self.benchmark_config.work_path
+        else:
+            cwd = os.getcwd()
+        for k in run_params:
+            if k.config_position == "env":
+                try:
+                    os.environ[k.name] = str(k.value)
+                except KeyError as e:
+                    logger.error(f"Failed to set environment variable. error {e}")
+        if CUSTOM_OUTPUT not in os.environ:
+            os.environ[CUSTOM_OUTPUT] = str(custom_output)
+        os.environ["MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT"] = str(self.output_path)
+        run_cmd = shlex.split(self.benchmark_config.command)
+        try:
+            self.process = subprocess.Popen(run_cmd, env=os.environ, stdout=self.run_log_fp, stderr=subprocess.STDOUT,
+                                            text=True, cwd=cwd)
+        except OSError as e:
+            logger.error(f"Failed to run benchmark. error {e}")
+            raise e
+        logger.info(f"command: {' '.join(run_cmd)}, log file: {self.run_log}")
+
+
 class Simulator:
     def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
         self.mindie_config = mindie_config
@@ -553,7 +611,7 @@ class Simulator:
         self.start_server(run_params)
 
     def stop(self, del_log=True):
-        logger.info("Stop mindie simulator process")
+        logger.info("Stop simulator process")
         if self.bak_path:
             self.backup()
         close_file_fp(self.mindie_log_fp)
@@ -585,7 +643,79 @@ class Simulator:
             with os.fdopen(os.open(self.mindie_config.config_path, flags, modes), "w") as fout:
                 json.dump(self.default_config, fout)
         except Exception as e:
-            logger.error(f"Failed to stop mindie simulator process. {e}")
+            logger.error(f"Failed to stop simulator process. {e}")
+
+
+class VllmSimulator(Simulator):
+    def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
+        try:
+            super().__init__(mindie_config, bak_path)
+        except Exception as e:
+            pass
+        self.mindie_config = mindie_config
+        self.mindie_log = None
+        self.mindie_log_offset = 0
+        self.bak_path = bak_path
+        self.mindie_log_fp = None
+        self.process = None
+ 
+    def run(self, run_params: Tuple[OptimizerConfigField]):
+        logger.info(f'start run in simulator. run params: {run_params}')
+        # 启动mindie仿真
+        try:
+            self.check_env()
+        except Exception as e:
+            logger.error(f"Failed to check env. {e}")
+        self.start_server(run_params)
+ 
+    def check_success(self, print_log=False):
+        with open(self.mindie_log, "r") as f:
+            try:
+                f.seek(self.mindie_log_offset)
+                output = f.read()
+                self.mindie_log_offset = f.tell()
+            except Exception as e:
+                logger.info(f"Failed in read vllm log. error: {e}")
+        if output:
+            if print_log:
+                logger.info(f"simulate out: \n{output}")
+            if "Application startup complete." in output:
+                return True
+        if self.process.poll() is not None:
+            raise subprocess.SubprocessError(
+                f"Failed in run vllm. return code: {self.process.returncode}. "
+                f"Please check the service log or console output.")
+        return False
+ 
+    def stop(self, del_log=True):
+        logger.info("Stop simulator process")
+        if self.bak_path:
+            self.backup()
+        close_file_fp(self.mindie_log_fp)
+        if del_log:
+            remove_file(self.mindie_log)
+        self.mindie_log_offset = 0
+        if not self.process:
+            return
+        _process_state = self.process.poll()
+        if _process_state is not None:
+            logger.info(f"vllm already. exit_code: {_process_state}")
+            return
+        try:
+            children = psutil.Process(self.process.pid).children(recursive=True)
+            self.process.kill()
+            try:
+                self.process.wait(10)
+            except subprocess.TimeoutExpired:
+                self.process.send_signal(9)
+            if self.process.poll() is not None:
+                logger.info(f"The {self.process.pid} process has been shut down.")
+            else:
+                logger.error(f"The {self.process.pid} process shutdown failed.")
+            kill_children(children)
+            kill_process(self.mindie_config.process_name)
+        except Exception as e:
+            logger.error(f"Failed to stop simulator process. {e}")
 
 
 class Scheduler:
@@ -627,7 +757,7 @@ class Scheduler:
             if self.simulator.process.poll() is not None:
                 self.simulator.stop(del_log=False)
                 self.benchmark.stop(del_log=False)
-                raise subprocess.SubprocessError(f"Failed in run mindie. "
+                raise subprocess.SubprocessError(f"Failed in run simulator. "
                                                  f"return code: {self.simulator.process.returncode}.")
             if self.benchmark.check_success():
                 return
@@ -643,7 +773,7 @@ class Scheduler:
             try:
                 self.run_simulate(params, params_field)
             except Exception as e:
-                logger.error(f"Failed in Mindie Running. error: {e}， mindie log {self.simulator.mindie_log}")
+                logger.error(f"Failed in Simulator Running. error: {e}， mindie log {self.simulator.mindie_log}")
                 logger.exception("What?!")
                 self.stop_target_server(del_log=False)
                 continue
@@ -660,7 +790,7 @@ class Scheduler:
                 self.monitoring_status()
             except Exception as e:
                 self.stop_target_server(del_log=False)
-                logger.error(f"Failed in monitoring status. error: {e}, mindie log {self.simulator.mindie_log}, "
+                logger.error(f"Failed in monitoring status. error: {e}, simulator log {self.simulator.mindie_log}, "
                              f"benchmark log {self.benchmark.run_log}")
                 logger.exception("What?!")
                 continue
@@ -726,7 +856,7 @@ class ScheduleWithMultiMachine(Scheduler):
             if any([_i is not None for _i in all_poll]):
                 self.stop_target_server(del_log=False)
                 raise subprocess.SubprocessError(
-                    f"Failed in run mindie. all status: {all_poll}, machine info: master, {self.rpc_clients}.")
+                    f"Failed in run simulator. all status: {all_poll}, machine info: master, {self.rpc_clients}.")
             if self.benchmark.check_success():
                 return
             time.sleep(1)
@@ -858,10 +988,15 @@ class PSOOptimizer:
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
                                         breakpoint_cost=self.history_cost, **self.pso_init_kwargs)
         cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
+        best_position = {_field.name: _field.value for _field in map_param_with_value(joint_vars, self.target_field)}
+        logger.info(f"best cost {cost}, best joint_vars: {best_position}")
 
 
 def main(args: argparse.Namespace):
-    simulator = Simulator(settings.mindie)
+    if args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
+        simulator = VllmSimulator(settings.simulator)
+    else:
+        simulator = Simulator(settings.simulator)
     bak_path = None
     if args.backup:
         bak_path = settings.output.joinpath("bak")
@@ -875,8 +1010,10 @@ def main(args: argparse.Namespace):
             rpc_clients.append(rpc)
     # 单机benchmark
     time_sleep = os.getenv(IS_SLEEP_FLAG, "False").lower().strip() == "true"
-    if time_sleep:
+    if time_sleep and args.benchmark_policy == BenchMarkPolicy.benchmark.value:
         benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
+    elif time_sleep and args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
+        benchmark = VllmBenchMark(settings.benchmark, bak_path=bak_path)
     else:
         # 默认 自定义单机
         benchmark = ProfilerBenchmark(settings.benchmark, bak_path=bak_path, analyze_tool=AnalyzeTool.profiler)
@@ -912,6 +1049,9 @@ def arg_parse():
                         help="Indicates whether the multi-node running policy is used.")
     parser.add_argument("--backup", default=False, action="store_true",
                         help="Whether to back up data.")
+    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.benchmark.value,
+                        choices=[k.value for k in list(BenchMarkPolicy)],
+                        help="Whether to use custom performance indicators.")
     args = parser.parse_args()
     return args
 

@@ -70,12 +70,6 @@ except ImportError as e:
 
 
 def enable_patch(targer_env):
-    # mindie_llm_version = get_module_version(MINDIE_LLM)
-    # flag = []
-    # for _p in env_patch.get(targer_env):
-    #     if _p.check_version(mindie_llm_version):
-    #         _p.patch()
-    #         flag.append(_p)
     flag = []
     try:
         mindie_llm_version = get_module_version(MINDIE_LLM)
