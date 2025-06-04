@@ -35,11 +35,13 @@ else:
 class AnalyzeTool(Enum):
     default = "default"
     profiler = "profiler"
+    vllm_benchmark = "vllm"
 
 
 class BenchMarkPolicy(Enum):
     benchmark = "benchmark"
     profiler_benchmark = "profiler_benchmark"
+    vllm_benchmark = "vllm_benchmark"
 
 
 class DeployPolicy(Enum):
@@ -106,15 +108,15 @@ class BenchMarkConfig(BaseModel):
     command: str = "/usr/bin/bash ./run_benchmark.sh"
     output_path: Path = custom_output.joinpath("instance")
     custom_collect_output_path: Path = Field(
-        default_factory=lambda: custom_output.joinpath("/result/custom_collect_output_path").resolve(),
+        default_factory=lambda: custom_output.joinpath("result/custom_collect_output_path").resolve(),
         validate_default=True
     )
     profile_input_path: Path = Field(
-        default_factory=lambda: custom_output.joinpath("/result/profile_input_path").resolve(),
+        default_factory=lambda: custom_output.joinpath("result/profile_input_path").resolve(),
         validate_default=True
     )
     profile_output_path: Path = Field(
-        default_factory=lambda: custom_output.joinpath("/result/profile_output_path").resolve(),
+        default_factory=lambda: custom_output.joinpath("result/profile_output_path").resolve(),
         validate_default=True
     )
 
@@ -252,7 +254,7 @@ class Settings(BaseSettings):
         env_prefix="model_eval_state_")
     output: Path = Field(default_factory=lambda: custom_output.joinpath("result").resolve(), validate_default=True)
     latency_model: LatencyModel = LatencyModel()
-    mindie: MindieConfig = MindieConfig()
+    simulator: MindieConfig = MindieConfig()
     benchmark: BenchMarkConfig = BenchMarkConfig()
     data_storage: DataStorageConfig = DataStorageConfig()
     pso_options: PsoOptions = PsoOptions()
