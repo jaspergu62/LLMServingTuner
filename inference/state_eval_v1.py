@@ -121,7 +121,7 @@ def signal_handler(signum, frame):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
-    exit(0)
+    raise RuntimeError("signal handel, ending...")
 
 
 signal.signal(signal.SIGINT, signal_handler)

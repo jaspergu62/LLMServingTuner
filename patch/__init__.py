@@ -72,6 +72,7 @@ try:
 except ImportError as e:
     warn(f"Failed from .patch_vllm import PatchVllm. error: {e}")
 
+
 def enable_patch(targer_env):
     flag = []
     try:
