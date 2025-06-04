@@ -297,10 +297,10 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         tuple_elements = (
             combined_row[10],  # batch_type
             combined_row[9],  # batch_size
-            combined_row[13],  # total_need_blocks
-            int(combined_row[14]),  # total_prefill_token
-            int(combined_row[15]),  # max_seq_len
-            combined_row[12]  # forwar时长
+            combined_row[16],  # total_need_blocks
+            int(combined_row[17]),  # total_prefill_token
+            int(combined_row[18]),  # max_seq_len
+            combined_row[15]  # forwar时长
         )
         combined_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(combined_row)
