@@ -225,6 +225,10 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         current_batch_id = i
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
         if len(combined_row) >= 16:
+            if combined_row[10] == 'Prefill':
+                combined_row[10] = 'prefill'
+            else:
+                combined_row[10] = 'decode'
             tuple_elements = (
                 combined_row[10],  # batch_type
                 combined_row[9],   # batch_size
