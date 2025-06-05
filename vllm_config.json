@@ -7,19 +7,17 @@
     "decode_constrain": 0.05,
     "server": ["http://127.0.0.1:8080"],
     "benchmark": {
-        "work_path": "PATH_TO_BENCHMARK",
         "command": "/usr/bin/bash ./run_vllm_benchmark.sh"
     },
     "simulator": {
         "process_name": "vllm",
-        "work_path": "PATH_TO_SIMULATOR",
         "command": "/usr/bin/bash ./run_vllm.sh"
     },
     "target_field": [
         {
             "name": "MAX_NUM_BATCHED_TOKENS",
             "config_position": "env",
-            "min": 8192,
+            "min": 32768,
             "max": 65536,
             "dtype": "int"
         },
