@@ -25,8 +25,6 @@ from typing import Dict, List, Tuple, Any
 import pandas as pd
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.train.pretrain import pretrain
-
 
 def fetch_rids_from_db(db_path):
     try:
@@ -465,6 +463,8 @@ def arg_parse(subparsers):
 
 
 def main(args):
+    from msserviceprofiler.modelevalstate.train.pretrain import pretrain
+
     input_path = args.input
     output_path = args.output
     model_type = args.type
@@ -478,5 +478,3 @@ def main(args):
     input_csv_path = os.path.join(input_path, f'output_csv')
     pretrain(input_csv_path, output_path)
     req_decodetimes(input_path, output_path)
-
-
