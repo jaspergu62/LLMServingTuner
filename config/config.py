@@ -292,5 +292,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-logger.debug(f"expect load json file: {settings.model_config['json_file']}")
-logger.debug(f"load settings: {settings.model_dump()}")
