@@ -992,6 +992,24 @@ class PSOOptimizer:
         logger.info(f"best cost {cost}, best joint_vars: {best_position}")
 
 
+def arg_parse(subparsers):
+    parser = subparsers.add_parser(
+        "optimizer", formatter_class=argparse.ArgumentDefaultsHelpFormatter, help="optimize for performance"
+    )
+
+    parser.add_argument("-lb", "--load_breakpoint", action="store_true",
+                        help="Continue from where the last optimization was aborted.")
+    parser.add_argument("-d", "--deploy_policy", default=DeployPolicy.single.value,
+                        choices=[k.value for k in list(DeployPolicy)],
+                        help="Indicates whether the multi-node running policy is used.")
+    parser.add_argument("--backup", default=False, action="store_true",
+                        help="Whether to back up data.")
+    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.benchmark.value,
+                        choices=[k.value for k in list(BenchMarkPolicy)],
+                        help="Whether to use custom performance indicators.")
+    parser.set_defaults(func=main)
+
+
 def main(args: argparse.Namespace):
     if args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
         simulator = VllmSimulator(settings.simulator)
@@ -1038,24 +1056,3 @@ def main(args: argparse.Namespace):
                        load_breakpoint=args.load_breakpoint,
                        pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter})
     pso.run()
-
-
-def arg_parse():
-    parser = argparse.ArgumentParser(prog='optimizer')
-    parser.add_argument("-lb", "--load_breakpoint", default=False, action="store_true",
-                        help="Continue from where the last optimization was aborted.")
-    parser.add_argument("-d", "--deploy_policy", default=DeployPolicy.single.value,
-                        choices=[k.value for k in list(DeployPolicy)],
-                        help="Indicates whether the multi-node running policy is used.")
-    parser.add_argument("--backup", default=False, action="store_true",
-                        help="Whether to back up data.")
-    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.benchmark.value,
-                        choices=[k.value for k in list(BenchMarkPolicy)],
-                        help="Whether to use custom performance indicators.")
-    args = parser.parse_args()
-    return args
-
-
-if __name__ == '__main__':
-    _args = arg_parse()
-    main(_args)

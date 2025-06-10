@@ -446,6 +446,23 @@ def req_decodetimes(input_path, output_path):
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 
+def arg_parse(subparsers):
+    parser = subparsers.add_parser(
+        "train", formatter_class=argparse.ArgumentDefaultsHelpFormatter, help="train for auto optimize"
+    )
+
+    parser.add_argument("-i", "--input", default=None, type=Path, required=True)
+    parser.add_argument("-o", "--output", default=Path("output"), type=Path)
+    parser.add_argument(
+        "-t", 
+        "--type", 
+        type=str, 
+        choices=["vllm", "mindie"], 
+        default="mindie",
+        help="Specify the type, either 'vllm' or 'mindie' (default: mindie)"
+    )
+    parser.set_defaults(func=main)
+
 
 def main(args):
     input_path = args.input
