@@ -17,7 +17,7 @@ from pathlib import Path
  
 from loguru import logger
  
-from modelevalstate.patch.patch_manager import check_flag, add_patch
+from msserviceprofiler.modelevalstate.patch.patch_manager import check_flag, add_patch
  
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
  
@@ -40,7 +40,8 @@ class PatchVllm:
         diff_flag = check_flag(model_runner_file, plugin_manager_patch)
         if not diff_flag:
             # 已经打过补丁，不需要打了
-            logger.info("The patch aleady exists.")
+            logger.info("The patch already exists.")
+            return
         add_patch(model_runner_file, plugin_manager_patch)
  
  

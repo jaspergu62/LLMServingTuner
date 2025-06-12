@@ -86,6 +86,7 @@ class Patch2rc1:
         if not diff_flag:
             # 已经打过补丁，不需要打了
             logger.info("The patch aleady exists.")
+            return
         add_patch(plugin_manager_file, plugin_manager_patch)
 
 
