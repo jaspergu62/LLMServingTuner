@@ -35,7 +35,7 @@ except ModuleNotFoundError:
     except ModuleNotFoundError:
         from msserviceprofiler.modelevalstate.data_feature.dataset import MyDataSet
 from msserviceprofiler.modelevalstate.data_feature.dataset import CustomOneHotEncoder, CustomLabelEncoder, \
-    preset_category_data, DecodeDataSet
+    preset_category_data
 from msserviceprofiler.modelevalstate.data_feature.v1 import FileReader
 from msserviceprofiler.modelevalstate.inference.common import HistInfo, model_op_size, OP_EXPECTED_FIELD_MAPPING, \
     OP_SCALE_HIST_FIELD_MAPPING
@@ -484,48 +484,6 @@ class TrainVersion1:
         pm.train(train_data, middle_save_path=save_path)
         pm.bak_model()
 
-    @staticmethod
-    def train_req_xgb_model():
-        file_paths = [Path(r"D:\PyProject\state_eval\data\v1\llama3-8b-12-13\decode_num.csv")]
-        base_dir = get_train_sub_path()
-        logger.info('base_dir', base_dir)
-        sp = StateParam(
-            base_path=base_dir,
-            predict_field="output_length",
-            save_model=True,
-            shuffle=True,
-            plot_pred_and_real=True,
-            plot_data_feature=True,
-            start_num_lines=2000,
-            op_algorithm=OpAlgorithm.EXPECTED,
-            title="DecodeNumOfREQModel without warmup"
-        )
-        model = StateXgbModel(
-            train_param=sp.xgb_model_train_param,
-            update_param=sp.xgb_model_update_param,
-            save_model_path=sp.xgb_model_save_model_path,
-            load_model_path=sp.xgb_model_save_model_path,
-            show_test_data_prediction=sp.xgb_model_show_test_data_prediction,
-            show_feature_importance=sp.xgb_model_show_feature_importance,
-        )
-
-        dataset = DecodeDataSet(predict_field=sp.predict_field,
-                                shuffle=sp.shuffle)
-
-        pm = ReqDecodePretrainModel(state_param=sp, dataset=dataset, model=model, plt_data=sp.plot_data_feature)
-        fl = FileReader(file_paths, num_lines=sp.start_num_lines)
-        train_data = fl.read_lines()
-        save_path = sp.step_dir.joinpath("base")
-        save_path.mkdir(parents=True, exist_ok=True)
-        pm.train(train_data, middle_save_path=save_path)
-        pm.dataset.save(save_path)
-        save_path = sp.step_dir.joinpath("1")
-        save_path.mkdir(parents=True, exist_ok=True)
-        test_data = fl.read_lines()
-        pm.predict(test_data.reset_index(drop=True), save_path)
-        pm.plot_metric(sp.step_dir)
-        pm.dataset.save(save_path)
-        pm.save_readme()
 
 
 parser = argparse.ArgumentParser(prog="Train Model.")
