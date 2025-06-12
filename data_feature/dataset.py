@@ -196,7 +196,11 @@ class MyDataSet:
                 f"Failed construct_data, because the shapes of features and labels do not match. "
                 f"features shape {self.features.shape}, labels shape {self.labels.shape}"
             )
-        self.train_x, self.test_x, self.train_y, self.test_y = train_test_split(
+        if features.shape[0] == 1:
+            self.train_x = self.test_x = features
+            self.train_y = self.test_y = labels
+        else:
+            self.train_x, self.test_x, self.train_y, self.test_y = train_test_split(
             features, labels, test_size=self.test_size, shuffle=self.shuffle
         )
         logger.info("finished preprocess.")
@@ -318,109 +322,4 @@ class MyDataSet:
             self.plot_custom_pairplot(request_df, middle_save_path, "request_pairplot.png")
         except Exception as e:
             logger.error(f"error occur when plot request pairplot: {e}")
-
-
-class DecodeDataSet:
-    # 处理request和question数据，生成用来预测请求的decode轮数信息。
-    def __init__(
-        self,
-        predict_field: str = "output_length",
-        test_size=0.1,
-        shuffle=True,
-    ):
-        self.predict_field = predict_field
-        self.test_size = test_size
-        self.shuffle = shuffle
-        self.features = None
-        self.train_x = None
-        self.test_x = None
-        self.train_y = None
-        self.test_y = None
-        self.load_data = None
-        self.labels = None
-
-    @staticmethod
-    def count_punctuation_marks(line: str):
-        # 定义一个包含所有标点符号的正则表达式模式
-        punctuation_pattern = (r'[.,!?;:"\(\)\{\}\[\]\#\$\%\&\*\<\>\\\/\@\u3000\u3001\u3002\u300A\u300B\uFF01'
-                               r'\uFF03\uFF0E\u2018\u2019\u201C\u201D\u201F\u201E\u2032\u2036\u2039\u203B\u2045'
-                               r'\u205F\u301F\uFE50\uFF5E\uFF5F\uFF61\uFF62\uFF64\uFF65\uFF66\uFF67\uFF68\uFF69'
-                               r'\uFF6A\uFF6B\uFF6C\uFF6D\uFF6E\uFF6F\uFF70\uFF71\uFF72\uFF73\uFF74\uFF75\uFF76'
-                               r'\uFF77\uFF78\uFF79\uFF7A\uFF7B\uFF7C\uFF7D\uFF7E\uFF7F\uFF80\uFF81\uFF82\uFF83'
-                               r'\uFF84\uFF85\uFF86\uFF87\uFF88\uFF89\uFF8A\uFF8B\uFF8C\uFF8D\uFF8E\uFF8F\uFF90'
-                               r'\uFF91\uFF92\uFF93\uFF94\uFF95\uFF96\uFF97\uFF98\uFF99\uFF9A\uFF9B\uFF9C\uFF9D'
-                               r'\uFF9E\uFF9F\uFFA0\uFFA1\uFFA2\uFFA3\uFFA4\uFFA5\uFFA6\uFFA7\uFFA8\uFFA9\uFFAA'
-                               r'\uFFAB\uFFAC\uFFAD\uFFAE\uFFAF\uFFB0\uFFB1\uFFB2\uFFB3\uFFB4\uFFB5\uFFB6\uFFB7'
-                               r'\uFFB8\uFFB9\uFFBA\uFFBB\uFFBC\uFFBD\uFFBE\uFFBF\uFFC0\uFFC1\uFFC2\uFFC3\uFFC4'
-                               r'\uFFC5\uFFC6\uFFC7\uFFC8\uFFC9\uFFCA\uFFCB\uFFCC\uFFCD\uFFCE\uFFCF\uFFD0\uFFD1'
-                               r'\uFFD2\uFFD3\uFFD4\uFFD5\uFFD6\uFFD7\uFFD8\uFFD9\uFFDA\uFFDB\uFFDC\uFFDD\uFFDE'
-                               r'\uFFDF\uFFE0\uFFE1\uFFE2\uFFE3\uFFE4\uFFE5\uFFE6\uFFE7\uFFE8\uFFE9\uFFEA\uFFEB'
-                               r'\uFFEC\uFFED\uFFEE\uFFEF\uFFF0\uFFF1\uFFF2\uFFF3\uFFF4\uFFF5\uFFF6\uFFF7\uFFF8'
-                               r'\uFFF9\uFFFA\uFFFB\uFFFC\uFFFD\uFFFE\uFFFF]')
-
-        # 使用正则表达式查找所有标点符号
-        matches = re.findall(punctuation_pattern, line)
-
-        # 返回匹配的标点符号个数
-        return len(matches)
-
-    @staticmethod
-    def count_chars(line: str):
-        # 定义一个正则表达式模式来匹配中文字符
-        chinese_pattern = r"[^\x00-\xff]"
-        # 使用re.findall()函数来查找所有匹配的中文字符
-        chinese_matches = re.findall(chinese_pattern, line)
-
-        # 返回中文字符的个数
-        chinese_count = len(chinese_matches)
-
-        # 定义一个正则表达式模式来匹配英文字符
-        english_pattern = r"[a-zA-Z]"
-        # 使用re.findall()函数来查找所有匹配的英文字符
-        english_matches = re.findall(english_pattern, line)
-
-        # 返回英文字符的个数
-        english_count = len(english_matches)
-
-        other_count = len(line) - chinese_count - english_count
-        return chinese_count, english_count, other_count
-
-    def preprocess(self, lines_data: Optional[DataFrame] = None):
-        # 提取标点符号个数
-        lines_data["punctuation"] = lines_data["question"].apply(DecodeDataSet.count_punctuation_marks)
-        lines_data[["en_chart_count", "zh_chart_count", "other_chart_count"]] = (
-            lines_data["question"].apply(DecodeDataSet.count_chars).apply(pd.Series)
-        )
-        self.load_data = lines_data.drop(["question", "answer"], axis=1)
-        self.labels = self.load_data[self.predict_field]
-        self.features = self.load_data.drop(self.predict_field, axis=1)
-        return self.features, self.labels
-
-    def construct_data(
-        self, lines_data: Optional[DataFrame] = None, plt_data: bool = True, middle_save_path: Optional[Path] = None
-    ):
-        features, labels = self.preprocess(lines_data)
-        self.train_x, self.test_x, self.train_y, self.test_y = train_test_split(
-            features, labels, test_size=self.test_size, shuffle=self.shuffle
-        )
-        if plt_data:
-            self.plt_data(lines_data, middle_save_path)
-
-    def plt_data(self, line_data: DataFrame, middle_save_path: Optional[Path] = None):
-        logger.info("plt data")
-        p = sns.pairplot(self.load_data, corner=True)
-        if middle_save_path:
-            p.savefig(middle_save_path.joinpath(f"decore_num_feature.png"))
-        else:
-            plt.show()
-        plt.close()
-
-    def save(self, save_path: Path):
-        self.features.to_csv(save_path.joinpath("features_preprocess.csv"), index=False)
-        self.load_data.to_csv(save_path.joinpath("load_data.csv"), index=False)
-        self.test_x.to_csv(save_path.joinpath("test_x.csv"), index=False)
-        self.test_y.to_csv(save_path.joinpath("test_y.csv"), index=False)
-        self.train_x.to_csv(save_path.joinpath("train_x.csv"), index=False)
-        self.train_y.to_csv(save_path.joinpath("train_y.csv"), index=False)
-
 

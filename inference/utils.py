@@ -413,7 +413,7 @@ class PreprocessTool:
                     new_index.extend(default_field)
             elif v == "architectures":
                 for _arch in ALL_ARCHITECTURE:
-                    new_index.append(ALL_ARCHITECTURE_MAPPING.get(_arch))
+                    new_index.append(ALL_ARCHITECTURE_MAPPING.get(_arch.lower(), f"architecture__{_arch.lower()}"))
                     new_row.append([k.lower() for k in origin_row[i]].count(_arch))
             elif v == "quantize":
                 new_index.append(v)
