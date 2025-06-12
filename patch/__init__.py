@@ -47,7 +47,7 @@ vllm_env_patch = {
 }
 
 try:
-    from modelevalstate.patch.patch_manager import Patch2rc1
+    from msserviceprofiler.modelevalstate.patch.patch_manager import Patch2rc1
 
     simulate_patch.append(Patch2rc1)
     optimize_patch.append(Patch2rc1)
@@ -56,7 +56,7 @@ except ImportError as e:
     warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
 try:
-    from modelevalstate.patch.plugin_simulate_patch import Patch2rc1
+    from msserviceprofiler.modelevalstate.patch.plugin_simulate_patch import Patch2rc1
 
     simulate_patch_elegant.append(Patch2rc1)
     optimize_patch_elegant.append(Patch2rc1)
@@ -65,7 +65,7 @@ except ImportError as e:
     warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
 try:
-    from modelevalstate.patch.patch_vllm import PatchVllm
+    from msserviceprofiler.modelevalstate.patch.patch_vllm import PatchVllm
 
     vllm_optimize_patch.append(PatchVllm)
     vllm_simulate_patch.append(PatchVllm)
@@ -73,12 +73,12 @@ except ImportError as e:
     warn(f"Failed from .patch_vllm import PatchVllm. error: {e}")
 
 
-def enable_patch(targer_env):
+def enable_patch(target_env):
     flag = []
     try:
         mindie_llm_version = get_module_version(MINDIE_LLM)
 
-        for _p in env_patch.get(targer_env):
+        for _p in env_patch.get(target_env, []):
             if _p.check_version(mindie_llm_version):
                 _p.patch()
                 flag.append(_p)
@@ -87,7 +87,7 @@ def enable_patch(targer_env):
 
     try:
         vllm_ascend_version = get_module_version(VLLM_ASCEND)
-        for _p in vllm_env_patch.get(targer_env):
+        for _p in vllm_env_patch.get(target_env):
             if _p.check_version(vllm_ascend_version):
                 _p.patch()
                 flag.append(_p)
