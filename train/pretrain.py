@@ -593,6 +593,3 @@ def main(args):
     pretrain(_input_file, output)
 
 
-if __name__ == '__main__':
-    _args = parser.parse_args()
-    main(_args)
