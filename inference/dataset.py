@@ -122,20 +122,21 @@ class CustomOneHotEncoder:
 
     def transformer_optimize(self, data: List, data_column: List):
         self.update_encoders(data_column)
+        new_data = []
+        new_data_column = []
         for i, _one_hot_encoder in enumerate(self.one_hot_encoders):
             _one_hot_info = self.one_hots[i]
             _col_index = data_column.index(_one_hot_info.name)
-            encode_value = _one_hot_encoder.transform([data[_col_index], ])
+            encode_value = _one_hot_encoder.transform(np.array([[data[_col_index], ]]))
             _new_column = [
                 f"{_one_hot_info.name}__{i}" 
                 for k in _one_hot_encoder.categories_ 
                 for i in k
             ]
-            data.pop(_col_index)
-            data_column.pop(_col_index)
-            data = [*encode_value, *data]
-            data_column = [*_new_column, *data_column]
-        return data, data_column
+            new_data.extend(*encode_value.toarray().tolist())
+            new_data_column.extend(_new_column)
+        return new_data, new_data_column
+
 
 
 class CustomLabelEncoder:
