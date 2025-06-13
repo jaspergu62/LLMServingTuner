@@ -83,29 +83,3 @@ class RemoteScheduler:
         return None
 
 
-parser = argparse.ArgumentParser(description='Run the server.')
-parser.add_argument("host", default='127.0.0.1')
-parser.add_argument("port", default=8000, type=int)
-
-
-def main(host, port):
-    logger.info("server info. host:{}, port: {}", host, port)
-    # 创建服务器
-    with SimpleXMLRPCServer((host, port), allow_none=True,
-                            requestHandler=RequestHandler) as server:
-        server.register_introspection_functions()
-
-        server.register_function(get_file)
-        server.register_function(remove_file)
-        server.register_instance(RemoteScheduler())
-
-        # 运行服务器的主循环
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            sys.exit(0)
-
-
-if __name__ == '__main__':
-    args = parser.parse_args()
-    main(args.host, args.port)

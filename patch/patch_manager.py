@@ -89,6 +89,3 @@ class Patch2rc1:
             return
         add_patch(plugin_manager_file, plugin_manager_patch)
 
-
-if __name__ == '__main__':
-    Patch2rc1.patch()

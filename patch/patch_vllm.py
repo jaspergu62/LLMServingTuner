@@ -43,7 +43,4 @@ class PatchVllm:
             logger.info("The patch already exists.")
             return
         add_patch(model_runner_file, plugin_manager_patch)
- 
- 
-if __name__ == '__main__':
-    PatchVllm.patch()
+

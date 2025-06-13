@@ -109,8 +109,3 @@ def analyze(input_path_1, input_path_2):
     return throughput, avg_prefill_latency, average_decode_latency, success_precent
 
 
-if __name__ == '__main__':
-    try:
-        throughput, _, _, _ = analyze('/tmp/modelevalstate/profile_output_path', '/tmp/modelevalstate/train')
-    except Exception as e:
-        logger.warning(f"An error occurred: {e}")
