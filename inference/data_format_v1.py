@@ -53,6 +53,6 @@ ENV_FIELD = (
 EnvField = namedtuple("EnvField", ENV_FIELD)
 
 HARDWARE_FIELD = ("cpu_count", "cpu_mem", "soc_name", "npu_mem")
-HardWare = namedtuple("HardWare", HARDWARE_FIELD, defaults=[0, 0, "Ascend910B3", 0])
+HardWare = namedtuple("HardWare", HARDWARE_FIELD, defaults=[0, 0, "", 0])
 _config_field = ["model_path", "ohe_path", "static_file_dir", "req_and_decode_file", "cache_data"]
 ConfigPath = namedtuple("ConfigPath", _config_field, defaults=[None for _ in _config_field])

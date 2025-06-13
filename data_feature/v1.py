@@ -26,7 +26,7 @@ from msserviceprofiler.modelevalstate.inference.common import get_bins_and_label
 from msserviceprofiler.modelevalstate.inference.file_reader import StaticFile
 
 HARDWARE_FIELD = ("cpu_count", "cpu_mem", "soc_name", "npu_mem")
-HardWare = namedtuple("HardWare", HARDWARE_FIELD, defaults=[0, 0, "Ascend910B3", 0])
+HardWare = namedtuple("HardWare", HARDWARE_FIELD, defaults=[0, 0, "", 0])
 
 ENV_FIELD = (
     "atb_llm_razor_attention_enable", "atb_llm_razor_attention_rope", "bind_cpu", "mies_use_mb_swapper",
