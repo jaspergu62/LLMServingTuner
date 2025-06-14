@@ -16,8 +16,8 @@
 # modelevalstate
 import os
  
-from modelevalstate.inference.simulate import Simulate
-from modelevalstate.inference.simulate_vllm import SimulateVllm
+from msserviceprofiler.modelevalstate.inference.simulate import Simulate
+from msserviceprofiler.modelevalstate.inference.simulate_vllm import SimulateVllm
  
  
 MODEL_EVAL_STATE_COLLECT = "MODEL_EVAL_STATE_COLLECT"
