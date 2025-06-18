@@ -112,9 +112,11 @@ class CustomOneHotEncoder:
         for i, _one_hot_encoder in enumerate(self.one_hot_encoders):
             _one_hot_info = self.one_hots[i]
             encode_value = _one_hot_encoder.transform(x[_one_hot_info.name].values.reshape(-1, 1)).toarray()
-            _encode_df = pd.DataFrame(encode_value,
-                                      columns=[f"{_one_hot_info.name}__{i}" for k in _one_hot_encoder.categories_ for i
-                                               in k])
+            encode_columns = []
+            for categories in _one_hot_encoder.categories_:
+                for category in categories:
+                    encode_columns.append(f"{_one_hot_info.name}__{category}")
+            _encode_df = pd.DataFrame(encode_value, columns=encode_columns)
             x = pd.concat([_encode_df, x], axis=1)
             x = x.drop(_one_hot_info.name, axis=1)
 

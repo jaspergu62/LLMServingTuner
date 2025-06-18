@@ -158,6 +158,12 @@ class BenchMark:
         if not del_log:
             backup(self.run_log, self.bak_path, self.__class__.__name__)
 
+    def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
+        if common_generate_speed is None and perf_generate_token_speed is None:
+            raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
+        if first_token_time is None or decode_time is None:
+            raise ValueError("Not Found first_token_time.")
+        
     def get_performance_index(self):
         output_path = Path(self.benchmark_config.output_path)
         common_generate_speed = None
@@ -198,20 +204,15 @@ class BenchMark:
                     decode_time = float(df["DecodeTime"][0].split()[0])
                 except (AttributeError, KeyError) as e:
                     logger.error("Failed in get FirstTokenTime or GeneratedTokenSpeed. error: {}", e)
-        if common_generate_speed is None and perf_generate_token_speed is None:
-            raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
-        if first_token_time is None or decode_time is None:
-            raise ValueError("Not Found first_token_time.")
+        BenchMark.validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time)
         if self.throughput_type == "common":
             generate_speed = common_generate_speed
         else:
             generate_speed = perf_generate_token_speed
         time_to_first_token = first_token_time / 10 ** 3
         time_per_output_token = decode_time / 10 ** 3
-        return PerformanceIndex(generate_speed=generate_speed,
-                                time_to_first_token=time_to_first_token,
-                                time_per_output_token=time_per_output_token,
-                                success_rate=success_rate)
+        return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
+                                time_per_output_token=time_per_output_token, success_rate=success_rate)
 
     def prepare(self):
         remove_file(Path(self.benchmark_config.output_path))

@@ -14,7 +14,7 @@
 # limitations under the License.
 from functools import reduce, lru_cache
 from typing import Tuple
-
+from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
@@ -39,8 +39,37 @@ TOTAL_SEQ_LENGTH = "total_seq_length"
 TOTAL_PREFILL_TOKEN = "total_prefill_token"
 
 
-class PreprocessTool:
 
+@dataclass
+class RowData:
+    origin_row: list
+    origin_index: list
+    op_index_on_origin_rows: list
+    DTYPE_CATEGORY: list
+
+
+@dataclass
+class OpData:
+    op: str
+    op_input_param_hist_ratio: dict
+    op_output_hist_ratio: dict
+    op_delta_hist_ratio: dict
+
+
+@dataclass
+class OperatorProcessingConfig:
+    origin_row: list
+    origin_index: list
+    op_index_on_origin_rows: list
+    dtype_category: list
+    op: str
+    op_input_param_expected: dict
+    op_output_expected: dict
+    op_execute_delta_field: list
+    op_delta_expected: dict
+
+
+class PreprocessTool:
     @staticmethod
     @lru_cache(maxsize=32)
     def generate_data(row, column) -> Tuple:
@@ -176,6 +205,48 @@ class PreprocessTool:
         return _op_in_origin_row_index
 
     @staticmethod
+    def process_operator_info(k: str, config: OperatorProcessingConfig, new_row: list) -> list:
+        if "op_name" in k:
+            new_row.append(1)  # 使用该算子了，置为1
+        elif "call_count" in k:
+            _op_call_count = sum(
+                [int(config.origin_row[_i][config.origin_index.index("call_count")]) 
+                for _i in config.op_index_on_origin_rows])
+            new_row.append(_op_call_count)
+        elif "input_dtype" in k:
+            # 根据每种dtype类型，记录所有次数
+            for _dtype in config.dtype_category:
+                if _dtype in k:
+                    _cur_dtype_count = 0
+                    for _i in config.op_index_on_origin_rows:
+                        _cur_dtype_count += config.origin_row[_i][config.origin_index.index("input_dtype")].split(
+                            ";").count(_dtype)
+                    new_row.append(_cur_dtype_count)
+                    break
+        elif "input_size" in k:
+            # 计算期望
+            _op_param_index = int(k.split("__")[-1])
+            new_row.append(config.op_input_param_expected.get(_op_param_index, 0))
+        elif "output_dtype" in k:
+            for _dtype in config.dtype_category:
+                if _dtype in k:
+                    _cur_dtype_count = 0
+                    for _i in config.op_index_on_origin_rows:
+                        _cur_dtype_count += config.origin_row[_i][config.origin_index.index("output_dtype")].split(
+                            ";").count(_dtype)
+                    new_row.append(_cur_dtype_count)
+                    break
+        elif "output_size" in k:
+            _op_param_index = int(k.split("__")[-1])
+            new_row.append(config.op_output_expected.get(_op_param_index, 0))
+        else:
+            for _field in config.op_execute_delta_field:
+                if _field in k:
+                    new_row.append(config.op_delta_expected[_field].get(config.op, 0))
+        
+        return new_row
+
+    @staticmethod
     @lru_cache(maxsize=32)
     def generate_data_with_op_info(origin_row, origin_index) -> Tuple:
         new_index = []
@@ -198,42 +269,17 @@ class PreprocessTool:
                 for k, v in _cur_op_default.items():
                     new_index.append(k)
                     _op_index_on_origin_rows = _op_in_origin_row_index[_op]
-                    if "op_name" in k:
-                        new_row.append(1)  # 使用该算子了，置为1
-                    elif "call_count" in k:
-                        _op_call_count = sum(
-                            [int(origin_row[_i][origin_index.index("call_count")]) for _i in _op_index_on_origin_rows])
-                        new_row.append(_op_call_count)
-                    elif "input_dtype" in k:
-                        # 根据每种dtype 类型，记录所有次数
-                        for _dtype in DTYPE_CATEGORY:
-                            if _dtype in k:
-                                _cur_dtype_count = 0
-                                for _i in _op_index_on_origin_rows:
-                                    _cur_dtype_count += origin_row[_i][origin_index.index("input_dtype")].split(
-                                        ";").count(_dtype)
-                                new_row.append(_cur_dtype_count)
-                                break
-                    elif "input_size" in k:
-                        # 计算期望
-                        _op_param_index = int(k.split("__")[-1])
-                        new_row.append(_op_input_param_expected[_op].get(_op_param_index, v))
-                    elif "output_dtype" in k:
-                        for _dtype in DTYPE_CATEGORY:
-                            if _dtype in k:
-                                _cur_dtype_count = 0
-                                for _i in _op_index_on_origin_rows:
-                                    _cur_dtype_count += origin_row[_i][origin_index.index("output_dtype")].split(
-                                        ";").count(_dtype)
-                                new_row.append(_cur_dtype_count)
-                                break
-                    elif "output_size" in k:
-                        _op_param_index = int(k.split("__")[-1])
-                        new_row.append(_op_output_expected[_op].get(_op_param_index, v))
-                    else:
-                        for _field in OP_EXECUTE_DELTA_FIELD:
-                            if _field in k:
-                                new_row.append(_op_delta_expected[_field][_op])
+                    config = OperatorProcessingConfig(
+                        origin_row=origin_row,
+                        origin_index=origin_index,
+                        op_index_on_origin_rows=_op_index_on_origin_rows,
+                        dtype_category=DTYPE_CATEGORY,
+                        op=_op,
+                        op_input_param_expected=_op_input_param_expected,
+                        op_output_expected=_op_output_expected,
+                        op_execute_delta_field=OP_EXECUTE_DELTA_FIELD,
+                        op_delta_expected=_op_delta_expected
+                    )
 
         return tuple(new_row), tuple(new_index)
 
@@ -320,6 +366,56 @@ class PreprocessTool:
         return _op_input_param_hist_ratio
 
     @staticmethod
+    def process_row_data(k, row_data: RowData, op_data: OpData, new_row: list):
+        """
+        处理特定键值对数据，根据不同的键类型进行统计或计算。
+        Args:
+            k (str): 当前处理的键值对的键。
+            row_data (RowData): 包含原始数据和相关索引的 `dataclass`。
+            op_data (OpData): 包含操作相关数据的 `dataclass`。
+            new_row (list): 用于存储处理结果的新行。
+        Returns:
+            list: 处理后的结果行 `new_row`。
+        """
+        if "op_name" in k:
+            new_row.append(1)  # 使用该算子了，置为1
+        elif "input_dtype" in k:
+            # 根据每种dtype 类型，记录所有次数
+            for _dtype in row_data.DTYPE_CATEGORY:
+                if _dtype in k:
+                    _cur_dtype_count = 0
+                    for _i in row_data.op_index_on_origin_rows:
+                        _cur_dtype_count += row_data.origin_row[_i][row_data.origin_index.index("input_dtype")].split(
+                            ";").count(_dtype)
+                    new_row.append(_cur_dtype_count)
+                    break
+        elif "input_size" in k:
+            # 计算期望
+            _op_param_index = int(k.split("__")[-1])
+            ratio_key = "__".join(k.split("__")[-3:])  # 修复原始代码中的拼接错误
+            new_row.append(op_data.op_input_param_hist_ratio[op].get(f"{_op_param_index}__{ratio_key}", 0))
+        elif "output_dtype" in k:
+            for _dtype in row_data.DTYPE_CATEGORY:
+                if _dtype in k:
+                    _cur_dtype_count = 0
+                    for _i in row_data.op_index_on_origin_rows:
+                        _cur_dtype_count += row_data.origin_row[_i][row_data.origin_index.index("output_dtype")].split(
+                            ";").count(_dtype)
+                    new_row.append(_cur_dtype_count)
+                    break
+        elif "output_size" in k:
+            _op_param_index = int(k.split("__")[-1])
+            ratio_key = "__".join(k.split("__")[-3:])  # 修复原始代码中的拼接错误
+            new_row.append(op_data.op_output_hist_ratio[op].get(f"{_op_param_index}__{ratio_key}", 0))
+        elif "execute_delta" in k:
+            _op_param_index = int(k.split("__")[-1])
+            ratio_key = "__".join(k.split("__")[-3:])  # 修复原始代码中的拼接错误
+            new_row.append(op_data.op_delta_hist_ratio[op].get(f"{_op_param_index}__{ratio_key}", 0))
+        
+        return new_row
+
+
+    @staticmethod
     @lru_cache(maxsize=32)
     def generate_data_with_op_info_use_ratio(origin_row, origin_index) -> Tuple:
         new_index = []
@@ -343,40 +439,26 @@ class PreprocessTool:
                 for k, _ in _cur_op_default.items():
                     new_index.append(k)
                     _op_index_on_origin_rows = _op_in_origin_row_index[_op]
-                    if "op_name" in k:
-                        new_row.append(1)  # 使用该算子了，置为1
-                    elif "input_dtype" in k:
-                        # 根据每种dtype 类型，记录所有次数
-                        for _dtype in DTYPE_CATEGORY:
-                            if _dtype in k:
-                                _cur_dtype_count = 0
-                                for _i in _op_index_on_origin_rows:
-                                    _cur_dtype_count += origin_row[_i][origin_index.index("input_dtype")].split(
-                                        ";").count(_dtype)
-                                new_row.append(_cur_dtype_count)
-                                break
-                    elif "input_size" in k:
-                        # 计算期望
-                        _op_param_index = int(k.split("__")[-1])
-                        ratio_key = k.split("__")[-3:].join("__")
-                        new_row.append(_op_input_param_hist_ratio[_op].get(f"{_op_param_index}__{ratio_key}", 0))
-                    elif "output_dtype" in k:
-                        for _dtype in DTYPE_CATEGORY:
-                            if _dtype in k:
-                                _cur_dtype_count = 0
-                                for _i in _op_index_on_origin_rows:
-                                    _cur_dtype_count += origin_row[_i][origin_index.index("output_dtype")].split(
-                                        ";").count(_dtype)
-                                new_row.append(_cur_dtype_count)
-                                break
-                    elif "output_size" in k:
-                        _op_param_index = int(k.split("__")[-1])
-                        ratio_key = k.split("__")[-3:].join("__")
-                        new_row.append(_op_output_hist_ratio[_op].get(f"{_op_param_index}__{ratio_key}", 0))
-                    elif "execute_delta" in k:
-                        _op_param_index = int(k.split("__")[-1])
-                        ratio_key = k.split("__")[-3:].join("__")
-                        new_row.append(_op_delta_hist_ratio[_op].get(f"{_op_param_index}__{ratio_key}", 0))
+                    # 创建 RowData 实例
+                    row_data = RowData(
+                        origin_row=origin_row,
+                        origin_index=origin_index,
+                        op_index_on_origin_rows=op_index_on_origin_rows,
+                        DTYPE_CATEGORY=DTYPE_CATEGORY
+                    )
+                    # 创建 OpData 实例
+                    op_data = OpData(
+                        op=_op,
+                        op_input_param_hist_ratio=_op_input_param_hist_ratio,
+                        op_output_hist_ratio=_op_output_hist_ratio,
+                        op_delta_hist_ratio=_op_delta_hist_ratio
+                    )
+                    new_row = process_row_data(
+                        k=k,
+                        row_data=row_data,
+                        op_data=op_data,
+                        new_row=new_row
+                    )
 
         return tuple(new_row), tuple(new_index)
 
@@ -399,14 +481,19 @@ class PreprocessTool:
         default_value = (UNDEFINED, UNDEFINED, UNDEFINED)
         new_index = []
         new_row = []
+
+        def get_value_with_default(dictionary, key, default):
+            value = dictionary.get(key, default)
+            if not value:
+                value = default
+            return value
+
         for i, v in enumerate(origin_index):
             if v == quantization_prefix_config:
                 if origin_row[i]:
                     for k, w in enumerate(default_field):
                         new_index.append(w)
-                        _tmp_value = origin_row[i].get(w, default_value[k])
-                        if not _tmp_value:
-                            _tmp_value = default_value[k]
+                        _tmp_value = get_value_with_default(origin_row[i], w, default_value[k])
                         new_row.append(_tmp_value)
                 else:
                     new_row.extend(default_value)

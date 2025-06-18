@@ -179,8 +179,35 @@ class ExecutionDataMindie:
     batch_id_block_sum: Dict[int, float]
 
 
-def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
+def process_row_data_vllm(combined_row, process_req_info):
     processed_data = []
+    if len(combined_row) >= 16:
+        # 处理 combined_row[10]
+        if combined_row[10] == 'Prefill':
+            combined_row[10] = 'prefill'
+        else:
+            combined_row[10] = 'decode'
+        
+        # 创建元组元素
+        tuple_elements = (
+            combined_row[10],   # batch_type
+            combined_row[9],    # batch_size
+            combined_row[13],   # total_need_blocks
+            int(combined_row[14]),  # total_prefill_token
+            int(combined_row[15]),  # max_seq_len
+            combined_row[12]    # forward时长
+        )
+        
+        # 组合新的元组并添加到 processed_data
+        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
+        processed_data.append(combined_row)
+    else:
+        logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
+    
+    return processed_data
+
+
+def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
     check_attrs = ["exec_data", "batch_data", "req_df", "rids_ori", "kvcache_df"]
     for attr in check_attrs:
         if getattr(csv_data, attr, None) is None:
@@ -222,28 +249,33 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         model_exec = end - start
         current_batch_id = i
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        if len(combined_row) >= 16:
-            if combined_row[10] == 'Prefill':
-                combined_row[10] = 'prefill'
-            else:
-                combined_row[10] = 'decode'
-            tuple_elements = (
-                combined_row[10],  # batch_type
-                combined_row[9],   # batch_size
-                combined_row[13],   # total_need_blocks
-                int(combined_row[14]),  # total_prefill_token
-                int(combined_row[15]),  # max_seq_len
-                combined_row[12]  # forwar时长
-            )
-            combined_row = tuple([tuple_elements]) + tuple([process_req_info])
-            processed_data.append(combined_row)
-        else:
-            logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
+        processed_data = process_row_data_vllm(combined_row, process_req_info)
     return processed_data
 
 
-def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
+def process_row_data_mindie(combined_row, process_req_info):
     processed_data = []
+    if len(combined_row) >= 19:
+        if combined_row[10] == 'Prefill':
+            combined_row[10] = 'prefill'
+        else:
+            combined_row[10] = 'decode'
+        tuple_elements = (
+            combined_row[10],  # batch_type
+            combined_row[9],  # batch_size
+            combined_row[16],  # total_need_blocks
+            int(combined_row[17]),  # total_prefill_token
+            int(combined_row[18]),  # max_seq_len
+            combined_row[15]  # forwar时长
+        )
+        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
+        processed_data.append(combined_row)
+    else:
+        logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
+    return processed_data
+    
+
+def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
     check_attrs = ["exec_data", "batch_data", "req_df", "rids_ori", "index_dict", "batch_id_block_sum"]
     for attr in check_attrs:
         if getattr(csv_data, attr, None) is None:
@@ -281,23 +313,7 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         current_batch_id = i
         block_sum = csv_data.batch_id_block_sum.get(current_batch_id + 1, 0)
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        if len(combined_row) >= 19:
-            if combined_row[10] == 'Prefill':
-                combined_row[10] = 'prefill'
-            else:
-                combined_row[10] = 'decode'
-            tuple_elements = (
-                combined_row[10],  # batch_type
-                combined_row[9],  # batch_size
-                combined_row[16],  # total_need_blocks
-                int(combined_row[17]),  # total_prefill_token
-                int(combined_row[18]),  # max_seq_len
-                combined_row[15]  # forwar时长
-            )
-            combined_row = tuple([tuple_elements]) + tuple([process_req_info])
-            processed_data.append(combined_row)
-        else:
-            logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
+        processed_data = process_row_data_mindie(combined_row, process_req_info)
     return processed_data
 
 

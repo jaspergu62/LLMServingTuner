@@ -27,32 +27,21 @@ def generate_token(self, input_metadata):
     from mindie_llm.modeling.backend_type import BackendType
     from mindie_llm.utils.env import ENV
     from mindie_llm.utils.prof.profiler import span_start, span_end, span_req
-
-    logger.info("proprocess")
     prof = span_start("preprocess", True)
     self.plugin_data_param.q_len = None
     self.plugin_data_param.mask = None
     cache_ids, model_inputs, sampling_metadata, trace_ids = self.preprocess(input_metadata)
-    logger.info("model_inputs_update_manager")
     model_inputs, qlen, mask = self.model_inputs_update_manager(model_inputs, input_metadata, cache_ids)
     self.plugin_data_param.q_len = qlen if qlen is not None else self.plugin_data_param.q_len
     self.plugin_data_param.mask = mask if mask is not None else self.plugin_data_param.mask
     span_req(prof, trace_ids)
-    prof.attr("blocks", [int(x) for x in np.count_nonzero(input_metadata.block_tables > -1, axis=1)])
-    logger.info("generate_token")
-    logger.info("simulate init")
     try:
         Simulate.init(self)
-    except Exception as e:
-        logger.error(f"Failed in simulate init. error {e}")
-        raise e
-    try:
         Simulate.generate_features(self, input_metadata, cache_ids)
     except Exception as e:
         logger.error(f"Failed in generate features, error {e}")
         raise e
     prof = span_start("forward", True)
-    logger.info("forward")
     if ServiceField.batch_field:
         Simulate.predict_and_save()
         result = Simulate.generate_logits(input_metadata.block_tables.shape[0],
@@ -74,15 +63,12 @@ def generate_token(self, input_metadata):
     else:
         logits = result
     span_end(prof, True)
-    logger.info("sample")
     prof = span_start("sample", True)
     draft_filtered_logits = self.sample_preprocess_manager(logits, sampling_metadata, input_metadata)
     sampling_output = self.generator_backend.sample(draft_filtered_logits, sampling_metadata)
     span_end(prof, True)
-    logger.info("postprocess")
     prof = span_start("postprocess", True)
-    generation_output = self.postprocess(
-        cache_ids, input_metadata, result, sampling_metadata, sampling_output)
+    generation_output = self.postprocess(cache_ids, input_metadata, result, sampling_metadata, sampling_output)
     span_end(prof, True)
     generation_output.trace_ids = trace_ids
     return generation_output
