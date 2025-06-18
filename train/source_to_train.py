@@ -181,7 +181,7 @@ class ExecutionDataMindie:
 
 def process_row_data_vllm(combined_row, process_req_info):
     processed_data = []
-    if len(combined_row) >= 16:   #合并后的vllm_profiling数据长度
+    if len(combined_row) >= 16:
         # 处理 combined_row[10]
         if combined_row[10] == 'Prefill':
             combined_row[10] = 'prefill'
@@ -199,12 +199,9 @@ def process_row_data_vllm(combined_row, process_req_info):
         )
         
         # 组合新的元组并添加到 processed_data
-        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
-        processed_data.append(combined_row)
     else:
         logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
-    
-    return processed_data
+    return tuple_elements, process_req_info
 
 
 def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
@@ -212,6 +209,7 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
     for attr in check_attrs:
         if getattr(csv_data, attr, None) is None:
             raise ValueError(f"{attr} cannot be None")
+    processed_data = []
     for i, _ in enumerate(csv_data.exec_data):
         exec_row = csv_data.exec_data[i]
         batch_row = csv_data.batch_data[i]
@@ -249,13 +247,14 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         model_exec = end - start
         current_batch_id = i
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        processed_data = process_row_data_vllm(combined_row, process_req_info)
+        tuple_elements, process_req_info = process_row_data_vllm(combined_row, process_req_info)
+        process_row = tuple([tuple_elements]) + tuple([process_req_info])
+        processed_data.append(process_row)
     return processed_data
 
 
 def process_row_data_mindie(combined_row, process_req_info):
-    processed_data = []
-    if len(combined_row) >= 19:  #合并后的mindie_profiling数据长度
+    if len(combined_row) >= 19:
         if combined_row[10] == 'Prefill':
             combined_row[10] = 'prefill'
         else:
@@ -268,11 +267,9 @@ def process_row_data_mindie(combined_row, process_req_info):
             int(combined_row[18]),  # max_seq_len
             combined_row[15]  # forwar时长
         )
-        combined_row = tuple([tuple_elements]) + tuple([process_req_info])
-        processed_data.append(combined_row)
     else:
         logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
-    return processed_data
+    return tuple_elements, process_req_info
     
 
 def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
@@ -280,6 +277,7 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
     for attr in check_attrs:
         if getattr(csv_data, attr, None) is None:
             raise ValueError(f"{attr} cannot be None")
+    processed_data = []
     for i, _ in enumerate(csv_data.exec_data):
         exec_row = csv_data.exec_data[i]
         batch_row = csv_data.batch_data[i]
@@ -313,7 +311,9 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         current_batch_id = i
         block_sum = csv_data.batch_id_block_sum.get(current_batch_id + 1, 0)
         combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        processed_data = process_row_data_mindie(combined_row, process_req_info)
+        tuple_elements, process_req_info = process_row_data_mindie(combined_row, process_req_info)
+        process_row = tuple([tuple_elements]) + tuple([process_req_info])
+        processed_data.append(process_row)
     return processed_data
 
 
@@ -416,7 +416,7 @@ def source_to_model(input_path: str, model_type: str):
                 value = row[4]
                 index_dict[key] = value
                 batch_id_block_sum = calculate_block_sums(req_rows)
-                csv_data = ProcessedDataMindie(input_path,
+            csv_data = ProcessedDataMindie(input_path,
                 data_by_pid,
                 batch_rows,
                 req_df,
