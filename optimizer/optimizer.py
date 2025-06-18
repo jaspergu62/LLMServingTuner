@@ -136,6 +136,13 @@ def close_file_fp(file_fp):
         return
 
 
+def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
+    if common_generate_speed is None and perf_generate_token_speed is None:
+        raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
+    if first_token_time is None or decode_time is None:
+        raise ValueError("Not Found first_token_time.")
+        
+
 @atexit.register
 def clearing_residual_process():
     kill_process(MindieConfig().process_name)
@@ -157,12 +164,6 @@ class BenchMark:
         backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
         if not del_log:
             backup(self.run_log, self.bak_path, self.__class__.__name__)
-
-    def validate_parameters(self, common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
-        if common_generate_speed is None and perf_generate_token_speed is None:
-            raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
-        if first_token_time is None or decode_time is None:
-            raise ValueError("Not Found first_token_time.")
         
     def get_performance_index(self):
         output_path = Path(self.benchmark_config.output_path)
@@ -204,7 +205,7 @@ class BenchMark:
                     decode_time = float(df["DecodeTime"][0].split()[0])
                 except (AttributeError, KeyError) as e:
                     logger.error("Failed in get FirstTokenTime or GeneratedTokenSpeed. error: {}", e)
-        BenchMark.validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time)
+        validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time)
         if self.throughput_type == "common":
             generate_speed = common_generate_speed
         else:
