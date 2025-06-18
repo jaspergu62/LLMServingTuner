@@ -181,7 +181,7 @@ class ExecutionDataMindie:
 
 def process_row_data_vllm(combined_row, process_req_info):
     processed_data = []
-    if len(combined_row) >= 16:
+    if len(combined_row) >= 16:   #合并后的vllm_profiling数据长度
         # 处理 combined_row[10]
         if combined_row[10] == 'Prefill':
             combined_row[10] = 'prefill'
@@ -255,7 +255,7 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
 
 def process_row_data_mindie(combined_row, process_req_info):
     processed_data = []
-    if len(combined_row) >= 19:
+    if len(combined_row) >= 19:  #合并后的mindie_profiling数据长度
         if combined_row[10] == 'Prefill':
             combined_row[10] = 'prefill'
         else:
