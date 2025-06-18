@@ -45,7 +45,7 @@ class RowData:
     origin_row: list
     origin_index: list
     op_index_on_origin_rows: list
-    DTYPE_CATEGORY: list
+    dtype_category: list
 
 
 @dataclass
@@ -205,7 +205,7 @@ class PreprocessTool:
         return _op_in_origin_row_index
 
     @staticmethod
-    def process_operator_info(k: str, config: OperatorProcessingConfig, new_row: list) -> list:
+    def process_operator_info(k: str, v: str, config: OperatorProcessingConfig, new_row: list) -> list:
         if "op_name" in k:
             new_row.append(1)  # 使用该算子了，置为1
         elif "call_count" in k:
@@ -226,7 +226,7 @@ class PreprocessTool:
         elif "input_size" in k:
             # 计算期望
             _op_param_index = int(k.split("__")[-1])
-            new_row.append(config.op_input_param_expected.get(_op_param_index, 0))
+            new_row.append(config.op_input_param_expected.get(_op_param_index, v))
         elif "output_dtype" in k:
             for _dtype in config.dtype_category:
                 if _dtype in k:
@@ -238,11 +238,11 @@ class PreprocessTool:
                     break
         elif "output_size" in k:
             _op_param_index = int(k.split("__")[-1])
-            new_row.append(config.op_output_expected.get(_op_param_index, 0))
+            new_row.append(config.op_output_expected.get(_op_param_index, v))
         else:
             for _field in config.op_execute_delta_field:
                 if _field in k:
-                    new_row.append(config.op_delta_expected[_field].get(config.op, 0))
+                    new_row.append(config.op_delta_expected[_field][config.op])
         
         return new_row
 
@@ -280,6 +280,7 @@ class PreprocessTool:
                         op_execute_delta_field=OP_EXECUTE_DELTA_FIELD,
                         op_delta_expected=_op_delta_expected
                     )
+                    new_row = PreprocessTool.process_operator_info(k=k, v=v, config=config, new_row=new_row)
 
         return tuple(new_row), tuple(new_index)
 
@@ -367,21 +368,11 @@ class PreprocessTool:
 
     @staticmethod
     def process_row_data(k, row_data: RowData, op_data: OpData, new_row: list):
-        """
-        处理特定键值对数据，根据不同的键类型进行统计或计算。
-        Args:
-            k (str): 当前处理的键值对的键。
-            row_data (RowData): 包含原始数据和相关索引的 `dataclass`。
-            op_data (OpData): 包含操作相关数据的 `dataclass`。
-            new_row (list): 用于存储处理结果的新行。
-        Returns:
-            list: 处理后的结果行 `new_row`。
-        """
         if "op_name" in k:
             new_row.append(1)  # 使用该算子了，置为1
         elif "input_dtype" in k:
             # 根据每种dtype 类型，记录所有次数
-            for _dtype in row_data.DTYPE_CATEGORY:
+            for _dtype in row_data.dtype_category:
                 if _dtype in k:
                     _cur_dtype_count = 0
                     for _i in row_data.op_index_on_origin_rows:
@@ -393,9 +384,9 @@ class PreprocessTool:
             # 计算期望
             _op_param_index = int(k.split("__")[-1])
             ratio_key = "__".join(k.split("__")[-3:])  # 修复原始代码中的拼接错误
-            new_row.append(op_data.op_input_param_hist_ratio[op].get(f"{_op_param_index}__{ratio_key}", 0))
+            new_row.append(op_data.op_input_param_hist_ratio[op_data.op].get(f"{_op_param_index}__{ratio_key}", 0))
         elif "output_dtype" in k:
-            for _dtype in row_data.DTYPE_CATEGORY:
+            for _dtype in row_data.dtype_category:
                 if _dtype in k:
                     _cur_dtype_count = 0
                     for _i in row_data.op_index_on_origin_rows:
@@ -406,11 +397,11 @@ class PreprocessTool:
         elif "output_size" in k:
             _op_param_index = int(k.split("__")[-1])
             ratio_key = "__".join(k.split("__")[-3:])  # 修复原始代码中的拼接错误
-            new_row.append(op_data.op_output_hist_ratio[op].get(f"{_op_param_index}__{ratio_key}", 0))
+            new_row.append(op_data.op_output_hist_ratio[op_data.op].get(f"{_op_param_index}__{ratio_key}", 0))
         elif "execute_delta" in k:
             _op_param_index = int(k.split("__")[-1])
             ratio_key = "__".join(k.split("__")[-3:])  # 修复原始代码中的拼接错误
-            new_row.append(op_data.op_delta_hist_ratio[op].get(f"{_op_param_index}__{ratio_key}", 0))
+            new_row.append(op_data.op_delta_hist_ratio[op_data.op].get(f"{_op_param_index}__{ratio_key}", 0))
         
         return new_row
 
@@ -443,7 +434,7 @@ class PreprocessTool:
                     row_data = RowData(
                         origin_row=origin_row,
                         origin_index=origin_index,
-                        op_index_on_origin_rows=op_index_on_origin_rows,
+                        op_index_on_origin_rows=_op_index_on_origin_rows,
                         DTYPE_CATEGORY=DTYPE_CATEGORY
                     )
                     # 创建 OpData 实例
@@ -453,7 +444,7 @@ class PreprocessTool:
                         op_output_hist_ratio=_op_output_hist_ratio,
                         op_delta_hist_ratio=_op_delta_hist_ratio
                     )
-                    new_row = process_row_data(
+                    new_row = PreprocessTool.process_row_data(
                         k=k,
                         row_data=row_data,
                         op_data=op_data,
