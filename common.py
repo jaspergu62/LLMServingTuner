@@ -98,8 +98,8 @@ def get_module_version(module_name):
         pass
 
     # # 方法4：最后尝试 pip show
+    _flag = "MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG"
     try:
-        _flag = "MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG"
         if os.getenv(_flag) == "true":
             raise ValueError
         output = subprocess.check_output(
