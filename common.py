@@ -1,6 +1,8 @@
 # !/usr/bin/python3.7
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
+import os
+import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -72,7 +74,6 @@ def update_global_coefficient(global_coefficient: Dict, key: State, value: float
 def get_module_version(module_name):
     try:
         # 方法1：直接导入模块
-        # fix
         import importlib
         module = importlib.import_module(module_name)
         if hasattr(module, "__version__"):
@@ -96,12 +97,15 @@ def get_module_version(module_name):
     except (ImportError):
         pass
 
-    # 方法4：最后尝试 pip show
+    # # 方法4：最后尝试 pip show
     try:
-        import subprocess
+        _flag = "MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG"
+        if os.getenv(_flag) == "true":
+            raise ValueError
         output = subprocess.check_output(
             ["/usr/bin/pip", "show", module_name],
-            universal_newlines=True
+            universal_newlines=True,
+            env={"MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG": "true"}
         )
         for line in output.splitlines():
             if line.startswith("Version:"):
@@ -110,3 +114,4 @@ def get_module_version(module_name):
         pass
 
     raise ValueError("模块未安装或无法获取版本")
+
