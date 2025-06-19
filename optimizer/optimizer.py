@@ -837,6 +837,13 @@ class Scheduler:
 class ScheduleWithMultiMachine(Scheduler):
     def __init__(self, communication_config: CommunicationConfig, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.communication_config = communication_config
+        self.communication = CommunicationForFile(self.communication_config.cmd_file,
+            self.communication_config.res_file)
+        self.cmd = CustomCommand()
+        _cmd = self.cmd.init
+        self.communication.send_command(_cmd)
+        self.communication.clear_command(_cmd)
 
     def back_up(self):
         if self.bak_path:
