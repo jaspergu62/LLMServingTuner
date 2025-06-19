@@ -23,12 +23,10 @@ import stat
 import subprocess
 import tempfile
 import time
-import xmlrpc.client
 from copy import deepcopy
 from math import exp, inf
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
-from xmlrpc.client import ServerProxy
 
 import numpy as np
 import pandas as pd
@@ -38,11 +36,12 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
     DeployPolicy, map_param_with_value, MODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path, \
-    CUSTOM_OUTPUT, custom_output, BenchMarkPolicy
+    CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig
 from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
     PerformanceIndex, OptimizerConfigField
 from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
+from msserviceprofiler.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 
@@ -836,9 +835,8 @@ class Scheduler:
 
 
 class ScheduleWithMultiMachine(Scheduler):
-    def __init__(self, rpc_clients: List[ServerProxy], *args, **kwargs):
+    def __init__(self, communication_config: CommunicationConfig, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.rpc_clients = rpc_clients
 
     def back_up(self):
         if self.bak_path:
