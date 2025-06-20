@@ -23,23 +23,32 @@ import stat
 import subprocess
 import tempfile
 import time
+import xmlrpc.client
 from copy import deepcopy
 from math import exp, inf
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
+from xmlrpc.client import ServerProxy
 
 import numpy as np
 import pandas as pd
 import psutil
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings
-from msserviceprofiler.modelevalstate.config.config import DeployPolicy, map_param_with_value, OptimizerConfigField
-from msserviceprofiler.modelevalstate.config.config import MODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path
-from msserviceprofiler.modelevalstate.config.config import CUSTOM_OUTPUT, custom_output, BenchMarkPolicy
-from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, PerformanceIndex
+from msserviceprofiler.modelevalstate.common import get_train_sub_path
+from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
+    DeployPolicy, map_param_with_value, MODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path, \
+    CUSTOM_OUTPUT, custom_output, BenchMarkPolicy
+from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
+    PerformanceIndex, OptimizerConfigField
+from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG
+from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
+from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
+from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 
-ANALYZE_MAPPING = {}
+_analyze_mapping = {
+    AnalyzeTool.profiler.value: analyze_profiler
+}
 
 
 def kill_children(children):
@@ -287,7 +296,7 @@ class ProfilerBenchmark(BenchMark):
 
     def extra_performance_index(self, *args, **kwargs):
         logger.info("extra_performance_index")
-        analyze_tool = ANALYZE_MAPPING.get(self.analyze_tool)
+        analyze_tool = _analyze_mapping.get(self.analyze_tool)
         if analyze_tool is None:
             raise ValueError(f"Analyze tool not found: {self.analyze_tool}")
         res = analyze_tool(*args, **kwargs)
@@ -712,7 +721,7 @@ class VllmSimulator(Simulator):
 
 
 class Scheduler:
-    def __init__(self, simulator: Simulator, benchmark: BenchMark, data_storage,
+    def __init__(self, simulator: Simulator, benchmark: BenchMark, data_storage: DataStorage,
                  bak_path: Optional[Path] = None, retry_number: int = 3, wait_start_time=1800):
         self.simulator = simulator
         self.benchmark = benchmark
@@ -724,8 +733,6 @@ class Scheduler:
         self.simulate_run_info = None
 
     def back_up(self):
-        from msserviceprofiler.modelevalstate.common import get_train_sub_path
-
         if self.bak_path:
             self.current_back_path = get_train_sub_path(self.bak_path)
             self.simulator.bak_path = self.current_back_path
@@ -829,13 +836,11 @@ class Scheduler:
 
 
 class ScheduleWithMultiMachine(Scheduler):
-    def __init__(self, rpc_clients, *args, **kwargs):
+    def __init__(self, rpc_clients: List[ServerProxy], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.rpc_clients = rpc_clients
 
     def back_up(self):
-        from msserviceprofiler.modelevalstate.common import get_train_sub_path
-
         if self.bak_path:
             _cur_bak_path = get_train_sub_path(self.bak_path)
             self.simulator.bak_path = _cur_bak_path
@@ -980,8 +985,6 @@ class PSOOptimizer:
         return (tuple(_min), tuple(_max))
 
     def run(self):
-        from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
-
         optimizer = CustomGlobalBestPSO(n_particles=self.n_particles, dimensions=len(self.target_field),
                                         options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
@@ -1010,14 +1013,6 @@ def arg_parse(subparsers):
 
 
 def main(args: argparse.Namespace):
-    import xmlrpc.client
-    from xmlrpc.client import ServerProxy
-    from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-    from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
-    from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG
-
-    ANALYZE_MAPPING[AnalyzeTool.profiler.value] = analyze_profiler
-
     if args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
         simulator = VllmSimulator(settings.simulator)
     else:
