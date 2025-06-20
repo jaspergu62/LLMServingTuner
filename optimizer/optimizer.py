@@ -37,7 +37,7 @@ from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings
 from msserviceprofiler.modelevalstate.config.config import DeployPolicy, map_param_with_value, OptimizerConfigField
-from msserviceprofiler.modelevalstate.config.config import ODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path
+from msserviceprofiler.modelevalstate.config.config import MODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path
 from msserviceprofiler.modelevalstate.config.config import CUSTOM_OUTPUT, custom_output, BenchMarkPolicy
 from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, PerformanceIndex
 
