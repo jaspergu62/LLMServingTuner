@@ -23,12 +23,10 @@ import stat
 import subprocess
 import tempfile
 import time
-import xmlrpc.client
 from copy import deepcopy
 from math import exp, inf
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Optional
-from xmlrpc.client import ServerProxy
 
 import numpy as np
 import pandas as pd
@@ -831,7 +829,7 @@ class Scheduler:
 
 
 class ScheduleWithMultiMachine(Scheduler):
-    def __init__(self, rpc_clients: List[ServerProxy], *args, **kwargs):
+    def __init__(self, rpc_clients, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.rpc_clients = rpc_clients
 
@@ -1012,6 +1010,8 @@ def arg_parse(subparsers):
 
 
 def main(args: argparse.Namespace):
+    import xmlrpc.client
+    from xmlrpc.client import ServerProxy
     from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
     from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
     from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG
