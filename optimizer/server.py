@@ -18,68 +18,131 @@ import time
 from typing import Tuple
 from pathlib import Path
 
-import xmlrpc.client
-from xmlrpc.server import SimpleXMLRPCServer
-from xmlrpc.server import SimpleXMLRPCRequestHandler
-
-import numpy as np
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.optimizer.optimizer import Simulator, remove_file
-from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value
+from msserviceprofiler.modelevalstate.optimizer.optimizer import Simulator
+from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value, CommunicationConfig
+from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 
 
-def get_file(target_path, parent_name: str = "", save_current_path: bool = False):
-    # 获取该目录下所有文件,或者这个文件
-    _work_dir = Path(target_path)
-    if not _work_dir.exists():
-        raise FileNotFoundError
-    res = []
-
-    if _work_dir.is_file():
-        _file_name = parent_name + "/" + _work_dir.name if parent_name else _work_dir.name
-        with open(_work_dir, "rb") as handle:
-            res.append((_file_name, xmlrpc.client.Binary(handle.read())))
-    else:
-        if save_current_path:
-            parent_name = parent_name + "/" + _work_dir.name if parent_name else _work_dir.name
-        for child in _work_dir.iterdir():
-            res.extend(get_file(child, parent_name, True))
-    return res
-
-
-# 限制为特定的路径。
-class RequestHandler(SimpleXMLRPCRequestHandler):
-    rpc_paths = ('/RPC2',)
-
-
-class RemoteScheduler:
-    def __init__(self):
+class Scheduler:
+    def __init__(self, communication_config: CommunicationConfig, ):
         self.simulator = None
-
-    def run_simulator(self, params: np.ndarray):
-        # 更新服务器上的config文件
-        self.simulator = Simulator(settings.mindie)
-        _simulate_run_info = map_param_with_value(params, settings.target_field)
+        self.communication_config = communication_config
+        self.communication = CommunicationForFile(self.communication_config.res_file,
+                                                  self.communication_config.cmd_file, )
+        self.cmd = CustomCommand()
+ 
+    def backup(self, params):
+        back_path = Path(params)
+        if not back_path.exists():
+            back_path.mkdir(parents=True)
+        _result = f"{self.cmd.history[-1]}:done"
+        self.communication.send_command(_result)
+        self.communication.clear_res()
+ 
+    def start(self, params):
+        d = ast.literal_eval(params)
+        self.simulator = Simulator(settings.simulator)
+        _simulate_run_info = map_param_with_value(d, settings.target_field)
         logger.info(f"simulate run info {_simulate_run_info}")
         self.simulator.run(tuple(_simulate_run_info))
-
+        _result = f"{self.cmd.history[-1]}:done"
+        self.communication.send_command(_result)
+        self.communication.clear_res()
+ 
     def check_success(self):
         if not self.simulator:
             return None
+        flag = False
         for _ in range(10):
             if self.simulator.check_success():
-                return True
+                flag = True
+                break
             time.sleep(10)
-        raise Exception(f"Simulator run failed. please check log: {self.simulator.mindie_log}")
-
-    def stop_simulator(self, del_log=True):
+        _result = f"{self.cmd.history[-1]}:{flag}"
+        self.communication.send_command(_result)
+        self.communication.clear_res()
+ 
+    def stop(self, params):
+        del_log = ast.literal_eval(params)
         if self.simulator:
             self.simulator.stop(del_log)
-
+            _result = f"{self.cmd.history[-1]}:done"
+            self.communication.send_command(_result)
+            self.communication.clear_res()
+ 
+    def get_cmd_param(self):
+        cmd = self.communication.recv_command()
+        if not cmd or cmd.strip().lower() == self.cmd.cmd_eof:
+            return None, None
+        # 已经接收过的命令，不再处理。
+        print(self.cmd.history)
+        if cmd in self.cmd.history:
+            return None, None
+        _cmd_list = cmd.split()
+        if len(_cmd_list) < 2:
+            logger.error("Format does not match.")
+            return None, None
+        _cmd = _cmd_list[0]
+        if not _cmd:
+            return None, None
+        _param = cmd[cmd.find("params:") + 7:] if "params:" in cmd else None
+        self.cmd.history = cmd
+        return _cmd, _param
+ 
     def process_poll(self):
+        flag = None
         if self.simulator:
-            return self.simulator.process.poll()
-        return None
+            flag = self.simulator.process.poll()
+        _result = f"{self.cmd.history[-1]}:{flag}"
+        self.communication.send_command(_result)
+        self.communication.clear_res()
+ 
+    def init(self):
+        _cmd, _param = self.get_cmd_param()
+        if not _cmd:
+            return False
+        logger.info("cmd {}", _cmd)
+        if _cmd.strip().lower() == "init":
+            _result = f"{self.cmd.history[-1]}:done"
+            self.communication.send_command(_result)
+            self.communication.clear_res()
+            return True
+        return False
+ 
+    def run(self):
+        _cmd, _param = self.get_cmd_param()
+        if not _cmd:
+            return
+        if not hasattr(self, _cmd):
+            logger.error("Unknown command found, {}.", _cmd)
+            return
+        if _param:
+            res = getattr(self, _cmd)(_param)
+        else:
+            res = getattr(self, _cmd)()
+        return res
 
 
+def main():
+    schduler = Scheduler(settings.communication)
+    _init_flag = True
+    for _ in range(60):
+        if schduler.init():
+            _init_flag = False
+            break
+        time.sleep(1)
+    if _init_flag:
+        raise ValueError("Verification of communication failed within 60 seconds ")
+    while True:
+        try:
+            schduler.run()
+            time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received, exiting.")
+            sys.exit(0)
+
+if __name__ == '__main__':
+    main()
+ 
