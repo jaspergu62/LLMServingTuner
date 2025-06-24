@@ -77,7 +77,6 @@ class Scheduler:
         if not cmd or cmd.strip().lower() == self.cmd.cmd_eof:
             return None, None
         # 已经接收过的命令，不再处理。
-        print(self.cmd.history)
         if cmd in self.cmd.history:
             return None, None
         _cmd_list = cmd.split()
@@ -100,7 +99,7 @@ class Scheduler:
         self.communication.clear_res()
  
     def init(self):
-        _cmd, _param = self.get_cmd_param()
+        _cmd, _ = self.get_cmd_param()
         if not _cmd:
             return False
         logger.info("cmd {}", _cmd)
