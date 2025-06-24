@@ -36,13 +36,14 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
     DeployPolicy, map_param_with_value, MODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path, \
-    CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig
+    CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, ServiceType
 from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
     PerformanceIndex, OptimizerConfigField
 from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
+from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 
 _analyze_mapping = {
@@ -1018,6 +1019,9 @@ def arg_parse(subparsers):
 
 
 def main(args: argparse.Namespace):
+    if settings.service == ServiceType.slave.value:
+        slave_server()
+        return
     if args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
         simulator = VllmSimulator(settings.simulator)
     else:

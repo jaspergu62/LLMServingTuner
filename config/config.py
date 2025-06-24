@@ -49,6 +49,11 @@ class DeployPolicy(Enum):
     multiple = "multiple"
 
 
+class ServiceType(Enum):
+    master = "master"
+    slave = "slave"
+
+
 class OptimizerConfigField(BaseModel):
     name: str = "max_batch_size"
     config_position: str = "BackendConfig.ScheduleConfig.maxBatchSize"
@@ -274,6 +279,7 @@ class Settings(BaseSettings):
     prefill_constrain: float = 0.05
     decode_constrain: float = 0.05
     success_rate_constrain: float = 1.0
+    service: str = ServiceType.master
     communication: CommunicationConfig = CommunicationConfig()
     float_range_in_best_particle: float = 0.1  # 如果用历史值作为作为初始值，那么允许在初始值的浮动程度。
     target_field: List[OptimizerConfigField] = default_support_field

@@ -103,7 +103,7 @@ class CommunicationForFile:
     def recv_command(self):
         with FileLock(self.res_file_lock):
             if not self.res_file.exists():
-                return
+                return ''
             with open(self.res_file, 'r', encoding="utf-8") as f:
                 data = f.read()
         return data
@@ -111,7 +111,6 @@ class CommunicationForFile:
     def clear_cmd(self, command):
         # 确认命令是否完成，进行清理相关命令。
         st = time.perf_counter()
-        status = None
         while True:
             if time.perf_counter() - st > self.timeout:
                 raise TimeoutError("Timeout while getting command result. command {}", command)

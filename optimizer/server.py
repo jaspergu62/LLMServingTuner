@@ -53,7 +53,7 @@ class Scheduler:
  
     def check_success(self):
         if not self.simulator:
-            return None
+            return
         flag = False
         for _ in range(10):
             if self.simulator.check_success():
@@ -114,10 +114,10 @@ class Scheduler:
     def run(self):
         _cmd, _param = self.get_cmd_param()
         if not _cmd:
-            return
+            return ''
         if not hasattr(self, _cmd):
             logger.error("Unknown command found, {}.", _cmd)
-            return
+            return ''
         if _param:
             res = getattr(self, _cmd)(_param)
         else:
