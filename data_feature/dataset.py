@@ -21,6 +21,7 @@ import re
 from collections import namedtuple
 from pathlib import Path
 from typing import Optional, Union
+import os
 
 import matplotlib
 import pandas as pd
@@ -43,8 +44,18 @@ from msserviceprofiler.modelevalstate.inference.dataset import CustomOneHotEncod
     preset_category_data
 from msserviceprofiler.modelevalstate.inference.utils import PreprocessTool, TOTAL_OUTPUT_LENGTH, \
     TOTAL_SEQ_LENGTH, TOTAL_PREFILL_TOKEN
+from msserviceprofiler.msguard.security.io import open_s
 
 matplotlib.use("Agg")
+
+
+def save_to_csv(df: pd.DataFrame, file_path: Path):
+    # 确保文件路径是字符串
+    file_path_str = str(file_path)
+    with open_s(file_path_str, "w") as f:
+        pass
+    # 保存 DataFrame 到 CSV 文件
+    df.to_csv(file_path_str, index=False)
 
 
 class MyDataSet:
@@ -75,14 +86,15 @@ class MyDataSet:
 
     @staticmethod
     def convert_batch_info(row: str, index: str) -> DataFrame:
-        origin_row = eval(row)
-        v, col = PreprocessTool.generate_data(origin_row, eval(index))
+        origin_row = ast.literal_eval(row)
+        origin_index = ast.literal_eval(index)
+        v, col = PreprocessTool.generate_data(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_request_info(row: str, index: str) -> DataFrame:
-        origin_index = eval(index)
-        origin_row = eval(row)
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
         request_info = namedtuple("request_info", origin_index)
         _row_request_info = tuple([request_info(*[int(float(i)) for i in _row]) for _row in origin_row])
         v, col = PreprocessTool.generate_data_with_request_info(_row_request_info, origin_index)
@@ -97,44 +109,58 @@ class MyDataSet:
 
     @staticmethod
     def convert_op_info(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data_with_op_info(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data_with_op_info(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_op_info_with_ratio(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data_with_op_info_use_ratio(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data_with_op_info_use_ratio(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_struct_info(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data_with_struct_info(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data_with_struct_info(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_config_info(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data_with_model_config(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data_with_model_config(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_mindie_info(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_env_info(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def convert_hardware_info(row: str, index: str) -> DataFrame:
-        v, col = PreprocessTool.generate_data(eval(row), eval(index))
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
+        v, col = PreprocessTool.generate_data(origin_row, origin_index)
         return pd.DataFrame((v,), columns=col)
 
     @staticmethod
     def get_all_request_info(row: str, index: str) -> DataFrame:
         # 获取所有request原始数据特征，用来分析原始数据
-        origin_index = eval(index)
-        origin_row = eval(row)
+        origin_index = ast.literal_eval(index)
+        origin_row = ast.literal_eval(row)
         _row_request_info = []
         for _row in origin_row:
             _row_request_info.append([int(float(i)) for i in _row])
@@ -303,12 +329,14 @@ class MyDataSet:
         return features, labels
 
     def save(self, save_path: Path):
-        self.features.to_csv(save_path.joinpath("features_preprocess.csv"), index=False)
-        self.load_data.to_csv(save_path.joinpath("load_data.csv"), index=False)
-        self.test_x.to_csv(save_path.joinpath("test_x.csv"), index=False)
-        self.test_y.to_csv(save_path.joinpath("test_y.csv"), index=False)
-        self.train_x.to_csv(save_path.joinpath("train_x.csv"), index=False)
-        self.train_y.to_csv(save_path.joinpath("train_y.csv"), index=False)
+        save_path.mkdir(mode=0o750, exist_ok=True)
+        # 保存每个 DataFrame 到对应的文件
+        save_to_csv(self.features, save_path.joinpath("features_preprocess.csv"))
+        save_to_csv(self.load_data, save_path.joinpath("load_data.csv"))
+        save_to_csv(self.test_x, save_path.joinpath("test_x.csv"))
+        save_to_csv(self.test_y, save_path.joinpath("test_y.csv"))
+        save_to_csv(self.train_x, save_path.joinpath("train_x.csv"))
+        save_to_csv(self.train_y, save_path.joinpath("train_y.csv"))
 
     def plt_data(self, line_data: DataFrame, middle_save_path: Optional[Path] = None):
         self.analysis_batch_feature(middle_save_path)

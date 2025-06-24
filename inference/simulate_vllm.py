@@ -87,13 +87,23 @@ class SimulateVllm:
                     logger.warning(f"{_seq_id} not in {_seq_group_sample.seq_data}")
                     continue
                 _cur_req_id = _seq_id_to_req.get(_seq_id)
+                if _cur_req_id is None:
+                    raise ValueError(f"No request ID found for sequence ID {_seq_id}.")
                 if _stop_ids:
                     SimulateVllm.req_to_stop_token_ids[_cur_req_id] = _stop_ids
- 
-                _req_input_len = len(_seq_group_sample.seq_data.get(_seq_id).prompt_token_ids)
+
+                _seq_data = _seq_group_sample.seq_data.get(_seq_id)
+                if _seq_data is not None:
+                    _req_input_len = len(_seq_data.prompt_token_ids)
+                else:
+                    _req_input_len = 0
                 _req_to_input_len[_cur_req_id] += _req_input_len
                 _total_req_input_len.append(_req_input_len)
-                _req_output_len = len(_seq_group_sample.seq_data.get(_seq_id).output_token_ids)
+                _seq_data = _seq_group_sample.seq_data.get(_seq_id)
+                if _seq_data is not None and hasattr(_seq_data, 'output_token_ids'):
+                    _req_output_len = len(_seq_data.output_token_ids)
+                else:
+                    _req_output_len = 0
                 SimulateVllm.req_to_output_len[_cur_req_id] += _req_output_len
                 _req_need_block = all_need_blocks[_index].sum().item()
                 _req_to_need_blocks[_cur_req_id] += _req_need_block
@@ -140,7 +150,7 @@ class SimulateVllm:
             if _max_out_len:
                 SimulateVllm.req_id_to_max_token_by_sequence[req_id] = _max_out_len
         return _max_out_len
- 
+
     @staticmethod
     def get_cur_output_len(req_id):
         _cur_out_len = SimulateVllm.req_to_output_len.get(req_id)
