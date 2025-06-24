@@ -329,12 +329,7 @@ class MyDataSet:
         return features, labels
 
     def save(self, save_path: Path):
-        # 确保保存路径存在
-        save_path.mkdir(parents=True, exist_ok=True)
-
-        # 设置保存路径的权限为 750
-        os.chmod(str(save_path), 0o750)
-
+        save_path.mkdir(mode=0o750, exist_ok=True)
         # 保存每个 DataFrame 到对应的文件
         save_to_csv(self.features, save_path.joinpath("features_preprocess.csv"))
         save_to_csv(self.load_data, save_path.joinpath("load_data.csv"))
