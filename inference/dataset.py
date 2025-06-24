@@ -131,14 +131,13 @@ class CustomOneHotEncoder:
             _col_index = data_column.index(_one_hot_info.name)
             encode_value = _one_hot_encoder.transform(np.array([[data[_col_index], ]]))
             _new_column = [
-                f"{_one_hot_info.name}__{i}" 
-                for k in _one_hot_encoder.categories_ 
+                f"{_one_hot_info.name}__{i}"
+                for k in _one_hot_encoder.categories_
                 for i in k
             ]
             new_data.extend(*encode_value.toarray().tolist())
             new_data_column.extend(_new_column)
         return new_data, new_data_column
-
 
 
 class CustomLabelEncoder:
@@ -153,7 +152,6 @@ class CustomLabelEncoder:
         self.category_encoders: List[LabelEncoder] = []
         self.first = True
         self.encode_cache = {}
-
 
     def fit(self, load: bool = False):
         self.category_encoders = []
@@ -199,7 +197,10 @@ class CustomLabelEncoder:
         for i, _cate_encoder in enumerate(self.category_encoders):
             _cate_info = self.category_info[i]
             _col_index = data_column.index(_cate_info.name)
-            _cache = (_cate_info.name, data[_col_index])
+            if 0 <= _col_index < len(data):
+                _cache = (_cate_info.name, data[_col_index])
+            else:
+                raise IndexError(f"Column index {_col_index} is out of valid range [0, {len(data) - 1}] for data.")
             if _cache in self.encode_cache:
                 data[_col_index] = self.encode_cache.get(_cache)
             else:
