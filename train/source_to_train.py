@@ -25,6 +25,9 @@ from typing import Dict, List, Tuple, Any
 import pandas as pd
 from loguru import logger
 
+from msserviceprofiler.msguard.security.io import read_csv_s
+
+
 
 def fetch_rids_from_db(db_path):
     try:
@@ -396,11 +399,11 @@ def source_to_model(input_path: str, model_type: str):
         data_by_pid = group_exec_data_by_pid(exec_rows)
         csv_file = os.path.join(input_path, 'request.csv')
         model_type
-        req_df = pd.read_csv(csv_file, header=0)
+        req_df = read_csv_s(csv_file, header=0)
         rids_ori = fetch_rids_from_db(ori_db_path)
         if model_type == 'vllm':
             kvcache_file = os.path.join(input_path, 'kvcache.csv')
-            kvcache_df = pd.read_csv(kvcache_file, header=0)
+            kvcache_df = read_csv_s(kvcache_file, header=0)
             csv_data = ProcessedDataVllm(input_path,
                 data_by_pid,
                 batch_rows,

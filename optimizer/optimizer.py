@@ -45,6 +45,7 @@ from msserviceprofiler.optimizer.communication import CommunicationForFile, Cust
 from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
 from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+from msserviceprofiler.msguard.security.io import open_s, read_csv_s
 
 _analyze_mapping = {
     AnalyzeTool.profiler.value: analyze_profiler
@@ -175,7 +176,7 @@ class BenchMark:
         for file in output_path.iterdir():
             if "result_common" in file.name:
                 try:
-                    df = pd.read_csv(file)
+                    df = read_csv_s(file)
                     if "OutputGenerateSpeed" in df.columns:
                         _generate_speed = df["OutputGenerateSpeed"][0]
                     else:
@@ -199,7 +200,7 @@ class BenchMark:
                 continue
             if "result_perf" in file.name:
                 try:
-                    df = pd.read_csv(file)
+                    df = read_csv_s(file)
                     first_token_time = float(df["FirstTokenTime"][0].split()[0])
                     perf_generate_token_speed = float(df["GeneratedTokenSpeed"][0].split()[0])
                     decode_time = float(df["DecodeTime"][0].split()[0])
@@ -563,13 +564,13 @@ class Simulator:
         time.sleep(1)
 
     def check_success(self, print_log=False):
-        with open(self.mindie_log, "r") as f:
+        with open_s(self.mindie_log, "r") as f:
             try:
                 f.seek(self.mindie_log_offset)
                 output = f.read()
                 self.mindie_log_offset = f.tell()
             except Exception as e:
-                logger.info(f"Failed in read mindie log. error: {e}")
+                logger.warning(f"Failed in read mindie log. error: {e}")
         if output:
             if print_log:
                 logger.info(f"simulate out: \n{output}")
@@ -677,7 +678,7 @@ class VllmSimulator(Simulator):
                 output = f.read()
                 self.mindie_log_offset = f.tell()
             except Exception as e:
-                logger.info(f"Failed in read vllm log. error: {e}")
+                logger.warning(f"Failed in read vllm log. error: {e}")
         if output:
             if print_log:
                 logger.info(f"simulate out: \n{output}")

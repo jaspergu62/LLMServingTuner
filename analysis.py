@@ -51,6 +51,9 @@ class AnalysisState:
         _negative_sigma = []
         for k in sorted(res.keys(), key=lambda x: getattr(x, x_field)):
             v = res.get(k, [])
+            if not v:
+                logger.warning("Empty data list for key %s:",  k)
+                continue
             if len(v) < 2:
                 _x.append(getattr(k, x_field))
                 _mean.append(v[0])

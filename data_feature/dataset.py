@@ -304,6 +304,10 @@ class MyDataSet:
             HARDWARE_FIELD: self.convert_hardware_info,
         }
         logger.info("finished request batch")
+        if len(columns_list) < 3:
+            logger.warning(f"columns_list length is less than 3, skip processing")
+            return self.features, self.labels
+        
         for col in columns_list[2:]:
             field_type = field_cache[col]
             if field_type in convert_funcs:
@@ -344,6 +348,10 @@ class MyDataSet:
 
     def analysis_origin_request_hist(self, df: DataFrame, middle_save_path: Optional[Path] = None):
         logger.info("analysis_origin_request_hist")
+        if len(df.columns) < 2:
+            logger.warning("Dataframe has less than 2 columns.")
+            return 
+
         request_series = df.iloc[:, 1].apply(self.get_all_request_info, args=(df.columns[1],))
         request_df = pd.concat(request_series.values, ignore_index=True)
         try:
