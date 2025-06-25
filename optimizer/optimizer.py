@@ -18,122 +18,33 @@ import json
 import os
 import re
 import shlex
-import shutil
-import stat
 import subprocess
 import tempfile
 import time
-from copy import deepcopy
 from math import exp, inf
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 import pandas as pd
-import psutil
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
-    DeployPolicy, map_param_with_value, MODEL_EVAL_STATE_CONFIG_PATH, modelevalstate_config_path, \
-    CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, ServiceType
+    DeployPolicy, map_param_with_value, CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, ServiceType
 from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
     PerformanceIndex, OptimizerConfigField
-from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
-from msserviceprofiler.optimizer.communication import CommunicationForFile, CustomCommand
+from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
 from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
+from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
 _analyze_mapping = {
     AnalyzeTool.profiler.value: analyze_profiler
 }
-
-
-def kill_children(children):
-    for child in children:
-        if not child.is_running():
-            continue
-        try:
-            child.send_signal(9)
-            child.wait(10)
-        except Exception as e:
-            logger.error(f"Failed in kill the {child.pid} process. detail: {e}")
-            continue
-        if child.is_running():
-            logger.error(f"Failed to kill the {child.pid} process.")
-
-
-def kill_process(process_name):
-    for proc in psutil.process_iter(["pid", "name"]):
-        if not hasattr(proc, "info"):
-            continue
-        if process_name not in proc.info["name"]:
-            continue
-        children = psutil.Process(proc.pid).children(recursive=True)
-        kill_children([proc])
-        kill_children(children)
-
-
-def remove_file(output_path: Path):
-    if not output_path:
-        return
-    if not isinstance(output_path, Path):
-        output_path = Path(output_path)
-    if not output_path.exists():
-        return
-    if output_path.is_file():
-        output_path.unlink()
-        return
-    for file in output_path.iterdir():
-        if file.is_file():
-            file.unlink()
-        else:
-            try:
-                shutil.rmtree(file)
-            except OSError:
-                remove_file(file)
-
-
-def backup(target, bak, class_name=""):
-    if not target:
-        return
-    if not bak:
-        return
-    if not isinstance(target, Path):
-        target = Path(target)
-    if not isinstance(target, Path):
-        bak = Path(bak)
-    if not target.exists():
-        return
-    if not bak.exists():
-        return
-    new_file = bak.joinpath(class_name).joinpath(target.name)
-    if target.is_file():
-        new_file.parent.mkdir(parents=True, exist_ok=True)
-        if not new_file.exists():
-            shutil.copy(target, new_file)
-    else:
-        if new_file.exists():
-            for child in new_file.iterdir():
-                backup(child, new_file, class_name)
-        else:
-            shutil.copytree(target, new_file)
-
-
-def close_file_fp(file_fp):
-    if not file_fp:
-        return
-    try:
-        # 检查file_fp是否是一个文件对象
-        if hasattr(file_fp, 'close'):
-            file_fp.close()
-        else:
-            # 如果file_fp是一个文件描述符，调用os.close()
-            os.close(file_fp)
-    except (AttributeError, OSError):
-        return
 
 
 def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
@@ -141,7 +52,7 @@ def validate_parameters(common_generate_speed, perf_generate_token_speed, first_
         raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
     if first_token_time is None or decode_time is None:
         raise ValueError("Not Found first_token_time.")
-        
+
 
 @atexit.register
 def clearing_residual_process():
@@ -164,7 +75,7 @@ class BenchMark:
         backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
         if not del_log:
             backup(self.run_log, self.bak_path, self.__class__.__name__)
-        
+
     def get_performance_index(self):
         output_path = Path(self.benchmark_config.output_path)
         common_generate_speed = None
@@ -317,7 +228,6 @@ class ProfilerBenchmark(BenchMark):
         return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
                                 time_per_output_token=time_per_output_token, success_rate=success_rate)
 
-
     def backup(self, del_log=True):
         super().backup(del_log)
         backup(self.benchmark_config.profile_input_path, self.bak_path, self.__class__.__name__)
@@ -397,7 +307,7 @@ class VllmBenchMark(BenchMark):
         self.output_path = benchmark_config.output_path
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True)
- 
+
     def get_performance_index(self):
         output_path = Path(self.benchmark_config.output_path)
         generate_speed = None
@@ -419,7 +329,7 @@ class VllmBenchMark(BenchMark):
                                 time_to_first_token=time_to_first_token,
                                 time_per_output_token=time_per_output_token,
                                 success_rate=success_rate)
- 
+
     def run(self, run_params: Tuple[OptimizerConfigField]):
         # 启动测试
         logger.info("Start the benchmark test.")
@@ -448,278 +358,6 @@ class VllmBenchMark(BenchMark):
         logger.info(f"command: {' '.join(run_cmd)}, log file: {self.run_log}")
 
 
-class Simulator:
-    def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
-        self.mindie_config = mindie_config
-        logger.info(f"config path {self.mindie_config.config_path}", )
-        if not self.mindie_config.config_path.exists():
-            raise FileNotFoundError(self.mindie_config.config_path)
-        with open(self.mindie_config.config_path, "r") as f:
-            data = json.load(f)
-        self.default_config = data
-        logger.info(f"config bak path {self.mindie_config.config_bak_path}", )
-        if not self.mindie_config.config_bak_path.exists():
-            flags = os.O_WRONLY | os.O_CREAT
-            modes = stat.S_IWUSR | stat.S_IRUSR
-            with os.fdopen(os.open(self.mindie_config.config_bak_path, flags, modes), 'w') as fout:
-                json.dump(self.default_config, fout, indent=4)
-        self.mindie_log = None
-        self.mindie_log_offset = 0
-        self.bak_path = bak_path
-        self.mindie_log_fp = None
-        self.process = None
-
-    @staticmethod
-    def get_new_config(origin_config, params: Tuple[OptimizerConfigField], upper_key: str = "") -> Any:
-        if upper_key:
-            _keys = [upper_key]
-        else:
-            _keys = []
-        if isinstance(origin_config, dict):
-            _dict_config = {}
-            for k, v in origin_config.items():
-                _root_key = ".".join([*_keys, k])
-                new_value = Simulator.get_new_config(v, params, _root_key)
-                _dict_config[k] = new_value
-            return _dict_config
-
-        elif isinstance(origin_config, list):
-            _list_config = []
-            for i, v in enumerate(origin_config):
-                _root_key = ".".join([*_keys, str(i)])
-                new_value = Simulator.get_new_config(v, params, f"{upper_key}.{i}")
-                _list_config.append(new_value)
-            return _list_config
-        else:
-            for _p in params:
-                if upper_key == _p.config_position:
-                    logger.info(f"Update Config key: {upper_key}")
-                    return _p.value
-            return origin_config
-
-    @staticmethod
-    def set_config(origin_config, key: str, value: Any):
-        next_level = None
-        if "." in key:
-            _f_index = key.index(".")
-            _cur_key, next_level = key[:_f_index], key[_f_index + 1:]
-        else:
-            _cur_key = key
-        if next_level:
-            if isinstance(origin_config, dict):
-                Simulator.set_config(origin_config[_cur_key], next_level, value)
-            elif isinstance(origin_config, list):
-                Simulator.set_config(origin_config[int(_cur_key)], next_level, value)
-            else:
-                raise ValueError(f"Not Support type {type(origin_config)}")
-        else:
-            origin_config[_cur_key] = value
-
-    def backup(self, del_log=True):
-        backup(self.mindie_config.config_path, self.bak_path, self.__class__.__name__)
-        if not del_log and self.mindie_log:
-            backup(self.mindie_log, self.bak_path, self.__class__.__name__)
-
-    def update_config(self, params: Tuple[OptimizerConfigField]):
-        # 将params值更新到新的config中
-        new_config = deepcopy(self.default_config)
-        for p in params:
-            if not p.config_position.startswith("BackendConfig"):
-                continue
-            Simulator.set_config(new_config, p.config_position, p.value)
-
-        # 将新的config写入到config文件中
-        logger.debug(f"new config {new_config}")
-        flags = os.O_WRONLY | os.O_CREAT
-        modes = stat.S_IWUSR | stat.S_IRUSR
-        if self.mindie_config.config_path.exists():
-            self.mindie_config.config_path.unlink()
-        with os.fdopen(os.open(self.mindie_config.config_path, flags, modes), "w") as fout:
-            json.dump(new_config, fout, indent=4)
-
-    def check_env(self):
-        logger.info("check env")
-        _residual_process = []
-        _all_process_name = self.mindie_config.process_name.split(",")
-        for proc in psutil.process_iter(["pid", "name"]):
-            if not hasattr(proc, "info"):
-                continue
-            _proc_flag = []
-            for p in _all_process_name:
-                if p not in proc.info["name"]:
-                    _proc_flag.append(True)
-                else:
-                    _proc_flag.append(False)
-            if all(_proc_flag):
-                continue
-            _residual_process.append(proc)
-        if _residual_process:
-            logger.info("kill residual_process")
-            for _p_name in _all_process_name:
-                try:
-                    kill_process(_p_name)
-                except Exception as e:
-                    logger.error(f"Failed to kill process. {e}")
-        time.sleep(1)
-
-    def check_success(self, print_log=False):
-        with open(self.mindie_log, "r") as f:
-            try:
-                f.seek(self.mindie_log_offset)
-                output = f.read()
-                self.mindie_log_offset = f.tell()
-            except Exception as e:
-                logger.info(f"Failed in read mindie log. error: {e}")
-        if output:
-            if print_log:
-                logger.info(f"simulate out: \n{output}")
-            if "Daemon start success!" in output:
-                return True
-        if self.process.poll() is not None:
-            raise subprocess.SubprocessError(
-                f"Failed in run mindie. return code: {self.process.returncode}. "
-                f"Please check the service log or console output.")
-        return False
-
-    def start_server(self, run_params: Tuple[OptimizerConfigField]):
-        self.mindie_log_fp, self.mindie_log = tempfile.mkstemp(prefix="modelevalstate_mindie")
-        self.mindie_log_offset = 0
-        if self.mindie_config.work_path:
-            cwd = self.mindie_config.work_path
-        else:
-            cwd = os.getcwd()
-        for k in run_params:
-            if k.config_position == "env":
-                os.environ[k.name] = str(k.value)
-        if MODEL_EVAL_STATE_CONFIG_PATH not in os.environ:
-            os.environ[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
-        if CUSTOM_OUTPUT not in os.environ:
-            os.environ[CUSTOM_OUTPUT] = str(custom_output)
-        logger.debug(f"env {os.environ}")
-        run_cmd = shlex.split(self.mindie_config.command)
-        logger.info(f"run cmd: {run_cmd}, log path: {self.mindie_log}")
-        self.process = subprocess.Popen(run_cmd, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, env=os.environ,
-                                        text=True, cwd=cwd)
-
-    def run(self, run_params: Tuple[OptimizerConfigField]):
-        logger.info(f'start run in simulator. run params: {run_params}')
-        # 根据params 修改配置文件
-        self.update_config(run_params)
-        # 启动mindie仿真
-        try:
-            self.check_env()
-        except Exception as e:
-            logger.error(f"Failed to check env. {e}")
-        self.start_server(run_params)
-
-    def stop(self, del_log=True):
-        logger.info("Stop simulator process")
-        if self.bak_path:
-            self.backup()
-        close_file_fp(self.mindie_log_fp)
-        if del_log:
-            remove_file(self.mindie_log)
-        self.mindie_log_offset = 0
-        if not self.process:
-            return
-        _process_state = self.process.poll()
-        if _process_state is not None:
-            logger.info(f"mindie already. exit_code: {_process_state}")
-            return
-        try:
-            children = psutil.Process(self.process.pid).children(recursive=True)
-            self.process.kill()
-            try:
-                self.process.wait(10)
-            except subprocess.TimeoutExpired:
-                self.process.send_signal(9)
-            if self.process.poll() is not None:
-                logger.info(f"The {self.process.pid} process has been shut down.")
-            else:
-                logger.error(f"The {self.process.pid} process shutdown failed.")
-            kill_children(children)
-            kill_process(self.mindie_config.process_name)
-            remove_file(self.mindie_config.config_path)
-            flags = os.O_WRONLY | os.O_CREAT
-            modes = stat.S_IWUSR | stat.S_IRUSR
-            with os.fdopen(os.open(self.mindie_config.config_path, flags, modes), "w") as fout:
-                json.dump(self.default_config, fout)
-        except Exception as e:
-            logger.error(f"Failed to stop simulator process. {e}")
-
-
-class VllmSimulator(Simulator):
-    def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
-        try:
-            super().__init__(mindie_config, bak_path)
-        except Exception as e:
-            logger.info('VllmSimulator init failed')
-        self.mindie_config = mindie_config
-        self.mindie_log = None
-        self.mindie_log_offset = 0
-        self.bak_path = bak_path
-        self.mindie_log_fp = None
-        self.process = None
- 
-    def run(self, run_params: Tuple[OptimizerConfigField]):
-        logger.info(f'start run in simulator. run params: {run_params}')
-        # 启动mindie仿真
-        try:
-            self.check_env()
-        except Exception as e:
-            logger.error(f"Failed to check env. {e}")
-        self.start_server(run_params)
- 
-    def check_success(self, print_log=False):
-        with open(self.mindie_log, "r") as f:
-            try:
-                f.seek(self.mindie_log_offset)
-                output = f.read()
-                self.mindie_log_offset = f.tell()
-            except Exception as e:
-                logger.info(f"Failed in read vllm log. error: {e}")
-        if output:
-            if print_log:
-                logger.info(f"simulate out: \n{output}")
-            if "Application startup complete." in output:
-                return True
-        if self.process.poll() is not None:
-            raise subprocess.SubprocessError(
-                f"Failed in run vllm. return code: {self.process.returncode}. "
-                f"Please check the service log or console output.")
-        return False
- 
-    def stop(self, del_log=True):
-        logger.info("Stop simulator process")
-        if self.bak_path:
-            self.backup()
-        close_file_fp(self.mindie_log_fp)
-        if del_log:
-            remove_file(self.mindie_log)
-        self.mindie_log_offset = 0
-        if not self.process:
-            return
-        _process_state = self.process.poll()
-        if _process_state is not None:
-            logger.info(f"vllm already. exit_code: {_process_state}")
-            return
-        try:
-            children = psutil.Process(self.process.pid).children(recursive=True)
-            self.process.kill()
-            try:
-                self.process.wait(10)
-            except subprocess.TimeoutExpired:
-                self.process.send_signal(9)
-            if self.process.poll() is not None:
-                logger.info(f"The {self.process.pid} process has been shut down.")
-            else:
-                logger.error(f"The {self.process.pid} process shutdown failed.")
-            kill_children(children)
-            kill_process(self.mindie_config.process_name)
-        except Exception as e:
-            logger.error(f"Failed to stop simulator process. {e}")
-
-
 class Scheduler:
     def __init__(self, simulator: Simulator, benchmark: BenchMark, data_storage: DataStorage,
                  bak_path: Optional[Path] = None, retry_number: int = 3, wait_start_time=1800):
@@ -746,7 +384,6 @@ class Scheduler:
                 logger.info(f"Successfully started the {self.simulator.process.pid} process.")
                 return
         raise TimeoutError(self.wait_time)
-
 
     def run_simulate(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
         self.benchmark.prepare()
@@ -840,7 +477,7 @@ class ScheduleWithMultiMachine(Scheduler):
         super().__init__(*args, **kwargs)
         self.communication_config = communication_config
         self.communication = CommunicationForFile(self.communication_config.cmd_file,
-            self.communication_config.res_file)
+                                                  self.communication_config.res_file)
         self.cmd = CustomCommand()
         _cmd = self.cmd.init
         self.communication.send_command(_cmd)
@@ -851,35 +488,44 @@ class ScheduleWithMultiMachine(Scheduler):
             _cur_bak_path = get_train_sub_path(self.bak_path)
             self.simulator.bak_path = _cur_bak_path
             self.benchmark.bak_path = _cur_bak_path
-            for rpc in self.rpc_clients:
-                if rpc.simulator:
-                    rpc.simulator.bak_path = _cur_bak_path
+            _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"
+            self.communication.send_command(_cmd)
+            self.communication.clear_cmd(_cmd)
 
     def monitoring_status(self):
         logger.info("Start monitoring")
         while True:
-            all_poll = [self.simulator.process.poll()]
-            for rpc in self.rpc_clients:
-                all_poll.append(rpc.process_poll())
+            _cmd = self.cmd.process_poll
+            self.communication.send_command(_cmd)
+            all_poll = [self.simulator.process.poll(), self.communication.clear_cmd(_cmd)]
             if any([_i is not None for _i in all_poll]):
                 self.stop_target_server(del_log=False)
                 raise subprocess.SubprocessError(
-                    f"Failed in run simulator. all status: {all_poll}, machine info: master, {self.rpc_clients}.")
+                    f"Failed in run simulator. all status: {all_poll}")
             if self.benchmark.check_success():
                 return
             time.sleep(1)
 
     def run_simulate(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
-        self.benchmark.prepare()
-        _simulate_run_info = map_param_with_value(params, params_field)
-        [rpc.run_simulator(params.tolist()) for rpc in self.rpc_clients]
+        _cmd = f"{self.cmd.start} params:{params.tolist()}"
+        self.cmd.history = _cmd
+        self.communication.send_command(_cmd)
+        self.communication.clear_cmd(_cmd)
         self.simulator.run(tuple(self.simulate_run_info))
         self.wait_simulate()
-        [rpc.check_success() for rpc in self.rpc_clients]
+        # wait 其他服务器上服务成功
+        _cmd = self.cmd.check_success
+        self.cmd.history = _cmd
+        self.communication.send_command(_cmd)
+        self.communication.clear_cmd(_cmd)
 
     def stop_target_server(self, del_log=True):
         super(ScheduleWithMultiMachine, self).stop_target_server(del_log)
-        [rpc.stop_simulator(del_log) for rpc in self.rpc_clients]
+        # wait 其他服务器上服务成功
+        _cmd = f"{self.cmd.stop} params:{del_log}"
+        self.communication.send_command(_cmd)
+        self.communication.clear_cmd(_cmd)
+        self.cmd.history = _cmd
 
 
 class PSOOptimizer:
@@ -954,7 +600,7 @@ class PSOOptimizer:
                 return inf
         if performance_index.success_rate:
             _success_var = max(0.0, (
-                    performance_index.success_rate - self.success_rate_constrain) / self.success_rate_constrain)
+                    self.success_rate_constrain - performance_index.success_rate) / self.success_rate_constrain)
             try:
                 fitness += self.success_rate_lam * (exp(_success_var) - 1)
             except OverflowError:
@@ -1031,26 +677,22 @@ def main(args: argparse.Namespace):
         bak_path = settings.output.joinpath("bak")
         if not bak_path.exists():
             bak_path.mkdir(parents=True)
-    rpc_clients = []
-    if args.deploy_policy == DeployPolicy.multiple.value:
-        for server_address in settings.server:
-            rpc = xmlrpc.client.ServerProxy(server_address, allow_none=True)
-            logger.info(f"{server_address} support method {rpc.system.listMethods()}")
-            rpc_clients.append(rpc)
     # 单机benchmark
-    time_sleep = os.getenv(IS_SLEEP_FLAG, "False").lower().strip() == "true"
-    if time_sleep and args.benchmark_policy == BenchMarkPolicy.benchmark.value:
+    if args.benchmark_policy == BenchMarkPolicy.benchmark.value:
         benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
-    elif time_sleep and args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
+    elif args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
         benchmark = VllmBenchMark(settings.benchmark, bak_path=bak_path)
-    else:
-        # 默认 自定义单机
+    elif args.benchmark_policy == BenchMarkPolicy.profiler_benchmark:
         benchmark = ProfilerBenchmark(settings.benchmark, bak_path=bak_path, analyze_tool=AnalyzeTool.profiler)
+    else:
+        benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
+
     # 存储结果，只在主节点存储结果
     data_storage = DataStorage(settings.data_storage)
     # 初始化调度模块，支持单机和多机。
     if args.deploy_policy == DeployPolicy.multiple.value:
-        scheduler = ScheduleWithMultiMachine(rpc_clients, simulator, benchmark, data_storage, bak_path=bak_path)
+        scheduler = ScheduleWithMultiMachine(settings.communication, simulator, benchmark, data_storage,
+                                             bak_path=bak_path)
     else:
         scheduler = Scheduler(simulator, benchmark, data_storage, bak_path=bak_path)
     _load_history_data = None
