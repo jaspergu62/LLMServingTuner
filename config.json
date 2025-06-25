@@ -5,10 +5,6 @@
     "decode_lam": 1,
     "prefill_constrain": 10,
     "decode_constrain": 0.05,
-    "float_range_in_best_particle": 0.1,
-    "server": [
-      "http://127.0.0.1:8000"
-    ],
     "target_field": [
       {
         "name": "max_batch_size",

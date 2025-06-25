@@ -49,6 +49,11 @@ class DeployPolicy(Enum):
     multiple = "multiple"
 
 
+class ServiceType(Enum):
+    master = "master"
+    slave = "slave"
+
+
 class OptimizerConfigField(BaseModel):
     name: str = "max_batch_size"
     config_position: str = "BackendConfig.ScheduleConfig.maxBatchSize"
@@ -133,6 +138,11 @@ class BenchMarkConfig(BaseModel):
         if not path.exists():
             logger.error(f"FileNotFound: {path}")
         return path
+
+
+class CommunicationConfig(BaseModel):
+    cmd_file: Optional[Path] = custom_output.joinpath("cmd.txt")
+    res_file: Optional[Path] = custom_output.joinpath("res.txt")
 
 
 class DataStorageConfig(BaseModel):
@@ -269,7 +279,8 @@ class Settings(BaseSettings):
     prefill_constrain: float = 0.05
     decode_constrain: float = 0.05
     success_rate_constrain: float = 1.0
-    server: List[str] = ["http://127.0.0.1:7425/"]
+    service: str = ServiceType.master
+    communication: CommunicationConfig = CommunicationConfig()
     float_range_in_best_particle: float = 0.1  # 如果用历史值作为作为初始值，那么允许在初始值的浮动程度。
     target_field: List[OptimizerConfigField] = default_support_field
 
