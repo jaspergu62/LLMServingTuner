@@ -33,6 +33,7 @@ from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField
 from msserviceprofiler.modelevalstate.inference.dataset import CustomLabelEncoder, preset_category_data, DataProcessor
 from msserviceprofiler.modelevalstate.inference.file_reader import FileHanlder, StaticFile
 from msserviceprofiler.modelevalstate.inference.state_eval_v1 import predict_v1_with_cache
+from msserviceprofiler.msguard.security.io import open_s
 
 predict_queue = queue.Queue()
 
@@ -130,8 +131,13 @@ class Simulate:
             else:
                 plugin_object.eos_token_id = plugin_object.input_manager.cache_config.eos_token_id[0]
             if ServiceField.config_path.req_and_decode_file.exists():
-                with open(ServiceField.config_path.req_and_decode_file, 'r') as f:
-                    ServiceField.req_id_and_max_decode_length = {int(k): int(v) for k, v in json.load(f).items()}
+                with open_s(ServiceField.config_path.req_and_decode_file, 'r') as f:
+                    try:
+                        req_and_decode = json.load(f)
+                    except json.JSONDecodeError as e:
+                        raise ValueError(f"Invalid JSON in config file: {e}") from e
+                    ServiceField.req_id_and_max_decode_length = {int(k): int(v) for k, v in req_and_decode.items()
+                                                                 if str(k).strip().isdigit() and str(v).strip().isdigit()}
             else:
                 ServiceField.req_id_and_max_decode_length = {}
             if not Path(ServiceField.config_path.static_file_dir).exists():
