@@ -276,9 +276,9 @@ class Settings(BaseSettings):
     prefill_lam: float = 0.5  # 惩罚系数
     decode_lam: float = 0.5
     success_rate_lam: float = 0.5
-    prefill_constrain: float = 0.05
-    decode_constrain: float = 0.05
-    success_rate_constrain: float = 1.0
+    prefill_constraint: float = 0.05
+    decode_constraint: float = 0.05
+    success_rate_constraint: float = 1.0
     service: str = ServiceType.master
     communication: CommunicationConfig = CommunicationConfig()
     float_range_in_best_particle: float = 0.1  # 如果用历史值作为作为初始值，那么允许在初始值的浮动程度。

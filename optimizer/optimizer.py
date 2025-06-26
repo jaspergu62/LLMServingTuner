@@ -531,8 +531,8 @@ class ScheduleWithMultiMachine(Scheduler):
 class PSOOptimizer:
     def __init__(self, scheduler: Scheduler, n_particles: int = 10, iters=100, pso_options: PsoOptions = None,
                  target_field: Optional[Tuple] = None, prefill_lam: float = 0.5, decode_lam: float = 0.5,
-                 success_rate_lam: float = 0.5, prefill_constrain: float = 0.05, decode_constrain: float = 0.05,
-                 success_rate_constrain: float = 1, load_history_data: Optional[List] = None,
+                 success_rate_lam: float = 0.5, prefill_constraint: float = 0.05, decode_constraint: float = 0.05,
+                 success_rate_constraint: float = 1, load_history_data: Optional[List] = None,
                  load_breakpoint: bool = False, pso_init_kwargs: Optional[Dict] = None):
         self.scheduler = scheduler
         self.n_particles = n_particles
@@ -545,9 +545,9 @@ class PSOOptimizer:
         self.prefill_lam = prefill_lam  # 优化算法中惩罚系数
         self.decode_lam = decode_lam
         self.success_rate_lam = success_rate_lam
-        self.prefill_constrain = prefill_constrain
-        self.decode_constrain = decode_constrain
-        self.success_rate_constrain = success_rate_constrain
+        self.prefill_constraint = prefill_constraint
+        self.decode_constraint = decode_constraint
+        self.success_rate_constraint = success_rate_constraint
         self.load_history_data = load_history_data
         self.load_breakpoint = load_breakpoint
         self.pso_init_kwargs = pso_init_kwargs
@@ -586,21 +586,21 @@ class PSOOptimizer:
             return inf
         if performance_index.time_to_first_token is not None:
             _var = max(0.0, (
-                    performance_index.time_to_first_token - self.prefill_constrain) / self.prefill_constrain)
+                    performance_index.time_to_first_token - self.prefill_constraint) / self.prefill_constraint)
             try:
                 fitness += self.prefill_lam * (exp(_var) - 1)
             except OverflowError:
                 return inf
         if performance_index.time_per_output_token is not None:
             _decode_var = max(0.0, (
-                    performance_index.time_per_output_token - self.decode_constrain) / self.decode_constrain)
+                    performance_index.time_per_output_token - self.decode_constraint) / self.decode_constraint)
             try:
                 fitness += self.decode_lam * (exp(_decode_var) - 1)
             except OverflowError:
                 return inf
         if performance_index.success_rate:
             _success_var = max(0.0, (
-                    self.success_rate_constrain - performance_index.success_rate) / self.success_rate_constrain)
+                    self.success_rate_constraint - performance_index.success_rate) / self.success_rate_constraint)
             try:
                 fitness += self.success_rate_lam * (exp(_success_var) - 1)
             except OverflowError:
@@ -704,8 +704,8 @@ def main(args: argparse.Namespace):
     pso = PSOOptimizer(scheduler, n_particles=settings.n_particles, iters=settings.iters,
                        prefill_lam=settings.prefill_lam, target_field=settings.target_field,
                        decode_lam=settings.decode_lam, success_rate_lam=settings.success_rate_lam,
-                       decode_constrain=settings.decode_constrain, prefill_constrain=settings.prefill_constrain,
-                       success_rate_constrain=settings.success_rate_constrain, load_history_data=_load_history_data,
+                       decode_constraint=settings.decode_constraint, prefill_constraint=settings.prefill_constraint,
+                       success_rate_constraint=settings.success_rate_constraint, load_history_data=_load_history_data,
                        load_breakpoint=args.load_breakpoint,
                        pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter})
     pso.run()
