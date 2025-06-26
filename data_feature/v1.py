@@ -24,6 +24,8 @@ import pandas as pd
 
 from msserviceprofiler.modelevalstate.inference.common import get_bins_and_label
 from msserviceprofiler.modelevalstate.inference.file_reader import StaticFile
+from msserviceprofiler.msguard.security.io import read_csv_s
+
 
 HARDWARE_FIELD = ("cpu_count", "cpu_mem", "soc_name", "npu_mem")
 HardWare = namedtuple("HardWare", HARDWARE_FIELD, defaults=[0, 0, "", 0])
@@ -131,14 +133,14 @@ class FileReader:
                     break
                 file_path = self.file_paths[self.current_file_index]
                 if math.isclose(self.num_lines, math.inf):
-                    df = pd.read_csv(file_path, skiprows=self.current_line_index)
+                    df = read_csv_s(file_path, skiprows=self.current_line_index)
                     lines.append(df)
                     # 继续读取下一个文件
                     self.current_file_index += 1
                     self.current_line_index = 0
                 else:
                     _expect_nrows = self.read_rows_number(lines)
-                    df = pd.read_csv(file_path, nrows=_expect_nrows, skiprows=self.current_line_index)
+                    df = read_csv_s(file_path, nrows=_expect_nrows, skiprows=self.current_line_index)
                     if self.columns:
                         df.columns = self.columns
                     else:
