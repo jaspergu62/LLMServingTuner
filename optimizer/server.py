@@ -20,7 +20,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.optimizer.optimizer import Simulator
+from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
 from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value, CommunicationConfig
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 
