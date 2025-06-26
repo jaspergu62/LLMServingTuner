@@ -3,8 +3,9 @@
     "iters": 5,
     "prefill_lam": 0,
     "decode_lam": 1,
-    "prefill_constrain": 10,
-    "decode_constrain": 0.05,
+    "prefill_constraint": 10,
+    "decode_constraint": 0.05,
+    "service": "master",
     "target_field": [
       {
         "name": "max_batch_size",

@@ -3,8 +3,8 @@
     "iters": 100,
     "prefill_lam": 0,
     "decode_lam": 0,
-    "prefill_constrain": 0.5,
-    "decode_constrain": 0.05,
+    "prefill_constraint": 0.5,
+    "decode_constraint": 0.05,
     "benchmark": {
         "command": "/usr/bin/bash ./run_vllm_benchmark.sh"
     },

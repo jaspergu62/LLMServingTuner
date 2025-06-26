@@ -43,6 +43,8 @@ from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField
 from msserviceprofiler.modelevalstate.inference.dataset import InputData, DataProcessor, \
     CustomLabelEncoder, preset_category_data
 from msserviceprofiler.modelevalstate.inference.file_reader import FileHanlder, StaticFile
+from msserviceprofiler.msguard.security.io import read_csv_s
+
 
 sub_thread = None
 predict_queue = queue.Queue()
@@ -58,7 +60,7 @@ class CachePredict:
             self.label = data[label_name]
             self.data = data.drop(label_name, axis=1)
         elif data_path and data_path.exists():
-            read_datas = [pd.read_csv(_child) for _child in data_path.iterdir()]
+            read_datas = [read_csv_s(_child) for _child in data_path.iterdir()]
             if read_datas:
                 data = pd.concat(read_datas)
                 self.label = data[label_name]
@@ -184,7 +186,7 @@ class XGBStateEvaluate:
                     p.unlink()
                     continue
                 try:
-                    _df = pd.read_csv(_child)
+                    _df = read_csv_s(_child)
                     read_datas.append(_df)
                 except (FileNotFoundError, pd.errors.EmptyDataError, RuntimeError) as e:
                     logger.error("Failed in read cache data. cache data {}, child {}, error: {}",

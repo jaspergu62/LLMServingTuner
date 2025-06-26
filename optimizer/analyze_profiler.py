@@ -19,6 +19,8 @@ import re
 from loguru import logger
 
 import pandas as pd
+from msserviceprofiler.msguard.security.io import read_csv_s
+
 
 
 def find_first_simulate_csv(input_path_2):
@@ -45,17 +47,17 @@ def find_first_simulate_csv(input_path_2):
 
 def analyze(input_path_1, input_path_2):
     profiling_path = os.path.join(input_path_1, 'request.csv')
-    df3 = pd.read_csv(profiling_path, header=0)
+    df3 = read_csv_s(profiling_path, header=0)
 
     total_req = df3.shape[0]
     filtered_df = df3[df3['reply_token_size'].notna()]
     success_req = filtered_df.shape[0]
 
     batch_path = os.path.join(input_path_1, 'batch.csv')
-    df1 = pd.read_csv(batch_path, header=0)
+    df1 = read_csv_s(batch_path, header=0)
     df1 = df1[df1['name'] == 'modelExec']
     simulate_path = find_first_simulate_csv(input_path_2)
-    df2 = pd.read_csv(simulate_path, header=None)
+    df2 = read_csv_s(simulate_path, header=None)
     column_name = ['simulate_time']
     df2.columns = column_name
     # 确认两文件的行数相同
