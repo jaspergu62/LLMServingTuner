@@ -1,11 +1,9 @@
-# !/usr/bin/python3.7
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
-"""
-比较实用numpy 计算出来的概率和 解析文件的概率
-"""
+
 import copy
 import json
+import statistics
 from pathlib import Path
 from statistics import mean, stdev
 from dataclasses import dataclass
@@ -15,7 +13,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.common import State, my_std
+from msserviceprofiler.modelevalstate.common import State
 
 
 @dataclass
@@ -51,7 +49,7 @@ class AnalysisState:
         _negative_sigma = []
         for k in sorted(res.keys(), key=lambda x: getattr(x, x_field)):
             v = res.get(k, [])
-            if len(v) < 2:
+            if len(v) == 1:
                 _x.append(getattr(k, x_field))
                 _mean.append(v[0])
                 _positive_sigma.append(v[0])
@@ -65,8 +63,8 @@ class AnalysisState:
                 try:
                     _sigma = np.std(v)
                 except Exception:
-                    logger.warning('Failed stdenv', v)
-                    _sigma = my_std(v)
+                    logger.warning('Failed stdev', v)
+                    _sigma = 0 if not v else statistics.pstdev(v)
             _positive_sigma.append(_mean[-1] + _sigma)
             _negative_sigma.append(_mean[-1] - _sigma)
         return _x, _mean, _positive_sigma, _negative_sigma
