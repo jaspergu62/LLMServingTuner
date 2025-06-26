@@ -48,8 +48,11 @@ class SimulateVllm:
                     except json.JSONDecodeError as e:
                         raise ValueError(f"Invalid JSON in config file: {e}") from e
 
-                    ServiceField.req_id_and_max_decode_length = {int(k): int(v) for k, v in req_and_decode.items()
-                                                                 if str(k).strip().isdigit() and str(v).strip().isdigit()}
+                    ServiceField.req_id_and_max_decode_length = {
+                        int(k): int(v) 
+                        for k, v in req_and_decode.items()
+                        if str(k).strip().isdigit() and str(v).strip().isdigit()
+                    }
             else:
                 ServiceField.req_id_and_max_decode_length = {}
             if not Path(ServiceField.config_path.static_file_dir).exists():

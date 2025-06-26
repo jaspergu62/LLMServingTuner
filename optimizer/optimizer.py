@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
-import pandas as pd
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
@@ -40,7 +39,7 @@ from msserviceprofiler.modelevalstate.optimizer.global_best_custom import Custom
 from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-from msserviceprofiler.msguard.security.io import open_s, read_csv_s
+from msserviceprofiler.msguard.security.io import read_csv_s
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
 _analyze_mapping = {

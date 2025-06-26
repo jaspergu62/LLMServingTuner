@@ -50,8 +50,6 @@ def computer_speed_with_second(line_node, field):
 
 def my_std(nums):
     n = len(nums)
-    if n == 0:
-        return 0
     avg = sum(nums) / n
     return (sum(map(lambda e: (e - avg) * (e - avg), nums)) / n) ** 0.5
 
