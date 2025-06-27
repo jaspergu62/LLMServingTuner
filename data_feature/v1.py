@@ -21,10 +21,10 @@ from typing import List, Optional
 from warnings import warn
 from loguru import logger
 import pandas as pd
-
+from msguard.constraints.rule import Rule
 from msserviceprofiler.modelevalstate.inference.common import get_bins_and_label
 from msserviceprofiler.modelevalstate.inference.file_reader import StaticFile
-from msguard.constraints.rule import Rule
+
 from msserviceprofiler.msguard.security.io import read_csv_s
 
 
