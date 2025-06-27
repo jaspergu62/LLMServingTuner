@@ -31,7 +31,6 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy, CUSTOM_OUTPUT, custom_output
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
-from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.msguard.security.io import read_csv_s
 
@@ -678,6 +677,7 @@ def main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
     from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
     from msserviceprofiler.modelevalstate.config.config import settings, ServiceType
+    from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 
     if settings.service == ServiceType.slave.value:
         slave_server()
