@@ -27,7 +27,8 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy, CUSTOM_OUTPUT, custom_output
+from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy
+from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
