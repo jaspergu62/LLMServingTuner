@@ -12,9 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pickle
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Tuple, Optional, List, Union
 
 import numpy as np
@@ -48,51 +46,36 @@ class InputData:
 @dataclass
 class CategoryInfo:
     name: str = "batch_stage"
-    ohe_path: Path = Path("batch_stage.pt")
     all_value: Tuple[str] = ("prefill", "decode")
 
 
 preset_category_data = [
-    CategoryInfo("batch_stage", Path("batch_stage_ohe.pkl"), ALL_BATCH_STAGE),
-    CategoryInfo("hidden_act", Path("hidden_act_ohe.pkl"), ALL_HIDDEN_ACT),
-    CategoryInfo("model_type", Path("model_type_ohe.pkl"), ALL_MODEL_TYPE),
-    CategoryInfo("torch_dtype", Path("torch_dtype_ohe.pkl"), DTYPE_CATEGORY),
-    CategoryInfo("quantize", Path("quantize_ohe.pkl"), ALL_QUANTIZE),
-    CategoryInfo("kv_quant_type", Path("kv_quant_type_ohe.pkl"), ALL_KV_QUANT_TYPE),
-    CategoryInfo("group_size", Path("group_size_ohe.pkl"), ALL_GROUP_SIZE),
-    CategoryInfo("reduce_quant_type", Path("reduce_quant_type_ohe.pkl"), ALL_REDUCE_QUANT_TYPE)
+    CategoryInfo("batch_stage", ALL_BATCH_STAGE),
+    CategoryInfo("hidden_act", ALL_HIDDEN_ACT),
+    CategoryInfo("model_type", ALL_MODEL_TYPE),
+    CategoryInfo("torch_dtype", DTYPE_CATEGORY),
+    CategoryInfo("quantize", ALL_QUANTIZE),
+    CategoryInfo("kv_quant_type", ALL_KV_QUANT_TYPE),
+    CategoryInfo("group_size", ALL_GROUP_SIZE),
+    CategoryInfo("reduce_quant_type", ALL_REDUCE_QUANT_TYPE)
 ]
 
 
 class CustomOneHotEncoder:
-    def __init__(self, one_hots: Optional[List[CategoryInfo]] = None, save_dir: Optional[Path] = None):
+    def __init__(self, one_hots: Optional[List[CategoryInfo]] = None):
         if one_hots:
             self.one_hots: List[CategoryInfo] = one_hots
         else:
             self.one_hots = []
-        if save_dir:
-            for _one_hot in self.one_hots:
-                _one_hot.ohe_path = save_dir.joinpath(_one_hot.ohe_path)
         self.one_hot_encoders: List[OneHotEncoder] = []
         self.first = True
 
-    def fit(self, load: bool = False):
+    def fit(self):
         self.one_hot_encoders = []
         for _one_hot in self.one_hots:
-            if load:
-                if not _one_hot.ohe_path.exists():
-                    continue
-                with open(_one_hot.ohe_path, "rb") as f:
-                    _cur_one_hot = pickle.load(f)
-            else:
-                _cur_one_hot = OneHotEncoder(handle_unknown='infrequent_if_exist')
-                _cur_one_hot.fit(np.array([[k] for k in _one_hot.all_value]))
+            _cur_one_hot = OneHotEncoder(handle_unknown='infrequent_if_exist')
+            _cur_one_hot.fit(np.array([[k] for k in _one_hot.all_value]))
             self.one_hot_encoders.append(_cur_one_hot)
-
-    def save(self):
-        for i, _one_hot in enumerate(self.one_hots):
-            with open(_one_hot.ohe_path, "wb") as f:
-                pickle.dump(self.one_hot_encoders[i], f)
 
     def update_encoders(self, columns):
         if self.first:
@@ -141,35 +124,21 @@ class CustomOneHotEncoder:
 
 
 class CustomLabelEncoder:
-    def __init__(self, category_info: Optional[List[CategoryInfo]] = None, save_dir: Optional[Path] = None):
+    def __init__(self, category_info: Optional[List[CategoryInfo]] = None):
         if category_info:
             self.category_info: List[CategoryInfo] = category_info
         else:
             self.category_info = []
-        if save_dir:
-            for _category in self.category_info:
-                _category.ohe_path = save_dir.joinpath(_category.ohe_path)
         self.category_encoders: List[LabelEncoder] = []
         self.first = True
         self.encode_cache = {}
 
-    def fit(self, load: bool = False):
+    def fit(self):
         self.category_encoders = []
         for _cate_info in self.category_info:
-            if load:
-                if not _cate_info.ohe_path.exists():
-                    continue
-                with open(_cate_info.ohe_path, "rb") as f:
-                    _cur_encoder = pickle.load(f)
-            else:
-                _cur_encoder = LabelEncoder()
-                _cur_encoder.fit(np.array([[k] for k in _cate_info.all_value]))
+            _cur_encoder = LabelEncoder()
+            _cur_encoder.fit(np.array([[k] for k in _cate_info.all_value]))
             self.category_encoders.append(_cur_encoder)
-
-    def save(self):
-        for i, _cate_info in enumerate(self.category_info):
-            with open(_cate_info.ohe_path, "wb") as f:
-                pickle.dump(self.category_encoders[i], f)
 
     def update_encoders(self, columns):
         if self.first:

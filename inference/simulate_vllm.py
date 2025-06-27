@@ -50,8 +50,8 @@ class SimulateVllm:
             static_file = StaticFile(base_path=ServiceField.config_path.static_file_dir)
             ServiceField.fh = FileHanlder(static_file)
             ServiceField.fh.load_static_data()
-            custom_encoder = CustomLabelEncoder(preset_category_data, save_dir=ServiceField.config_path.ohe_path)
-            custom_encoder.fit(load=True)
+            custom_encoder = CustomLabelEncoder(preset_category_data)
+            custom_encoder.fit()
             ServiceField.data_processor = DataProcessor(custom_encoder)
             SimulateVllm.first = False
             simulate.sub_thread = threading.Thread(target=write_file, args=(file_log,))

@@ -19,11 +19,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 from warnings import warn
-
+from loguru import logger
 import pandas as pd
 
 from msserviceprofiler.modelevalstate.inference.common import get_bins_and_label
 from msserviceprofiler.modelevalstate.inference.file_reader import StaticFile
+from msguard.constraints.rule import Rule
 
 HARDWARE_FIELD = ("cpu_count", "cpu_mem", "soc_name", "npu_mem")
 HardWare = namedtuple("HardWare", HARDWARE_FIELD, defaults=[0, 0, "", 0])
@@ -84,23 +85,6 @@ class HistInfo:
     output_length = get_bins_and_label("output_length", interval=10, )
 
 
-@dataclass
-class ModelFilePaths(StaticFile):
-    base_path: Path = Path("data/model")
-    batch_path: Optional[Path] = None
-    request_path: Optional[Path] = None
-
-    def __post_init__(self):
-        super().__post_init__()
-        if self.batch_path is None:
-            self.batch_path = self.base_path.joinpath("batch_need.csv")
-        if self.request_path is None:
-            self.request_path = self.base_path.joinpath("request_need.csv")
-        for file in [self.batch_path, self.request_path]:
-            if not file.exists():
-                raise FileNotFoundError(file)
-
-
 class FileReader:
     def __init__(self, file_paths: List[Path], num_lines: int = math.inf, start_lines: int = 0,
                  start_file_index: int = 0,
@@ -110,8 +94,9 @@ class FileReader:
         self.current_file_index = start_file_index
         self.current_line_index = start_lines
         for _file in file_paths:
-            if not _file.exists():
-                raise FileNotFoundError(_file)
+            if not Rule.input_file_read.is_satisfied_by(_file):
+                logger.error("please check the file for train exist and permissions")
+                return
         self.columns = columns
 
     def read_rows_number(self, lines: List[pd.DataFrame]) -> int:

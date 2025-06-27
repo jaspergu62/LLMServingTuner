@@ -40,6 +40,7 @@ from msserviceprofiler.modelevalstate.optimizer.global_best_custom import Custom
 from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+from msserviceprofiler.msguard.security import open_s
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
 _analyze_mapping = {
@@ -135,7 +136,7 @@ class BenchMark:
             run_log_path = Path(self.run_log)
             if run_log_path.exists() and print_log:
                 try:
-                    with open(run_log_path, "r", encoding="utf-8") as f:
+                    with open_s(run_log_path, "r", encoding="utf-8") as f:
                         f.seek(self.run_log_offset)
                         output = f.read()
                         self.run_log_offset = f.tell()

@@ -46,7 +46,8 @@ def find_first_simulate_csv(input_path_2):
 def analyze(input_path_1, input_path_2):
     profiling_path = os.path.join(input_path_1, 'request.csv')
     df3 = pd.read_csv(profiling_path, header=0)
-
+    if not df3:
+        raise ValueError("Empty dataframe from request.csv, please check")
     total_req = df3.shape[0]
     filtered_df = df3[df3['reply_token_size'].notna()]
     success_req = filtered_df.shape[0]

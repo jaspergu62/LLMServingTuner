@@ -20,6 +20,7 @@ from pathlib import Path
 
 from loguru import logger
 from packaging import version
+from msguard.constraints.rule import validate_params, Rule
 
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
@@ -46,6 +47,8 @@ def check_flag(target_file, patch_file):
     return diff_flag
  
  
+@validate_params({'patch_file': Rule.input_file_read})
+@validate_params({'target_file': Rule.output_path_write})
 def add_patch(target_file, patch_file):
     flags = os.O_WRONLY | os.O_CREAT
     modes = stat.S_IWUSR | stat.S_IRUSR
@@ -79,8 +82,9 @@ class Patch2rc1:
         file_path = mindie_llm.__path__[0]
         # 检查文件是否存在
         plugin_manager_file = Path(file_path).joinpath("text_generator/plugins/plugin_manager.py").resolve()
-        if not plugin_manager_file.exists():
-            raise FileNotFoundError(plugin_manager_file)
+        if not Rule.input_file_read.is_satisfied_by(plugin_manager_file):
+            logger.error("not found patch file for mindie")
+            return
         plugin_manager_patch = _patch_dir.joinpath("plugin_manager_patch.patch")
         diff_flag = check_flag(plugin_manager_file, plugin_manager_patch)
         if not diff_flag:

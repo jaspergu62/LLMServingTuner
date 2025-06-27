@@ -18,6 +18,7 @@ from pathlib import Path
 from loguru import logger
  
 from msserviceprofiler.modelevalstate.patch.patch_manager import check_flag, add_patch
+from msguard.constraints.rule import Rule
  
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
  
@@ -34,8 +35,9 @@ class PatchVllm:
         file_path = vllm_ascend.__path__[0]
         # 检查文件是否存在
         model_runner_file = Path(file_path).joinpath("worker/model_runner.py").resolve()
-        if not model_runner_file.exists():
-            raise FileNotFoundError(model_runner_file)
+        if not Rule.input_file_read.is_satisfied_by(model_runner_file):
+            logger.error("not found patch file for mindie")
+            return
         plugin_manager_patch = _patch_dir.joinpath("model_runner_patch.patch")
         diff_flag = check_flag(model_runner_file, plugin_manager_patch)
         if not diff_flag:

@@ -57,7 +57,7 @@ class StaticFile:
         for path in [self.hardware_path, self.env_path, self.mindie_config_path, self.config_path,
                      self.model_struct_path, self.model_decode_op_path, self.model_prefill_op_path]:
             if not path.exists():
-                logger.debug(f"Not Found {path}")
+                logger.debug(f"Not Found {path!r}")
 
 
 class FileHanlder:

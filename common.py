@@ -41,10 +41,14 @@ class State:
 
 
 def computer_speed(line_node, field):
+    if getattr(line_node, field) == 0:
+        return 1
     return 1 / (getattr(line_node, field) * 10 ** -3)
 
 
 def computer_speed_with_second(line_node, field):
+    if getattr(line_node, field) == 0:
+        return 1
     return 1 / (getattr(line_node, field) * 10 ** -6)
 
 

@@ -73,11 +73,12 @@ class DataStorage:
             _column.append(k)
             _value.append(v)
         if self.save_file.exists():
-            with open(self.save_file, "a+") as f:
+            from msguard.security import open_s, sanitize_csv_value
+            with open_s(self.save_file, "a+") as f:
                 data_writer = csv.writer(f)
-                data_writer.writerow(_value)
+                data_writer.writerow([sanitize_csv_value(_v) for _v in _value])
         else:
-            with open(self.save_file, "w") as f:
+            with open_s(self.save_file, "w") as f:
                 data_writer = csv.writer(f)
                 data_writer.writerow(_column)
-                data_writer.writerow(_value)
+                data_writer.writerow([sanitize_csv_value(_v) for _v in _value])
