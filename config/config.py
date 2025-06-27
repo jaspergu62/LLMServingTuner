@@ -137,7 +137,7 @@ class BenchMarkConfig(BaseModel):
     @classmethod
     def check_dir(cls, path: Path) -> Path:
         if not path.exists():
-            logger.error(f"FileNotFound: {path}")
+            logger.error(f"FileNotFound: {path!r}")
         return path
 
 
@@ -202,7 +202,7 @@ class MindieConfig(BaseModel):
     @classmethod
     def check_dir(cls, path: Path) -> Path:
         if not path.exists():
-            logger.error(f"FileNotFound: {path}")
+            logger.error(f"FileNotFound: {path!r}")
         return path
 
     @field_validator("log_path")

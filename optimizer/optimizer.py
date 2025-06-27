@@ -39,7 +39,8 @@ from msserviceprofiler.modelevalstate.optimizer.global_best_custom import Custom
 from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-from msserviceprofiler.msguard.security.io import read_csv_s, open_s
+from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.msguard.security.io import read_csv_s
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
 _analyze_mapping = {
