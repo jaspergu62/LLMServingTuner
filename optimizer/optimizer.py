@@ -35,6 +35,7 @@ from msserviceprofiler.modelevalstate.config.config import ServiceType, default_
 from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
+from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
@@ -664,7 +665,6 @@ def arg_parse(subparsers):
 
 
 def main(args: argparse.Namespace):
-    from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
     from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
     from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 
