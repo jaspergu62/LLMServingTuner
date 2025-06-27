@@ -21,7 +21,7 @@ from loguru import logger
 from pandas import DataFrame
 from sklearn.metrics import r2_score, mean_absolute_percentage_error
 from sklearn.model_selection import train_test_split
-
+from msserviceprofiler.msguard.constraints.rule import Rule
 from msserviceprofiler.modelevalstate.analysis import AnalysisState
 from msserviceprofiler.modelevalstate.common import _DECODE, _PREFILL, State
 from msserviceprofiler.modelevalstate.common import computer_speed_with_second, get_train_sub_path, \
@@ -129,7 +129,6 @@ class PretrainModel:
               middle_save_path: Optional[Path] = None):
         logger.info("start train")
         self.dataset.construct_data(lines_data, plt_data=self.plt_data, middle_save_path=middle_save_path)
-        self.dataset.custom_encoder.save()
         rmse = self.model.train(self.dataset, middle_save_path=middle_save_path)
         logger.info(f"rmse {rmse}")
 
@@ -235,22 +234,6 @@ class PretrainModel:
         shutil.copy(self.state_param.xgb_model_save_model_path,
                     _bak_dir.joinpath(self.state_param.xgb_model_save_model_path.name))
 
-    def save_readme(self):
-        with open(self.state_param.bak_dir.joinpath("../README.md"), 'w', encoding="utf-8") as f:
-            f.write("模型训练参数\n")
-            f.write(f"model: {type(self.model)}\n")
-            f.write(f"dataset: {type(self.dataset)}\n")
-            f.write(f"encoder info: {type(self.dataset.custom_encoder)} \n")
-            f.write(f"rmse: {self.rmse}us(微妙), r2(确定系数): {self.r2}, mape(平均绝对百分比误差): {self.mape} \n")
-            f.write(f"param: \n")
-            for k, v in asdict(self.state_param).items():
-                f.write(f"  {k}:{v}\n")
-            hist_info = {k: v for k, v in HistInfo.__dict__.items() if not k.startswith("__")}
-            f.write(f"hist info: {hist_info}\n")
-            f.write(f"model op size: {model_op_size}\n")
-            f.write(f"OP_EXPECTED_FIELD_MAPPING: {OP_EXPECTED_FIELD_MAPPING}\n")
-            f.write(f"OP_SCALE_HIST_FIELD_MAPPING: {OP_SCALE_HIST_FIELD_MAPPING}\n")
-
     def plot_metric(self, save_path: Optional[Path] = None):
         data = {"rmse": self.rmse, "r2": self.r2, "mape": self.mape}
         df = pd.DataFrame(data)
@@ -294,57 +277,8 @@ class ReqDecodePretrainModel(PretrainModel):
             plt.show()
         plt.close()
 
-    def save_readme(self):
-        with open(self.state_param.bak_dir.joinpath("../README.md"), 'w', encoding="utf-8") as f:
-            f.write("模型训练参数\n")
-            f.write(f"model: {type(self.model)}\n")
-            f.write(f"dataset: {type(self.dataset)}\n")
-            f.write(f"rmse: {self.rmse}, r2: {self.r2}, mape: {self.mape} \n")
-            f.write(f"param: \n")
-            for k, v in asdict(self.state_param).items():
-                f.write(f"  {k}:{v}\n")
-
 
 class TrainVersion1:
-    @staticmethod
-    def train_xgbmodel():
-        logger.info("start train xgbmodel")
-        root_dir = Path(r"D:\PyProject\ModelEvalState\data\v1.0.0")
-        file_paths = [
-            root_dir.joinpath(f"llama3-8b-{i + 1}\\feature.csv")
-            for i in range(2)
-        ]
-        base_dir = get_train_sub_path()
-        logger.info('base_dir', base_dir)
-        sp = StateParam(
-            base_path=base_dir,
-            predict_field="model_execute_time",
-            save_model=True,
-            shuffle=True,
-            plot_pred_and_real=True,
-            plot_data_feature=True,
-            start_num_lines=4000,
-            op_algorithm=OpAlgorithm.EXPECTED,
-            title="MixModel without warmup with batch max seq 2 op info"
-        )
-        model = StateXgbModel(
-            train_param=sp.xgb_model_train_param,
-            update_param=sp.xgb_model_update_param,
-            save_model_path=sp.xgb_model_save_model_path,
-            load_model_path=sp.xgb_model_save_model_path,
-            show_test_data_prediction=sp.xgb_model_show_test_data_prediction,
-            show_feature_importance=sp.xgb_model_show_feature_importance,
-        )
-        custom_encoder = CustomLabelEncoder(preset_category_data, save_dir=sp.ohe_path)
-        custom_encoder.fit()
-        dataset = MyDataSet(custom_encoder=custom_encoder, predict_field=sp.predict_field,
-                            shuffle=sp.shuffle, op_algorithm=sp.op_algorithm)
-
-        pm = PretrainModel(state_param=sp, dataset=dataset, model=model, plt_data=sp.plot_data_feature)
-        # 自定义训练数据
-        TrainVersion1.custom_train(file_paths, sp, pm)
-        pm.plot_metric(sp.step_dir)
-
     @staticmethod
     def custom_train(file_paths: List[Path], sp: StateParam, pm: PretrainModel):
         # 训练模型，将全部数据1:9分，9进行训练，1进行预测。
@@ -367,7 +301,6 @@ class TrainVersion1:
         pm.predict(test_data.reset_index(drop=True), save_path)
         pm.dataset.save(save_path)
         pm.plot_metric(sp.step_dir)
-        pm.save_readme()
         logger.info("finished train")
 
     @staticmethod
@@ -398,64 +331,7 @@ class TrainVersion1:
         save_path = sp.step_dir.joinpath("1")
         save_path.mkdir(parents=True, exist_ok=True)
         pm.predict(test_data.reset_index(drop=True), save_path)
-        pm.save_readme()
         logger.info("finished train")
-
-    @staticmethod
-    def train_with_prefill_with_decode(model_type: str = "prefill"):
-        # 训练模型，训练一个prefill模型,或者decode模型
-        file_paths = [
-            Path(r"/data/v1/llama3-8b/feature.csv"),
-            Path(r"/data/v1/llama3-8b1226-12/feature.csv"),
-        ]
-        base_dir = get_train_sub_path()
-        logger.info('base_dir', base_dir)
-        sp = StateParam(
-            base_path=base_dir,
-            predict_field="model_execute_time",
-            save_model=True,
-            shuffle=True,
-            plot_pred_and_real=True,
-            plot_data_feature=True,
-            start_num_lines=4000,
-            op_algorithm=OpAlgorithm.EXPECTED,
-            title=f"{model_type} without warm up."
-        )
-        model = StateXgbModel(
-            train_param=sp.xgb_model_train_param,
-            update_param=sp.xgb_model_update_param,
-            save_model_path=sp.xgb_model_save_model_path,
-            load_model_path=sp.xgb_model_save_model_path,
-            show_test_data_prediction=sp.xgb_model_show_test_data_prediction,
-            show_feature_importance=sp.xgb_model_show_feature_importance,
-        )
-        custom_encoder = CustomLabelEncoder(preset_category_data, save_dir=sp.ohe_path)
-        custom_encoder.fit()
-        dataset = MyDataSet(custom_encoder=custom_encoder, predict_field=sp.predict_field,
-                            shuffle=sp.shuffle, op_algorithm=sp.op_algorithm)
-        pm = PretrainModel(state_param=sp, dataset=dataset, model=model, plt_data=sp.plot_data_feature)
-        fl = FileReader(file_paths)
-        line_data = fl.read_lines()
-        # 只获取包含prefill/decode的行数的模型
-        line_data = line_data[line_data[line_data.columns[0]].str.contains(model_type)]
-        train_data, test_data = train_test_split(line_data, test_size=0.1, shuffle=True)
-
-        logger.info(train_data.shape)
-        save_path = sp.step_dir.joinpath("base")
-        save_path.mkdir(parents=True, exist_ok=True)
-        pm.train(train_data.reset_index(drop=True), middle_save_path=save_path)
-        pm.dataset.save(save_path)
-        logger.info('feature shape', pm.dataset.features.shape)
-        sp.comments = (f"data shuffle: True, train case: {pm.dataset.train_x.shape}, "
-                       f"validate case: {pm.dataset.test_x.shape}, predict case: {test_data.shape}")
-        pm.bak_model()
-        logger.info(test_data.shape)
-        save_path = sp.step_dir.joinpath("1")
-        save_path.mkdir(parents=True, exist_ok=True)
-        pm.predict(test_data.reset_index(drop=True), save_path)
-        pm.dataset.save(save_path)
-        pm.plot_metric(sp.step_dir)
-        pm.save_readme()
 
     @staticmethod
     def increment_train(fl: FileReader, sp: StateParam, pm: PretrainModel):
@@ -473,7 +349,6 @@ class TrainVersion1:
             except StopIteration:
                 break
         pm.bak_model(increment_stage="finished")
-        pm.save_readme()
 
     @staticmethod
     def full_train(fl: FileReader, sp: StateParam, pm: PretrainModel):
@@ -493,10 +368,9 @@ parser.add_argument("-o", "--output", default=Path("output"), type=Path)
 
 def pretrain(input_path, output_path):
     _input_file = Path(input_path).expanduser().resolve()
-    if not _input_file.exists():
-        raise FileNotFoundError(_input_file)
-    if not _input_file.is_dir():
-        raise NotADirectoryError(_input_file)
+    if not Rule.input_dir_traverse.is_satisfied_by(_input_file):
+        logger.error("not found dir for train model")
+        return
     # 获取目录中所有的feature.csv
     train_files = glob.glob(f"{_input_file}/**/*feature.csv", recursive=True)
     if not train_files:
@@ -530,7 +404,7 @@ def pretrain(input_path, output_path):
         show_test_data_prediction=sp.xgb_model_show_test_data_prediction,
         show_feature_importance=sp.xgb_model_show_feature_importance,
     )
-    custom_encoder = CustomLabelEncoder(preset_category_data, save_dir=sp.ohe_path)
+    custom_encoder = CustomLabelEncoder(preset_category_data)
     custom_encoder.fit()
     dataset = MyDataSet(custom_encoder=custom_encoder, predict_field=sp.predict_field,
                         shuffle=sp.shuffle, op_algorithm=sp.op_algorithm)

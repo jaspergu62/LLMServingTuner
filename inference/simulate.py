@@ -48,7 +48,7 @@ class ServiceField:
     req_id_and_max_decode_length = None
 
 
-ServiceField.config_path = ConfigPath(settings.latency_model.model_path, settings.latency_model.ohe_path,
+ServiceField.config_path = ConfigPath(settings.latency_model.model_path,
                                       settings.latency_model.static_file_dir,
                                       settings.latency_model.req_and_decode_file,
                                       settings.latency_model.cache_data)
@@ -148,8 +148,8 @@ class Simulate:
             static_file = StaticFile(base_path=ServiceField.config_path.static_file_dir)
             ServiceField.fh = FileHanlder(static_file)
             ServiceField.fh.load_static_data()
-            custom_encoder = CustomLabelEncoder(preset_category_data, save_dir=ServiceField.config_path.ohe_path)
-            custom_encoder.fit(load=True)
+            custom_encoder = CustomLabelEncoder(preset_category_data)
+            custom_encoder.fit()
             ServiceField.data_processor = DataProcessor(custom_encoder)
             Simulate.first = False
             global sub_thread

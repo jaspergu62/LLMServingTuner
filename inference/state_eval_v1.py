@@ -67,7 +67,7 @@ class CachePredict:
                 self.data = data.drop(label_name, axis=1)
         self.new_data = None
         self.new_label = None
-        self.output = data_path.joinpath(f"train_{os.getpid()}_{datetime.today().isoformat()}.csv")
+        self.output = data_path.joinpath(f"train_{os.getpid()}_{datetime.today().strftime('%Y%m%d%H%M%S')}.csv")
         if not self.output.parent.exists():
             self.output.parent.mkdir(parents=True)
 
@@ -182,7 +182,7 @@ class XGBStateEvaluate:
         if cache_data and cache_data.exists():
             for _child in cache_data.iterdir():
                 p = Path(_child)
-                if p.stats().st_size == 0 and p.is_file():
+                if p.stat().st_size == 0 and p.is_file():
                     p.unlink()
                     continue
                 try:
@@ -251,8 +251,8 @@ def predict_v1(batch_info: BatchField, request_info: Tuple[RequestField, ...], c
         hardware_field=fh.hardware
     )
     # 进行预测
-    custom_encoder = CustomLabelEncoder(preset_category_data, save_dir=config_path.ohe_path)
-    custom_encoder.fit(load=True)
+    custom_encoder = CustomLabelEncoder(preset_category_data)
+    custom_encoder.fit()
     # 加载模型
     data_processor = DataProcessor(custom_encoder)
     xgb_state_eval = XGBStateEvaluate(xgb_model_path=config_path.model_path, dataprocessor=data_processor)

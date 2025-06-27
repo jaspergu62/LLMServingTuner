@@ -32,6 +32,7 @@ from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_proces
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.msguard.security.io import read_csv_s
+from msserviceprofiler.msguard.security import open_s
 
 
 ANALYZE_MAPPING = {AnalyzeTool.profiler.value: analyze_profiler}
@@ -122,7 +123,7 @@ class BenchMark:
             run_log_path = Path(self.run_log)
             if run_log_path.exists() and print_log:
                 try:
-                    with open(run_log_path, "r", encoding="utf-8") as f:
+                    with open_s(run_log_path, "r", encoding="utf-8") as f:
                         f.seek(self.run_log_offset)
                         output = f.read()
                         self.run_log_offset = f.tell()
