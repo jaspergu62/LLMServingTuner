@@ -1,6 +1,7 @@
 # !/usr/bin/python3.7
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
+
 import os
 import subprocess
 from dataclasses import dataclass
@@ -52,19 +53,13 @@ def computer_speed_with_second(line_node, field):
     return 1 / (getattr(line_node, field) * 10 ** -6)
 
 
-def my_std(nums):
-    n = len(nums)
-    avg = sum(nums) / n
-    return (sum(map(lambda e: (e - avg) * (e - avg), nums)) / n) ** 0.5
-
-
-def get_train_sub_path(base_path: Path = Path(r"D:\PyProject\state_eval\tmp\pd_content\train")):
+def get_train_sub_path(base_path: Path):
     # 给训练输出目录生成新的目录
     if not base_path.exists():
-        base_path.mkdir(parents=True, exist_ok=True)
+        base_path.mkdir(parents=True, exist_ok=True, mode=0o750)
     _sub_len = len([0 for _ in base_path.iterdir()])
     _sub_dir = base_path.joinpath(f"{_sub_len + 1}")
-    _sub_dir.mkdir(parents=True, exist_ok=True)
+    _sub_dir.mkdir(parents=True, exist_ok=True, mode=0o750)
     return _sub_dir
 
 

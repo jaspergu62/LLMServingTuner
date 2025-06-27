@@ -39,7 +39,7 @@ def get_field_bins_count(target, field, bins):
     _value = []
     for _request_info in target:
         _value.append(float(getattr(_request_info, field, 0)))
-    if not _value:
+    if not _value and len(bins) >= 1:
         return [0 for _ in range(len(bins) - 1)]
     hist, bins = np.histogram(_value, bins)
     return hist

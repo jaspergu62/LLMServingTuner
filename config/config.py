@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
 import os
+import ast
 import time
 from copy import deepcopy
 from enum import Enum
@@ -88,14 +89,14 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
             _field.value = float(params[i])
         _simulate_run_info.append(_field)
     for i, v in enumerate(params_field):
+        _field = _simulate_run_info[i]
         if v.dtype == "ratio":
-            _field = _simulate_run_info[i]
             _t_op = [_op for _op in _simulate_run_info if _op.name == v.dtype_param][0]
             _field.value = int(_field.value * _t_op.value)
         if v.dtype == "factories":
-            _field = _simulate_run_info[i]
             _t_op = [_op for _op in _simulate_run_info if _op.name == v.dtype_param["target_name"]][0]
-            _field.value = eval(v.dtype_param["dtype"])(v.dtype_param["product"] / _t_op.value)
+            if _t_op.value != 0:
+                _field.value = ast.literal_eval(v.dtype_param["dtype"])(v.dtype_param["product"] / _t_op.value)
 
     return _simulate_run_info
 

@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
-import pandas as pd
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
@@ -41,6 +40,7 @@ from msserviceprofiler.modelevalstate.optimizer.server import main as slave_serv
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.msguard.security.io import read_csv_s
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
 _analyze_mapping = {
@@ -87,7 +87,7 @@ class BenchMark:
         for file in output_path.iterdir():
             if "result_common" in file.name:
                 try:
-                    df = pd.read_csv(file)
+                    df = read_csv_s(file)
                     if "OutputGenerateSpeed" in df.columns:
                         _generate_speed = df["OutputGenerateSpeed"][0]
                     else:
@@ -111,7 +111,7 @@ class BenchMark:
                 continue
             if "result_perf" in file.name:
                 try:
-                    df = pd.read_csv(file)
+                    df = read_csv_s(file)
                     first_token_time = float(df["FirstTokenTime"][0].split()[0])
                     perf_generate_token_speed = float(df["GeneratedTokenSpeed"][0].split()[0])
                     decode_time = float(df["DecodeTime"][0].split()[0])
