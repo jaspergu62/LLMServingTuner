@@ -28,23 +28,20 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.common import get_train_sub_path
-from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
-    DeployPolicy, map_param_with_value, CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, ServiceType
-from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
-    PerformanceIndex, OptimizerConfigField
-from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
-from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
-from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
-from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
-from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-from msserviceprofiler.msguard.security.io import read_csv_s
+from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings
+from msserviceprofiler.modelevalstate.config.config import DeployPolicy, map_param_with_value, CUSTOM_OUTPUT
+from msserviceprofiler.modelevalstate.config.config import custom_output, BenchMarkPolicy, CommunicationConfig
+from msserviceprofiler.modelevalstate.config.config import ServiceType, default_support_field, PsoOptions
+from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
-_analyze_mapping = {
-    AnalyzeTool.profiler.value: analyze_profiler
-}
+from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
+from msserviceprofiler.modelevalstate.common import get_train_sub_path
+from msserviceprofiler.msguard.security.io import read_csv_s
+
+
+ANALYZE_MAPPING = {AnalyzeTool.profiler.value: analyze_profiler}
 
 
 def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
@@ -207,7 +204,7 @@ class ProfilerBenchmark(BenchMark):
 
     def extra_performance_index(self, *args, **kwargs):
         logger.info("extra_performance_index")
-        analyze_tool = _analyze_mapping.get(self.analyze_tool)
+        analyze_tool = ANALYZE_MAPPING.get(self.analyze_tool)
         if analyze_tool is None:
             raise ValueError(f"Analyze tool not found: {self.analyze_tool}")
         res = analyze_tool(*args, **kwargs)
@@ -359,7 +356,7 @@ class VllmBenchMark(BenchMark):
 
 
 class Scheduler:
-    def __init__(self, simulator: Simulator, benchmark: BenchMark, data_storage: DataStorage,
+    def __init__(self, simulator, benchmark, data_storage,
                  bak_path: Optional[Path] = None, retry_number: int = 3, wait_start_time=1800):
         self.simulator = simulator
         self.benchmark = benchmark
@@ -637,6 +634,8 @@ class PSOOptimizer:
         return (tuple(_min), tuple(_max))
 
     def run(self):
+        from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
+
         optimizer = CustomGlobalBestPSO(n_particles=self.n_particles, dimensions=len(self.target_field),
                                         options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
@@ -665,6 +664,10 @@ def arg_parse(subparsers):
 
 
 def main(args: argparse.Namespace):
+    from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
+    from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
+    from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
+
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
