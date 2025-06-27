@@ -19,7 +19,7 @@ from typing import Optional, List, Tuple
 
 import pandas as pd
 from loguru import logger
-
+from msserviceprofiler.msguard.security import open_s, sanitize_csv_value
 from msserviceprofiler.modelevalstate.config.config import (
     BenchMarkConfig,
     DataStorageConfig,
@@ -55,7 +55,6 @@ class DataStorage:
 
     def save(self, performance_index: PerformanceIndex, params: Tuple[OptimizerConfigField],
              bench_mark_config: BenchMarkConfig, **kwargs):
-        from msserviceprofiler.msguard.security import open_s, sanitize_csv_value
         logger.info("Save result with DataStorage.")
         _column = []
         _value = []
