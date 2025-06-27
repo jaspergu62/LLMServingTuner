@@ -2,6 +2,7 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
 import os
 import ast
+import atexit
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Optional, Union
@@ -168,6 +169,11 @@ class MindieConfig(BaseModel):
     def create_path(cls, path: Path) -> Path:
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+
+@atexit.register
+def clearing_residual_process():
+    kill_process(MindieConfig().process_name)
 
 
 class PsoOptions(BaseModel):

@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import atexit
 import json
 import os
 import re
@@ -43,13 +42,6 @@ def validate_parameters(common_generate_speed, perf_generate_token_speed, first_
         raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
     if first_token_time is None or decode_time is None:
         raise ValueError("Not Found first_token_time.")
-
-
-@atexit.register
-def clearing_residual_process():
-    from msserviceprofiler.modelevalstate.config.config import MindieConfig
-
-    kill_process(MindieConfig().process_name)
 
 
 class BenchMark:
