@@ -39,7 +39,7 @@ from msserviceprofiler.modelevalstate.optimizer.global_best_custom import Custom
 from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-from msserviceprofiler.msguard.security.io import read_csv_s
+from msserviceprofiler.msguard.security.io import read_csv_s, open_s
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
 
 _analyze_mapping = {
@@ -69,7 +69,7 @@ class BenchMark:
         self.run_log_offset = None
         self.run_log_fp = None
         self.process = None
-        self.pattern = re.compile(r"\s*(\d+\.?\d*)\s*\%")
+        self.pattern = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%$")
 
     def backup(self, del_log=True):
         backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
@@ -135,7 +135,7 @@ class BenchMark:
             run_log_path = Path(self.run_log)
             if run_log_path.exists() and print_log:
                 try:
-                    with open(run_log_path, "r", encoding="utf-8") as f:
+                    with open_s(run_log_path, "r", encoding="utf-8") as f:
                         f.seek(self.run_log_offset)
                         output = f.read()
                         self.run_log_offset = f.tell()
@@ -243,7 +243,7 @@ class ProfilerBenchmark(BenchMark):
     def check_profiler(self, print_log=False):
         if print_log:
             try:
-                with open(self.profiler_log, "r") as f:
+                with open_s(self.profiler_log, "r") as f:
                     f.seek(self.profiler_log_offset)
                     output = f.read()
                     self.profiler_log_offset = f.tell()
@@ -317,14 +317,19 @@ class VllmBenchMark(BenchMark):
         for file in output_path.iterdir():
             if not file.name.endswith(".json"):
                 continue
-            with open(file, mode='r', encoding="utf-8") as f:
-                data = json.load(f)
+            with open_s(file, mode='r', encoding="utf-8") as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError as err:
+                    logger.warning("Failed to open %r, error: %r" % (file, err))
+                    data = {}
             generate_speed = data.get("output_throughput", 0)
             time_to_first_token = data.get("mean_ttft_ms", 0) / 10 ** 3
             time_per_output_token = data.get("mean_tpot_ms", 0) / 10 ** 3
             num_prompts = data.get("num_prompts", 1)
             completed = data.get("completed", 0)
-            success_rate = completed / num_prompts
+            if num_prompts != 0:
+                success_rate = completed / num_prompts
         return PerformanceIndex(generate_speed=generate_speed,
                                 time_to_first_token=time_to_first_token,
                                 time_per_output_token=time_per_output_token,
@@ -580,31 +585,34 @@ class PSOOptimizer:
         return all_position, all_cost
 
     def minimum_algorithm(self, performance_index: PerformanceIndex) -> float:
+        if not isinstance(performance_index.generate_speed, (int, float)) or performance_index.generate_speed == 0:
+            return inf
         try:
             fitness = 1 / performance_index.generate_speed
         except OverflowError:
             return inf
+        
+        def calculate_metric(value, constraint, lam):
+            if constraint == 0:
+                return inf
+            try:
+                _var = max(0.0, (value - constraint) / constraint)
+                return lam * (exp(_var) - 1)
+            except OverflowError:
+                return inf
+            
         if performance_index.time_to_first_token is not None:
-            _var = max(0.0, (
-                    performance_index.time_to_first_token - self.prefill_constraint) / self.prefill_constraint)
-            try:
-                fitness += self.prefill_lam * (exp(_var) - 1)
-            except OverflowError:
-                return inf
+            fitness += calculate_metric(performance_index.time_to_first_token, 
+                                    self.prefill_constraint, 
+                                    self.prefill_lam)
         if performance_index.time_per_output_token is not None:
-            _decode_var = max(0.0, (
-                    performance_index.time_per_output_token - self.decode_constraint) / self.decode_constraint)
-            try:
-                fitness += self.decode_lam * (exp(_decode_var) - 1)
-            except OverflowError:
-                return inf
+            fitness += calculate_metric(performance_index.time_per_output_token,
+                                      self.decode_constraint,
+                                      self.decode_lam)
         if performance_index.success_rate:
-            _success_var = max(0.0, (
-                    self.success_rate_constraint - performance_index.success_rate) / self.success_rate_constraint)
-            try:
-                fitness += self.success_rate_lam * (exp(_success_var) - 1)
-            except OverflowError:
-                return inf
+            fitness += calculate_metric(self.success_rate_constraint - performance_index.success_rate,
+                                      self.success_rate_constraint,
+                                      self.success_rate_lam)
         return fitness
 
     def op_func(self, x) -> np.ndarray:

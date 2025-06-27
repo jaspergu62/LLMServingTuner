@@ -19,6 +19,8 @@ from pathlib import Path
 import psutil
 from loguru import logger
 
+from msserviceprofiler.msguard import validate_params, Rule
+
 
 def remove_file(output_path: Path):
     if not output_path:
@@ -65,28 +67,32 @@ def kill_process(process_name):
         kill_children(children)
 
 
-def backup(target, bak, class_name=""):
-    if not target:
-        return
-    if not bak:
+def backup(target, bak, class_name="", max_depth=10, current_depth=0):
+    if not target or not bak:
         return
     if not isinstance(target, Path):
         target = Path(target)
-    if not isinstance(target, Path):
+    if not isinstance(bak, Path):
         bak = Path(bak)
-    if not target.exists():
+    if not target.exists() or not bak.exists():
         return
-    if not bak.exists():
+    if current_depth >= max_depth:
+        logger.warning(f"Reached maximum backup depth {max_depth} for {target}")
         return
+
     new_file = bak.joinpath(class_name).joinpath(target.name)
     if target.is_file():
-        new_file.parent.mkdir(parents=True, exist_ok=True)
+        if not Rule.input_file_read.is_satisfied_by(target):
+            return
+        new_file.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
         if not new_file.exists():
             shutil.copy(target, new_file)
     else:
+        if not Rule.input_dir_traverse.is_satisfied_by(target):
+            return
         if new_file.exists():
             for child in new_file.iterdir():
-                backup(child, new_file, class_name)
+                backup(child, new_file, class_name, max_depth, current_depth + 1)
         else:
             shutil.copytree(target, new_file)
 
