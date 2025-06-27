@@ -24,8 +24,8 @@ from typing import Dict, List, Tuple, Any
 
 import pandas as pd
 from loguru import logger
-from msguard.constraints.rule import open_s
-
+from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.msguard.constraints.rule import Rule
 from msserviceprofiler.msguard.security.io import read_csv_s
 
 
