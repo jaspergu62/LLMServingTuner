@@ -19,7 +19,8 @@ from pathlib import Path
 import psutil
 from loguru import logger
 
-from msserviceprofiler.msguard import validate_params, Rule
+from msserviceprofiler.msguard import Rule
+from msserviceprofiler.msguard.security import walk_s
 
 
 def remove_file(output_path: Path):
@@ -116,7 +117,7 @@ def get_folder_size(folder_path: Path) -> int:
     if not folder.exists():
         return 0
     total_size = 0
-    for dirpath, _, filenames in os.walk(folder):
+    for dirpath, _, filenames in walk_s(folder):
         for filename in filenames:
             filepath = os.path.join(dirpath, filename)
             # 跳过符号链接（软链接），避免重复计算
