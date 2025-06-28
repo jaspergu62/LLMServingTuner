@@ -502,4 +502,4 @@ def main(args):
         pretrain(input_csv_path, output_path)
         req_decodetimes(input_path, output_path)
     except Exception as e:
-        logger.error("pretrain failed, please check")
+        logger.error(f"pretrain failed, please check. {e}")

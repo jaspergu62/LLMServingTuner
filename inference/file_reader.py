@@ -80,7 +80,11 @@ class FileHanlder:
     @staticmethod
     def load_hardware_data(hardware_path: Path) -> HardWare:
         with open_s(hardware_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as err:
+                logger.warning("Failed to open %r, error: %r" % (file, err))
+                data = {}
         if not data:
             raise AssertionError("Data is None")
         new_data = {}
@@ -94,7 +98,11 @@ class FileHanlder:
     @staticmethod
     def load_env_data(env_path: Path) -> EnvField:
         with open_s(env_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as err:
+                logger.warning("Failed to open %r, error: %r" % (file, err))
+                data = {}
         if not data:
             raise AssertionError("Data is None")
         return EnvField(**{k: v for k, v in data.items() if k in ENV_FIELD})
@@ -102,7 +110,11 @@ class FileHanlder:
     @staticmethod
     def load_mindie_config(mindie_config_path: Path) -> MindieConfig:
         with open_s(mindie_config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as err:
+                logger.warning("Failed to open %r, error: %r" % (file, err))
+                data = {}
         if not data:
             raise AssertionError("Data is None")
         if "max_seq_len" in data:
@@ -118,7 +130,11 @@ class FileHanlder:
     @staticmethod
     def load_model_config(config_path: Path) -> ModelConfig:
         with open_s(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as err:
+                logger.warning("Failed to open %r, error: %r" % (file, err))
+                data = {}
         if not data:
             raise AssertionError("Data is None")
         new_data = {}
