@@ -117,11 +117,8 @@ def get_folder_size(folder_path: Path) -> int:
     if not folder.exists():
         return 0
     total_size = 0
-    for dirpath, _, filenames in walk_s(folder):
-        for filename in filenames:
-            filepath = os.path.join(dirpath, filename)
-            # 跳过符号链接（软链接），避免重复计算
-            if not os.path.islink(filepath):
-                total_size += os.path.getsize(filepath)
+    for file_path in walk_s(folder):
+        if os.path.isfile(file_path):
+            total_size += os.path.getsize(file_path)
 
     return total_size
