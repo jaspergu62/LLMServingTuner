@@ -15,11 +15,6 @@ from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUS
 from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool
 
 
-MIES_INSTALL_PATH = "MIES_INSTALL_PATH"
-MINDIE_SERVICE_DEFAULT_PATH = "/usr/local/Ascend/mindie/latest/mindie-service"
-MINDIE_SERVICE_PATH = os.getenv(MIES_INSTALL_PATH, MINDIE_SERVICE_DEFAULT_PATH)
-
-
 class OptimizerConfigField(BaseModel):
     name: str = "max_batch_size"
     config_position: str = "BackendConfig.ScheduleConfig.maxBatchSize"
@@ -155,12 +150,14 @@ class LatencyModel(BaseModel):
 
 class MindieConfig(BaseModel):
     # 运行mindie时，要修改的mindie config
+    mindie_service_default_path: str = "/usr/local/Ascend/mindie/latest/mindie-service"
+    mindie_service_path: str = os.getenv("MIES_INSTALL_PATH", mindie_service_default_path)
     process_name: str = "mindieservice_daemon"
-    config_path: Path = Path(os.path.join(MINDIE_SERVICE_PATH, "conf", "config.json"))
-    config_bak_path: Path = Path(os.path.join(MINDIE_SERVICE_PATH, "conf", "config_bak.json"))
+    config_path: Path = Path(os.path.join(mindie_service_path, "conf", "config.json"))
+    config_bak_path: Path = Path(os.path.join(mindie_service_path, "conf", "config_bak.json"))
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: str = "bash run_mindie.sh"
-    log_path: Path = Path(os.path.join(MINDIE_SERVICE_PATH, "logs"))
+    log_path: Path = Path(os.path.join(mindie_service_path, "logs"))
 
 
     @field_validator("config_path")
