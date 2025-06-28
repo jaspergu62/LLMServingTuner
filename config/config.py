@@ -11,7 +11,8 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
-from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, modelevalstate_config_path, custom_output
+from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUSTOM_OUTPUT
+from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH
 
 
 MIES_INSTALL_PATH = "MIES_INSTALL_PATH"
@@ -178,6 +179,8 @@ class MindieConfig(BaseModel):
 
 @atexit.register
 def clearing_residual_process():
+    from ..optimizer.utils import kill_process
+
     kill_process(MindieConfig().process_name)
 
 
