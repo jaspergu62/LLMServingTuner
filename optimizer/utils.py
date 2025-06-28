@@ -115,7 +115,12 @@ def get_folder_size(folder_path: Path) -> int:
     folder = Path(folder_path)
     if not folder.exists():
         return 0
-    usage = shutil.disk_usage(folder)
-    total_size = usage.used
+    total_size = 0
+    for dirpath, _, filenames in os.walk(folder):
+        for filename in filenames:
+            filepath = os.path.join(dirpath, filename)
+            # 跳过符号链接（软链接），避免重复计算
+            if not os.path.islink(filepath):
+                total_size += os.path.getsize(filepath)
 
     return total_size
