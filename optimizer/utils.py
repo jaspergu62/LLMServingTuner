@@ -109,3 +109,15 @@ def close_file_fp(file_fp):
             os.close(file_fp)
     except (AttributeError, OSError):
         return
+    
+
+def get_folder_size(folder_path: Path) -> int:
+    total_size = 0
+    folder = Path(folder_path)
+    if not folder.exists():
+        return
+    for file in folder.rglob("*"):
+        if file.is_file():
+            total_size += file.stat().st_size
+
+    return total_size
