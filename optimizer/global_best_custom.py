@@ -19,6 +19,8 @@ class CustomGlobalBestPSO(GlobalBestPSO):
 
     def computer_next_pos(self):
         self.swarm.pbest_cost = np.full(self.swarm_size[0], np.inf)
+        if self.n_particles == 0:
+            raise ValueError("n_particles cannot be zero")
         _iter_num = len(self.breakpoint_pos) // self.n_particles
         if (len(self.breakpoint_pos) % self.n_particles) != 0:
             _iter_num += 1
