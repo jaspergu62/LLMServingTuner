@@ -140,8 +140,5 @@ def main():
             time.sleep(1)
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt received, exiting.")
-            sys.exit(0)
-
-if __name__ == '__main__':
-    main()
+            break
  

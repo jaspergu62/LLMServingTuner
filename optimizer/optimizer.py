@@ -30,7 +30,8 @@ from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
-    DeployPolicy, map_param_with_value, CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, ServiceType
+    DeployPolicy, map_param_with_value, CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, \
+        ServiceType, FOLDER_LIMIT_SIZE
 from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
     PerformanceIndex, OptimizerConfigField
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
@@ -41,7 +42,8 @@ from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, Vllm
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 from msserviceprofiler.msguard.security import open_s
 from msserviceprofiler.msguard.security.io import read_csv_s
-from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp
+from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp, \
+    get_folder_size
 
 _analyze_mapping = {
     AnalyzeTool.profiler.value: analyze_profiler
@@ -378,9 +380,13 @@ class Scheduler:
 
     def back_up(self):
         if self.bak_path:
-            self.current_back_path = get_train_sub_path(self.bak_path)
-            self.simulator.bak_path = self.current_back_path
-            self.benchmark.bak_path = self.current_back_path
+            if get_folder_size(self.bak_path) > FOLDER_LIMIT_SIZE:
+                self.simulator.bak_path = None
+                self.benchmark.bak_path = None
+            else:
+                _cur_bak_path = get_train_sub_path(self.bak_path)
+                self.simulator.bak_path = _cur_bak_path
+                self.benchmark.bak_path = _cur_bak_path
 
     def wait_simulate(self):
         logger.info("wait run mindie")
@@ -491,12 +497,16 @@ class ScheduleWithMultiMachine(Scheduler):
 
     def back_up(self):
         if self.bak_path:
-            _cur_bak_path = get_train_sub_path(self.bak_path)
-            self.simulator.bak_path = _cur_bak_path
-            self.benchmark.bak_path = _cur_bak_path
-            _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"
-            self.communication.send_command(_cmd)
-            self.communication.clear_cmd(_cmd)
+            if get_folder_size(self.bak_path) > FOLDER_LIMIT_SIZE:
+                self.simulator.bak_path = None
+                self.benchmark.bak_path = None
+            else:
+                _cur_bak_path = get_train_sub_path(self.bak_path)
+                self.simulator.bak_path = _cur_bak_path
+                self.benchmark.bak_path = _cur_bak_path
+                _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"
+                self.communication.send_command(_cmd)
+                self.communication.clear_cmd(_cmd)
 
     def monitoring_status(self):
         logger.info("Start monitoring")
