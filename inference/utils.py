@@ -145,6 +145,8 @@ class PreprocessTool:
         _op_delta_expected = {}
         for _op, _op_execute_deltas in _op_delta.items():
             total_count = sum(_op_count[_op])
+            if total_count == 0:
+                continue
             _tmp_expected = 0
             for i, _op_execute_delta in enumerate(_op_execute_deltas):
                 _cur_count = _op_count[_op][i]
@@ -176,6 +178,8 @@ class PreprocessTool:
         _op_param_expected = {}
         for _op, _op_param in _op_param_size.items():
             total_count = sum(_op_count[_op])
+            if total_count == 0:
+                continue
             _tmp_expected = {}
             for i, _param_i in enumerate(_op_param):
                 _cur_count = _op_count[_op][i]
@@ -314,7 +318,9 @@ class PreprocessTool:
             for i, _param_i in enumerate(_op_delta):
                 _cur_count = _op_count[_op][i]
                 for j, _param_j in enumerate(_param_i):
-                    _cur_ratio = [_param_j / _sum * 100] * _cur_count
+                    _cur_ratio = [0] * _cur_count
+                    if _sum != 0:
+                        _cur_ratio = [_param_j / _sum * 100] * _cur_count
                     if j in _tmp_ratio:
                         _tmp_ratio[j].extend(_cur_ratio)
                     else:
@@ -348,7 +354,10 @@ class PreprocessTool:
             _tmp_ratio = []
             for i, _op_delta in enumerate(_op_execute_deltas):
                 _cur_count = _op_count[_op][i]
-                _tmp_ratio.extend([_op_delta / _sum] * _cur_count)
+                _cur_ratio = [0] * _cur_count
+                if _sum != 0:
+                    _cur_ratio = [_op_delta / _sum] * _cur_count
+                _tmp_ratio.extend(_cur_ratio)
             _op_delta_ratio[_op] = _tmp_ratio
 
         return _op_delta_ratio

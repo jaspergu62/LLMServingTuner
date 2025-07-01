@@ -29,7 +29,7 @@ from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy
 from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output
-from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp
+from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp, get_folder_size
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.msguard.security.io import read_csv_s
@@ -369,9 +369,13 @@ class Scheduler:
 
     def back_up(self):
         if self.bak_path:
-            self.current_back_path = get_train_sub_path(self.bak_path)
-            self.simulator.bak_path = self.current_back_path
-            self.benchmark.bak_path = self.current_back_path
+            if get_folder_size(self.bak_path) > FOLDER_LIMIT_SIZE:
+                self.simulator.bak_path = None
+                self.benchmark.bak_path = None
+            else:
+                _cur_bak_path = get_train_sub_path(self.bak_path)
+                self.simulator.bak_path = _cur_bak_path
+                self.benchmark.bak_path = _cur_bak_path
 
     def wait_simulate(self):
         logger.info("wait run mindie")
@@ -486,12 +490,16 @@ class ScheduleWithMultiMachine(Scheduler):
 
     def back_up(self):
         if self.bak_path:
-            _cur_bak_path = get_train_sub_path(self.bak_path)
-            self.simulator.bak_path = _cur_bak_path
-            self.benchmark.bak_path = _cur_bak_path
-            _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"
-            self.communication.send_command(_cmd)
-            self.communication.clear_cmd(_cmd)
+            if get_folder_size(self.bak_path) > FOLDER_LIMIT_SIZE:
+                self.simulator.bak_path = None
+                self.benchmark.bak_path = None
+            else:
+                _cur_bak_path = get_train_sub_path(self.bak_path)
+                self.simulator.bak_path = _cur_bak_path
+                self.benchmark.bak_path = _cur_bak_path
+                _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"
+                self.communication.send_command(_cmd)
+                self.communication.clear_cmd(_cmd)
 
     def monitoring_status(self):
         logger.info("Start monitoring")
