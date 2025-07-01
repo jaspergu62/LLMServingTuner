@@ -28,7 +28,7 @@ import numpy as np
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy
-from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output
+from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output, FOLDER_LIMIT_SIZE
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp, get_folder_size
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.common import get_train_sub_path

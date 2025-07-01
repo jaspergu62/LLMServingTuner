@@ -22,7 +22,7 @@ if custom_output:
     custom_output = Path(custom_output).resolve()
 else:
     custom_output = RUN_PATH
-
+FOLDER_LIMIT_SIZE = 1024 * 1024 * 1024
 
 class DeployPolicy(Enum):
     single = "single"
