@@ -36,7 +36,7 @@ from msserviceprofiler.msguard.security.io import read_csv_s
 from msserviceprofiler.msguard.security import open_s
 
 
-ANALYZE_MAPPING = {AnalyzeTool.profiler.value: analyze_profiler}
+_analyze_mapping = {AnalyzeTool.profiler.value: analyze_profiler}
 
 
 def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
@@ -198,7 +198,7 @@ class ProfilerBenchmark(BenchMark):
         from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
 
         logger.info("extra_performance_index")
-        analyze_tool = ANALYZE_MAPPING.get(self.analyze_tool)
+        analyze_tool = _analyze_mapping.get(self.analyze_tool)
         if analyze_tool is None:
             raise ValueError(f"Analyze tool not found: {self.analyze_tool}")
         res = analyze_tool(*args, **kwargs)
