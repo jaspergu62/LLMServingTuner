@@ -1,11 +1,9 @@
-# !/usr/bin/python3.8
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
 import os
 import ast
-import time
+import atexit
 from copy import deepcopy
-from enum import Enum
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Optional, Union
 
@@ -13,47 +11,8 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
-
-import msserviceprofiler.modelevalstate
-
-RUN_TIME = time.strftime("%Y%m%d%H%M%S", time.localtime())
-INSTALL_PATH = Path(msserviceprofiler.modelevalstate.__path__[0])
-RUN_PATH = Path(os.getcwd())
-MODEL_EVAL_STATE_CONFIG_PATH = "MODEL_EVAL_STATE_CONFIG_PATH"
-modelevalstate_config_path = os.getenv(MODEL_EVAL_STATE_CONFIG_PATH) or os.getenv(MODEL_EVAL_STATE_CONFIG_PATH.lower())
-if not modelevalstate_config_path:
-    modelevalstate_config_path = RUN_PATH.joinpath("config.json")
-modelevalstate_config_path = Path(modelevalstate_config_path).absolute().resolve()
-
-CUSTOM_OUTPUT = "MODEL_EVAL_STATE_CUSTOM_OUTPUT"
-custom_output = os.getenv(CUSTOM_OUTPUT) or os.getenv(CUSTOM_OUTPUT.lower())
-if custom_output:
-    custom_output = Path(custom_output).resolve()
-else:
-    custom_output = RUN_PATH
-FOLDER_LIMIT_SIZE = 1024 * 1024 * 1024
-
-
-class AnalyzeTool(Enum):
-    default = "default"
-    profiler = "profiler"
-    vllm_benchmark = "vllm"
-
-
-class BenchMarkPolicy(Enum):
-    benchmark = "benchmark"
-    profiler_benchmark = "profiler_benchmark"
-    vllm_benchmark = "vllm_benchmark"
-
-
-class DeployPolicy(Enum):
-    single = "single"
-    multiple = "multiple"
-
-
-class ServiceType(Enum):
-    master = "master"
-    slave = "slave"
+from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME
+from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy
 
 
 class OptimizerConfigField(BaseModel):
@@ -197,7 +156,7 @@ class MindieConfig(BaseModel):
     config_path: Path = Path(os.path.join(mindie_service_path, "conf", "config.json"))
     config_bak_path: Path = Path(os.path.join(mindie_service_path, "conf", "config_bak.json"))
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
-    command: str = "/usr/bin/bash ./run_mindie.sh"
+    command: str = "bash run_mindie.sh"
     log_path: Path = Path(os.path.join(mindie_service_path, "logs"))
 
 
@@ -213,6 +172,13 @@ class MindieConfig(BaseModel):
     def create_path(cls, path: Path) -> Path:
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+
+@atexit.register
+def clearing_residual_process():
+    from ..optimizer.utils import kill_process
+
+    kill_process(MindieConfig().process_name)
 
 
 class PsoOptions(BaseModel):

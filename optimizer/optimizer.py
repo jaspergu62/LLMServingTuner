@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import atexit
 import json
 import os
 import re
@@ -28,26 +27,16 @@ from typing import Dict, List, Tuple, Optional
 import numpy as np
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.common import get_train_sub_path
-from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, MindieConfig, settings, \
-    DeployPolicy, map_param_with_value, CUSTOM_OUTPUT, custom_output, BenchMarkPolicy, CommunicationConfig, \
-        ServiceType, FOLDER_LIMIT_SIZE
-from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, \
-    PerformanceIndex, OptimizerConfigField
+from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy
+from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output, FOLDER_LIMIT_SIZE
+from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp, get_folder_size
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
-from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
-from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
-from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
-from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.modelevalstate.common import get_train_sub_path
 from msserviceprofiler.msguard.security.io import read_csv_s
-from msserviceprofiler.modelevalstate.optimizer.utils import backup, kill_process, remove_file, close_file_fp, \
-    get_folder_size
+from msserviceprofiler.msguard.security import open_s
 
-_analyze_mapping = {
-    AnalyzeTool.profiler.value: analyze_profiler
-}
+
+_analyze_mapping = {AnalyzeTool.profiler.value: analyze_profiler}
 
 
 def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
@@ -57,13 +46,8 @@ def validate_parameters(common_generate_speed, perf_generate_token_speed, first_
         raise ValueError("Not Found first_token_time.")
 
 
-@atexit.register
-def clearing_residual_process():
-    kill_process(MindieConfig().process_name)
-
-
 class BenchMark:
-    def __init__(self, benchmark_config: BenchMarkConfig, throughput_type: str = "common",
+    def __init__(self, benchmark_config, throughput_type: str = "common",
                  bak_path: Optional[Path] = None):
         self.benchmark_config = benchmark_config
         self.throughput_type = throughput_type
@@ -80,6 +64,8 @@ class BenchMark:
             backup(self.run_log, self.bak_path, self.__class__.__name__)
 
     def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
+
         output_path = Path(self.benchmark_config.output_path)
         common_generate_speed = None
         first_token_time = None
@@ -157,7 +143,7 @@ class BenchMark:
             logger.error(f"Failed to check process status, error {e}")
             return False
 
-    def run(self, run_params: Tuple[OptimizerConfigField]):
+    def run(self, run_params):
         # 启动测试
         logger.info("Start the benchmark test.")
         self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_benchmark")
@@ -196,7 +182,7 @@ class BenchMark:
 
 
 class ProfilerBenchmark(BenchMark):
-    def __init__(self, benchmark_config: BenchMarkConfig, *args, analyze_tool: AnalyzeTool = AnalyzeTool.default,
+    def __init__(self, benchmark_config, *args, analyze_tool: AnalyzeTool = AnalyzeTool.default,
                  **kwargs):
         super().__init__(benchmark_config, *args, **kwargs)
         self.analyze_tool = analyze_tool
@@ -209,6 +195,8 @@ class ProfilerBenchmark(BenchMark):
         self.profiler_process = None
 
     def extra_performance_index(self, *args, **kwargs):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
+
         logger.info("extra_performance_index")
         analyze_tool = _analyze_mapping.get(self.analyze_tool)
         if analyze_tool is None:
@@ -304,14 +292,15 @@ class ProfilerBenchmark(BenchMark):
 
 
 class VllmBenchMark(BenchMark):
-    def __init__(self, benchmark_config: BenchMarkConfig, throughput_type: str = "common",
-                 bak_path: Optional[Path] = None):
+    def __init__(self, benchmark_config, throughput_type: str = "common", bak_path: Optional[Path] = None):
         super().__init__(benchmark_config, throughput_type, bak_path)
         self.output_path = benchmark_config.output_path
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True)
 
     def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
+
         output_path = Path(self.benchmark_config.output_path)
         generate_speed = None
         time_per_output_token = None
@@ -338,7 +327,7 @@ class VllmBenchMark(BenchMark):
                                 time_per_output_token=time_per_output_token,
                                 success_rate=success_rate)
 
-    def run(self, run_params: Tuple[OptimizerConfigField]):
+    def run(self, run_params):
         # 启动测试
         logger.info("Start the benchmark test.")
         self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_benchmark")
@@ -367,7 +356,7 @@ class VllmBenchMark(BenchMark):
 
 
 class Scheduler:
-    def __init__(self, simulator: Simulator, benchmark: BenchMark, data_storage: DataStorage,
+    def __init__(self, simulator, benchmark, data_storage,
                  bak_path: Optional[Path] = None, retry_number: int = 3, wait_start_time=1800):
         self.simulator = simulator
         self.benchmark = benchmark
@@ -397,7 +386,7 @@ class Scheduler:
                 return
         raise TimeoutError(self.wait_time)
 
-    def run_simulate(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
+    def run_simulate(self, params: np.ndarray, params_field):
         self.benchmark.prepare()
         self.simulator.run(tuple(self.simulate_run_info))
         self.wait_simulate()
@@ -414,7 +403,7 @@ class Scheduler:
                 return
             time.sleep(1)
 
-    def run_target_server(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
+    def run_target_server(self, params: np.ndarray, params_field):
         """
         1. 启动mindie仿真
         2. 启动benchmark 测试
@@ -453,7 +442,7 @@ class Scheduler:
         self.simulator.stop(del_log)
         self.benchmark.stop(del_log)
 
-    def run(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]) -> PerformanceIndex:
+    def run(self, params: np.ndarray, params_field):
         """
         1. 启动mindie仿真
         2. 启动benchmark 测试
@@ -462,6 +451,8 @@ class Scheduler:
         5. 返回benchmark测试结果
         params: 是一维数组，其值对应mindie 的相关配置。
         """
+        from msserviceprofiler.modelevalstate.config.config import map_param_with_value, PerformanceIndex
+
         logger.info("Start run in scheduler.")
         self.back_up()
         self.simulate_run_info = map_param_with_value(params, params_field)
@@ -485,7 +476,9 @@ class Scheduler:
 
 
 class ScheduleWithMultiMachine(Scheduler):
-    def __init__(self, communication_config: CommunicationConfig, *args, **kwargs):
+    def __init__(self, communication_config, *args, **kwargs):
+        from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
+
         super().__init__(*args, **kwargs)
         self.communication_config = communication_config
         self.communication = CommunicationForFile(self.communication_config.cmd_file,
@@ -522,7 +515,7 @@ class ScheduleWithMultiMachine(Scheduler):
                 return
             time.sleep(1)
 
-    def run_simulate(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
+    def run_simulate(self, params: np.ndarray, params_field):
         _cmd = f"{self.cmd.start} params:{params.tolist()}"
         self.cmd.history = _cmd
         self.communication.send_command(_cmd)
@@ -545,11 +538,13 @@ class ScheduleWithMultiMachine(Scheduler):
 
 
 class PSOOptimizer:
-    def __init__(self, scheduler: Scheduler, n_particles: int = 10, iters=100, pso_options: PsoOptions = None,
+    def __init__(self, scheduler: Scheduler, n_particles: int = 10, iters=100, pso_options=None,
                  target_field: Optional[Tuple] = None, prefill_lam: float = 0.5, decode_lam: float = 0.5,
                  success_rate_lam: float = 0.5, prefill_constraint: float = 0.05, decode_constraint: float = 0.05,
                  success_rate_constraint: float = 1, load_history_data: Optional[List] = None,
                  load_breakpoint: bool = False, pso_init_kwargs: Optional[Dict] = None):
+        from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions
+
         self.scheduler = scheduler
         self.n_particles = n_particles
         self.iters = iters
@@ -573,6 +568,8 @@ class PSOOptimizer:
             self.history_pos, self.history_cost = self.computer_fitness()
 
     def computer_fitness(self) -> Tuple:
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
+
         all_position = []
         all_cost = []
         for case_data in self.load_history_data:
@@ -595,7 +592,7 @@ class PSOOptimizer:
             raise ValueError("Failed in computer_fitness.")
         return all_position, all_cost
 
-    def minimum_algorithm(self, performance_index: PerformanceIndex) -> float:
+    def minimum_algorithm(self, performance_index) -> float:
         if not isinstance(performance_index.generate_speed, (int, float)) or performance_index.generate_speed == 0:
             return inf
         try:
@@ -656,6 +653,9 @@ class PSOOptimizer:
         return (tuple(_min), tuple(_max))
 
     def run(self):
+        from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
+        from msserviceprofiler.modelevalstate.config.config import map_param_with_value
+
         optimizer = CustomGlobalBestPSO(n_particles=self.n_particles, dimensions=len(self.target_field),
                                         options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
@@ -684,6 +684,11 @@ def arg_parse(subparsers):
 
 
 def main(args: argparse.Namespace):
+    from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
+    from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
+    from msserviceprofiler.modelevalstate.config.config import settings, ServiceType
+    from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
