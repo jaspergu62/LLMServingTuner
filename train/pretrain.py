@@ -279,31 +279,7 @@ class ReqDecodePretrainModel(PretrainModel):
 
 
 class TrainVersion1:
-    @staticmethod
-    def custom_train(file_paths: List[Path], sp: StateParam, pm: PretrainModel):
-        # 训练模型，将全部数据1:9分，9进行训练，1进行预测。
-        fl = FileReader(file_paths)
-        line_data = fl.read_lines()
-        train_data, test_data = train_test_split(line_data, test_size=0.1, shuffle=True)
-        logger.info(f"train data shape {train_data.shape}")
-        sp.comments = f"input files: {file_paths} \n"
-        save_path = sp.step_dir.joinpath("base")
-        save_path.mkdir(parents=True, exist_ok=True)
-        pm.train(train_data.reset_index(drop=True), middle_save_path=save_path)
-        pm.dataset.save(save_path)
-        sp.comments += f'feature shape {pm.dataset.features.shape}\n'
-        sp.comments += (f"data shuffle: True, \n train case: {pm.dataset.train_x.shape},"
-                        f" validate case: {pm.dataset.test_x.shape}, predict case: {test_data.shape} \n")
-        pm.bak_model()
-        logger.info("test data {test_data.shape}")
-        save_path = sp.step_dir.joinpath("1")
-        save_path.mkdir(parents=True, exist_ok=True)
-        pm.predict(test_data.reset_index(drop=True), save_path)
-        pm.dataset.save(save_path)
-        pm.plot_metric(sp.step_dir)
-        logger.info("finished train")
-
-    @staticmethod
+    @staticmethod 
     def simple_train(file_paths: List[Path], sp: StateParam, pm: PretrainModel):
         # 训练模型，将全部数据1:9分，9进行训练，1进行预测。
         fl = FileReader(file_paths)

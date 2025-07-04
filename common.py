@@ -102,14 +102,14 @@ def get_module_version(module_name):
         if os.getenv(_flag) == "true":
             raise ValueError
         output = subprocess.check_output(
-            ["/usr/bin/pip", "show", module_name],
+            ["pip", "show", module_name],
             universal_newlines=True,
             env={"MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG": "true"}
         )
         for line in output.splitlines():
             if line.startswith("Version:"):
                 return line.split(":")[1].strip()
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
     raise ValueError("模块未安装或无法获取版本")

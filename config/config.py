@@ -57,6 +57,10 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
             _t_op = [_op for _op in _simulate_run_info if _op.name == v.dtype_param["target_name"]][0]
             if _t_op.value != 0:
                 _field.value = ast.literal_eval(v.dtype_param["dtype"])(v.dtype_param["product"] / _t_op.value)
+        if "maxPrefillBatchsize" in v.config_position:
+            _field = _simulate_run_info[i]
+            if _field.value == 0:
+                _field.value = 1
 
     return _simulate_run_info
 
@@ -69,9 +73,11 @@ class PerformanceIndex(BaseModel):
 
 
 class BenchMarkConfig(BaseModel):
+    from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig
     name: str = "benchmark"
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
-    command: str = "/usr/bin/bash ./run_benchmark.sh"
+    command: BenchmarkCommandConfig = BenchmarkCommandConfig()
+    vllm_command: VllmBenchmarkCommandConfig = VllmBenchmarkCommandConfig()
     output_path: Path = custom_output.joinpath("instance")
     custom_collect_output_path: Path = Field(
         default_factory=lambda: custom_output.joinpath("result/custom_collect_output_path").resolve(),
@@ -149,6 +155,7 @@ class LatencyModel(BaseModel):
 
 
 class MindieConfig(BaseModel):
+    from msserviceprofiler.modelevalstate.config.custom_command import MindieCommandConfig, VllmCommandConfig
     # 运行mindie时，要修改的mindie config
     mindie_service_default_path: str = "/usr/local/Ascend/mindie/latest/mindie-service"
     mindie_service_path: str = os.getenv("MIES_INSTALL_PATH", mindie_service_default_path)
@@ -156,7 +163,8 @@ class MindieConfig(BaseModel):
     config_path: Path = Path(os.path.join(mindie_service_path, "conf", "config.json"))
     config_bak_path: Path = Path(os.path.join(mindie_service_path, "conf", "config_bak.json"))
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
-    command: str = "bash run_mindie.sh"
+    command: MindieCommandConfig = MindieCommandConfig()
+    vllm_command: VllmCommandConfig = VllmCommandConfig()
     log_path: Path = Path(os.path.join(mindie_service_path, "logs"))
 
 
