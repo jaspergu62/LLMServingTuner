@@ -73,7 +73,8 @@ class PerformanceIndex(BaseModel):
 
 
 class BenchMarkConfig(BaseModel):
-    from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig
+    from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, \
+        VllmBenchmarkCommandConfig
     name: str = "benchmark"
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: BenchmarkCommandConfig = BenchmarkCommandConfig()

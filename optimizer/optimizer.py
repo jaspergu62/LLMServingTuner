@@ -48,6 +48,7 @@ def validate_parameters(common_generate_speed, perf_generate_token_speed, first_
 
 class BenchMark:
     from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
+    
     def __init__(self, benchmark_config, throughput_type: str = "common",
                  bak_path: Optional[Path] = None):
         self.benchmark_config = benchmark_config
@@ -167,8 +168,8 @@ class BenchMark:
         if CUSTOM_OUTPUT not in os.environ:
             os.environ[CUSTOM_OUTPUT] = str(custom_output)
         try:
-            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, stderr=subprocess.STDOUT,
-                                            text=True, cwd=cwd)
+            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, 
+                                            stderr=subprocess.STDOUT, text=True, cwd=cwd)
         except OSError as e:
             logger.error(f"Failed to run benchmark. error {e}")
             raise e
@@ -298,6 +299,7 @@ class ProfilerBenchmark(BenchMark):
 
 class VllmBenchMark(BenchMark):
     from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
+
     def __init__(self, benchmark_config, throughput_type: str = "common", bak_path: Optional[Path] = None):
         super().__init__(benchmark_config, throughput_type, bak_path)
         self.output_path = benchmark_config.output_path
@@ -361,8 +363,8 @@ class VllmBenchMark(BenchMark):
             _i = self.command.index(_var_name)
             self.command[_i] = str(self.output_path)
         try:
-            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, stderr=subprocess.STDOUT,
-                                            text=True, cwd=cwd)
+            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, 
+                                            stderr=subprocess.STDOUT, text=True, cwd=cwd)
         except OSError as e:
             logger.error(f"Failed to run benchmark. error {e}")
             raise e

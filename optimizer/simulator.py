@@ -34,7 +34,8 @@ from msserviceprofiler.modelevalstate.optimizer.utils import (backup, kill_proce
 
 
 class Simulator:
-    from  msserviceprofiler.modelevalstate.config.custom_command import MindieCommand
+    from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand
+
     def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
         self.mindie_config = mindie_config
         logger.info(f"config path {self.mindie_config.config_path}", )
@@ -68,7 +69,6 @@ class Simulator:
     @staticmethod
     def prepare_before_start_server():
         subprocess.run(["pkill", "-9", "mindie"])
-        subprocess.run(["npu-smi", "info"])
 
     @staticmethod
     def set_config_for_dict(origin_config, cur_key, next_key, next_level, value):
@@ -215,8 +215,8 @@ class Simulator:
             os.environ[CUSTOM_OUTPUT] = str(custom_output)
         logger.debug(f"env {os.environ}")
         logger.info(f"run cmd: {self.command}, log path: {self.mindie_log}")
-        self.process = subprocess.Popen(self.command, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, env=os.environ,
-                                        text=True, cwd=cwd)
+        self.process = subprocess.Popen(self.command, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, 
+                                        env=os.environ, text=True, cwd=cwd)
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')
@@ -267,6 +267,7 @@ class Simulator:
 
 class VllmSimulator(Simulator):
     from msserviceprofiler.modelevalstate.config.custom_command import VllmCommand
+
     def __init__(self, vllm_config: MindieConfig, bak_path: Optional[Path] = None):
         try:
             super().__init__(vllm_config, bak_path)
@@ -283,7 +284,6 @@ class VllmSimulator(Simulator):
     @staticmethod
     def prepare_before_start_server():
         subprocess.run(["pkill", "-15", "vllm"])
-        subprocess.run(["npu-smi", "info"])
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')

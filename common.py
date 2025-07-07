@@ -102,7 +102,7 @@ def get_module_version(module_name):
         if os.getenv(_flag) == "true":
             raise ValueError
         output = subprocess.check_output(
-            ["pip", "show", module_name],
+            ["/usr/bin/pip", "show", module_name],
             universal_newlines=True,
             env={"MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG": "true"}
         )
