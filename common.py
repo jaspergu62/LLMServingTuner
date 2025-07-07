@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Dict
+import shutil
 
 _PREFILL = "prefill"
 _DECODE = "decode"
@@ -101,8 +102,9 @@ def get_module_version(module_name):
     try:
         if os.getenv(_flag) == "true":
             raise ValueError
+        pip_path = shutil.which("pip")
         output = subprocess.check_output(
-            ["/usr/bin/pip", "show", module_name],
+            [pip_path, "show", module_name],
             universal_newlines=True,
             env={"MODEL_EVAL_STATE_GET_MODULE_VERSION_FLAG": "true"}
         )

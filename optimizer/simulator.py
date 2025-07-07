@@ -22,7 +22,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Tuple, Optional
-
+import shutil
 import psutil
 from loguru import logger
 
@@ -68,7 +68,11 @@ class Simulator:
         
     @staticmethod
     def prepare_before_start_server():
-        subprocess.run(["pkill", "-9", "mindie"])
+        pkill_path = shutil.which("pkill")
+        if pkill_path is not None:
+            subprocess.run([pkill_path, "-9", "mindie"])
+        else:
+            logger.error("pkill not found in path")
 
     @staticmethod
     def set_config_for_dict(origin_config, cur_key, next_key, next_level, value):
@@ -283,7 +287,11 @@ class VllmSimulator(Simulator):
 
     @staticmethod
     def prepare_before_start_server():
-        subprocess.run(["pkill", "-15", "vllm"])
+        pkill_path = shutil.which("pkill")
+        if pkill_path is not None:
+            subprocess.run([pkill_path, "-15", "vllm"])
+        else:
+            logger.error("pkill not found in path")
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')
