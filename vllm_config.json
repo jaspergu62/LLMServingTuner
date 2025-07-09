@@ -7,6 +7,9 @@
     "decode_constraint": 0.05,
     "benchmark": {
         "vllm_command": {
+            "serving": "serving_path",
+            "host": "host",
+            "port": "port",
             "model": "model_path",
             "served_model_name": "model_name",
             "dataset_name": "dataset_name",
@@ -15,6 +18,8 @@
     },
     "simulator": {
         "vllm_command": {
+            "host": "host",
+            "port": "port",
             "model": "model_path",
             "served_model_name": "model_name"
         }

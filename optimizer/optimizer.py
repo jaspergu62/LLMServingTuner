@@ -484,7 +484,7 @@ class Scheduler:
             error_info = e
             del_log = False
         self.data_storage.save(performance_index, tuple(self.simulate_run_info), self.benchmark.benchmark_config,
-                               error=error_info, bakcup=self.current_back_path)
+                               error=error_info, backup=self.current_back_path)
         self.stop_target_server(del_log)
         if error_info:
             raise error_info

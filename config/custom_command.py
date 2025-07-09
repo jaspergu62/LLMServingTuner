@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
+import os
 from pydantic import BaseModel
  
  
@@ -51,12 +52,11 @@ class VllmBenchmarkCommandConfig(BaseModel):
  
 class VllmBenchmarkCommand:
     def __init__(self, benchmark_command_config: VllmBenchmarkCommandConfig):
-        self.process = ["python", "/workspace/vllm/benchmarks/benchmark_serving.py"]
         self.benchmark_command_config = benchmark_command_config
  
     @property
     def command(self):
-        return [*self.process,
+        return ["python", self.benchmark_command_config.serving,
                 "--backend", self.benchmark_command_config.backend,
                 "--host", self.benchmark_command_config.host,
                 "--port", self.benchmark_command_config.port,
@@ -81,14 +81,17 @@ class MindieCommand:
  
     @property
     def command(self):
-        return ["/usr/local/Ascend/mindie/latest/mindie-service/bin/mindieservice_daemon"]
+        mindie_service_default_path: str = "/usr/local/Ascend/mindie/latest/mindie-service"
+        mindie_service_path: str = os.getenv("MIES_INSTALL_PATH", mindie_service_default_path)
+        mindie_command_path: str = mindie_service_path + "/bin/mindieservice_daemon"
+        return [mindie_command_path]
  
  
 class VllmCommandConfig(BaseModel):
     host: str = "127.0.0.1"
     port: str = "6379"
-    model: str = "/data/llama3-8b"
-    served_model_name: str = "llama3-8b"
+    model: str = ""
+    served_model_name: str = ""
  
  
 class VllmCommand:
