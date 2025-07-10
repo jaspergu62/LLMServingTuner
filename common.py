@@ -9,6 +9,9 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict
 import shutil
+import pandas as pd
+from msserviceprofiler.msguard import validate_params, Rule
+
 
 _PREFILL = "prefill"
 _DECODE = "decode"
@@ -117,3 +120,10 @@ def get_module_version(module_name):
 
     raise ValueError("模块未安装或无法获取版本")
 
+
+@validate_params({"path": Rule.input_file_read})
+def read_csv_s(path, **kwargs):
+    try:
+        return pd.read_csv(path, **kwargs)
+    except Exception as e:
+        raise ValueError(f"Failed to read csv %r." % path) from e

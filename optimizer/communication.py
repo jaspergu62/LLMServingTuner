@@ -18,6 +18,7 @@ import time
 from pathlib import Path
  
 from filelock import FileLock
+from msserviceprofiler.msguard.security import open_s
  
  
 class CustomCommand:
@@ -94,7 +95,7 @@ class CommunicationForFile:
         modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IROTH
         with FileLock(self.cmd_file_lock):
             if self.cmd_file.exists():
-                with open(self.cmd_file, "w") as fcmd:
+                with open_s(self.cmd_file, "w") as fcmd:
                     fcmd.write(cmd)
             else:
                 with os.fdopen(os.open(self.cmd_file, flags, modes), "w", buffering=1024) as fcmd:
@@ -104,7 +105,7 @@ class CommunicationForFile:
         with FileLock(self.res_file_lock):
             if not self.res_file.exists():
                 return ''
-            with open(self.res_file, 'r', encoding="utf-8") as f:
+            with open_s(self.res_file, 'r', encoding="utf-8") as f:
                 data = f.read()
         return data
  

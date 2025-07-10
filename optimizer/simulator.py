@@ -31,6 +31,7 @@ from msserviceprofiler.modelevalstate.config.config import (MindieConfig, MODEL_
 from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField
 from msserviceprofiler.modelevalstate.optimizer.utils import (backup, kill_process, kill_children,
                                                               remove_file, close_file_fp)
+from msserviceprofiler.msguard.security import open_s
 
 
 class Simulator:
@@ -41,7 +42,7 @@ class Simulator:
         logger.info(f"config path {self.mindie_config.config_path}", )
         if not self.mindie_config.config_path.exists():
             raise FileNotFoundError(self.mindie_config.config_path)
-        with open(self.mindie_config.config_path, "r") as f:
+        with open_s(self.mindie_config.config_path, "r") as f:
             data = json.load(f)
         self.default_config = data
         logger.info(f"config bak path {self.mindie_config.config_bak_path}", )
@@ -180,7 +181,7 @@ class Simulator:
         time.sleep(1)
 
     def check_success(self, print_log=False):
-        with open(self.mindie_log, "r") as f:
+        with open_s(self.mindie_log, "r") as f:
             try:
                 f.seek(self.mindie_log_offset)
                 output = f.read()
@@ -303,7 +304,7 @@ class VllmSimulator(Simulator):
         self.start_server(run_params)
 
     def check_success(self, print_log=False):
-        with open(self.mindie_log, "r") as f:
+        with open_s(self.mindie_log, "r") as f:
             try:
                 f.seek(self.mindie_log_offset)
                 output = f.read()

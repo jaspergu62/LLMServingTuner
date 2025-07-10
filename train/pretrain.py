@@ -21,7 +21,7 @@ from loguru import logger
 from pandas import DataFrame
 from sklearn.metrics import r2_score, mean_absolute_percentage_error
 from sklearn.model_selection import train_test_split
-from msserviceprofiler.msguard.constraints.rule import Rule
+from msserviceprofiler.msguard import Rule
 from msserviceprofiler.modelevalstate.analysis import AnalysisState
 from msserviceprofiler.modelevalstate.common import _DECODE, _PREFILL, State
 from msserviceprofiler.modelevalstate.common import computer_speed_with_second, get_train_sub_path, \

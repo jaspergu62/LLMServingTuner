@@ -28,7 +28,7 @@ from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField
 from msserviceprofiler.modelevalstate.inference.dataset import CustomLabelEncoder, preset_category_data, DataProcessor
 from msserviceprofiler.modelevalstate.inference.file_reader import FileHanlder, StaticFile
 from msserviceprofiler.modelevalstate.inference.simulate import ServiceField, write_file, file_log
-from msserviceprofiler.msguard.security.io import open_s
+from msserviceprofiler.msguard.security import open_s
 
 
 class SimulateVllm:
