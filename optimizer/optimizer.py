@@ -49,6 +49,7 @@ def validate_parameters(common_generate_speed, perf_generate_token_speed, first_
 class BenchMark:
     def __init__(self, benchmark_config, throughput_type: str = "common",
                  bak_path: Optional[Path] = None):
+        from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
         self.benchmark_config = benchmark_config
         self.throughput_type = throughput_type
         self.bak_path = bak_path
@@ -57,6 +58,7 @@ class BenchMark:
         self.run_log_fp = None
         self.process = None
         self.pattern = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%$")
+        self.command = BenchmarkCommand(self.benchmark_config.command).command
 
     def backup(self, del_log=True):
         backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
@@ -156,18 +158,21 @@ class BenchMark:
             if k.config_position == "env":
                 try:
                     os.environ[k.name] = str(k.value)
+                    _var_name = f"${k.name}"
+                    if _var_name in self.command:
+                        _i = self.command.index(_var_name)
+                        self.command[_i] = str(k.value)
                 except KeyError as e:
                     logger.error(f"Failed to set environment variable. error {e}")
         if CUSTOM_OUTPUT not in os.environ:
             os.environ[CUSTOM_OUTPUT] = str(custom_output)
-        run_cmd = shlex.split(self.benchmark_config.command)
         try:
-            self.process = subprocess.Popen(run_cmd, env=os.environ, stdout=self.run_log_fp, stderr=subprocess.STDOUT,
-                                            text=True, cwd=cwd)
+            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, 
+                                            stderr=subprocess.STDOUT, text=True, cwd=cwd)
         except OSError as e:
             logger.error(f"Failed to run benchmark. error {e}")
             raise e
-        logger.info(f"command: {' '.join(run_cmd)}, log file: {self.run_log}")
+        logger.info(f"command: {' '.join(self.command)}, log file: {self.run_log}")
 
     def stop(self, del_log=True):
         self.backup(del_log)
@@ -292,11 +297,14 @@ class ProfilerBenchmark(BenchMark):
 
 
 class VllmBenchMark(BenchMark):
+    from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
+
     def __init__(self, benchmark_config, throughput_type: str = "common", bak_path: Optional[Path] = None):
         super().__init__(benchmark_config, throughput_type, bak_path)
         self.output_path = benchmark_config.output_path
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True)
+        self.command = VllmBenchmarkCommand(self.benchmark_config.vllm_command).command
 
     def get_performance_index(self):
         from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
@@ -340,19 +348,26 @@ class VllmBenchMark(BenchMark):
             if k.config_position == "env":
                 try:
                     os.environ[k.name] = str(k.value)
+                    _var_name = f"${k.name}"
+                    if _var_name in self.command:
+                        _i = self.command.index(_var_name)
+                        self.command[_i] = str(k.value)
                 except KeyError as e:
                     logger.error(f"Failed to set environment variable. error {e}")
         if CUSTOM_OUTPUT not in os.environ:
             os.environ[CUSTOM_OUTPUT] = str(custom_output)
         os.environ["MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT"] = str(self.output_path)
-        run_cmd = shlex.split(self.benchmark_config.command)
+        _var_name = f"$MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT"
+        if _var_name in self.command:
+            _i = self.command.index(_var_name)
+            self.command[_i] = str(self.output_path)
         try:
-            self.process = subprocess.Popen(run_cmd, env=os.environ, stdout=self.run_log_fp, stderr=subprocess.STDOUT,
-                                            text=True, cwd=cwd)
+            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, 
+                                            stderr=subprocess.STDOUT, text=True, cwd=cwd)
         except OSError as e:
             logger.error(f"Failed to run benchmark. error {e}")
             raise e
-        logger.info(f"command: {' '.join(run_cmd)}, log file: {self.run_log}")
+        logger.info(f"command: {' '.join(self.command)}, log file: {self.run_log}")
 
 
 class Scheduler:
@@ -378,7 +393,7 @@ class Scheduler:
                 self.benchmark.bak_path = _cur_bak_path
 
     def wait_simulate(self):
-        logger.info("wait run mindie")
+        logger.info("wait run simulator")
         for _ in range(self.wait_time):
             time.sleep(1)
             if self.simulator.check_success():
@@ -467,8 +482,8 @@ class Scheduler:
             logger.error(f"Failed running. bak path: {self.simulator.bak_path}")
             error_info = e
             del_log = False
-        self.data_storage.save(performance_index, tuple(self.simulate_run_info), self.benchmark.benchmark_config,
-                               error=error_info, bakcup=self.current_back_path)
+        self.data_storage.save(performance_index, tuple(self.simulate_run_info), error=error_info, 
+                               backup=self.current_back_path)
         self.stop_target_server(del_log)
         if error_info:
             raise error_info

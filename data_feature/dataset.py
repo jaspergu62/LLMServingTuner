@@ -332,16 +332,6 @@ class MyDataSet:
             features, labels = self.preprocess(lines_data)
         return features, labels
 
-    def save(self, save_path: Path):
-        save_path.mkdir(mode=0o750, exist_ok=True)
-        # 保存每个 DataFrame 到对应的文件
-        save_to_csv(self.features, save_path.joinpath("features_preprocess.csv"))
-        save_to_csv(self.load_data, save_path.joinpath("load_data.csv"))
-        save_to_csv(self.test_x, save_path.joinpath("test_x.csv"))
-        save_to_csv(self.test_y, save_path.joinpath("test_y.csv"))
-        save_to_csv(self.train_x, save_path.joinpath("train_x.csv"))
-        save_to_csv(self.train_y, save_path.joinpath("train_y.csv"))
-
     def plt_data(self, line_data: DataFrame, middle_save_path: Optional[Path] = None):
         self.analysis_batch_feature(middle_save_path)
         self.analysis_origin_request_hist(line_data, middle_save_path)

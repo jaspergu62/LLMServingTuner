@@ -22,7 +22,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Tuple, Optional
-
+import shutil
 import psutil
 from loguru import logger
 
@@ -34,6 +34,8 @@ from msserviceprofiler.modelevalstate.optimizer.utils import (backup, kill_proce
 
 
 class Simulator:
+    from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand
+
     def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
         self.mindie_config = mindie_config
         logger.info(f"config path {self.mindie_config.config_path}", )
@@ -54,6 +56,7 @@ class Simulator:
         self.bak_path = bak_path
         self.mindie_log_fp = None
         self.process = None
+        self.command = self.MindieCommand(self.mindie_config.command).command
 
     @staticmethod
     def is_int(x):
@@ -62,6 +65,14 @@ class Simulator:
             return True
         except ValueError:
             return False
+        
+    @staticmethod
+    def prepare_before_start_server():
+        pkill_path = shutil.which("pkill")
+        if pkill_path is not None:
+            subprocess.run([pkill_path, "-9", "mindie"])
+        else:
+            logger.error("pkill not found in path")
 
     @staticmethod
     def set_config_for_dict(origin_config, cur_key, next_key, next_level, value):
@@ -188,6 +199,7 @@ class Simulator:
         return False
 
     def start_server(self, run_params: Tuple[OptimizerConfigField]):
+        self.prepare_before_start_server()
         self.mindie_log_fp, self.mindie_log = tempfile.mkstemp(prefix="modelevalstate_mindie")
         self.mindie_log_offset = 0
         if self.mindie_config.work_path:
@@ -197,15 +209,18 @@ class Simulator:
         for k in run_params:
             if k.config_position == "env":
                 os.environ[k.name] = str(k.value)
+                _var_name = f"${k.name}"
+                if _var_name in self.command:
+                    _i = self.command.index(_var_name)
+                    self.command[_i] = str(k.value)
         if MODEL_EVAL_STATE_CONFIG_PATH not in os.environ:
             os.environ[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
         if CUSTOM_OUTPUT not in os.environ:
             os.environ[CUSTOM_OUTPUT] = str(custom_output)
         logger.debug(f"env {os.environ}")
-        run_cmd = shlex.split(self.mindie_config.command)
-        logger.info(f"run cmd: {run_cmd}, log path: {self.mindie_log}")
-        self.process = subprocess.Popen(run_cmd, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, env=os.environ,
-                                        text=True, cwd=cwd)
+        logger.info(f"run cmd: {self.command}, log path: {self.mindie_log}")
+        self.process = subprocess.Popen(self.command, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, 
+                                        env=os.environ, text=True, cwd=cwd)
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')
@@ -255,17 +270,28 @@ class Simulator:
 
 
 class VllmSimulator(Simulator):
-    def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None):
+    from msserviceprofiler.modelevalstate.config.custom_command import VllmCommand
+
+    def __init__(self, vllm_config: MindieConfig, bak_path: Optional[Path] = None):
         try:
-            super().__init__(mindie_config, bak_path)
+            super().__init__(vllm_config, bak_path)
         except Exception as e:
             logger.info('VllmSimulator init failed')
-        self.mindie_config = mindie_config
+        self.vllm_config = vllm_config
         self.mindie_log = None
         self.mindie_log_offset = 0
         self.bak_path = bak_path
         self.mindie_log_fp = None
         self.process = None
+        self.command = self.VllmCommand(self.vllm_config.vllm_command).command
+
+    @staticmethod
+    def prepare_before_start_server():
+        pkill_path = shutil.which("pkill")
+        if pkill_path is not None:
+            subprocess.run([pkill_path, "-15", "vllm"])
+        else:
+            logger.error("pkill not found in path")
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')

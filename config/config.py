@@ -11,6 +11,8 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
+from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig
+from msserviceprofiler.modelevalstate.config.custom_command import MindieCommandConfig, VllmCommandConfig
 from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME
 from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy
 
@@ -57,6 +59,10 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
             _t_op = [_op for _op in _simulate_run_info if _op.name == v.dtype_param["target_name"]][0]
             if _t_op.value != 0:
                 _field.value = ast.literal_eval(v.dtype_param["dtype"])(v.dtype_param["product"] / _t_op.value)
+        if "maxPrefillBatchsize" in v.config_position:
+            _field = _simulate_run_info[i]
+            if _field.value == 0:
+                _field.value = 1
 
     return _simulate_run_info
 
@@ -71,7 +77,8 @@ class PerformanceIndex(BaseModel):
 class BenchMarkConfig(BaseModel):
     name: str = "benchmark"
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
-    command: str = "/usr/bin/bash ./run_benchmark.sh"
+    command: BenchmarkCommandConfig = BenchmarkCommandConfig()
+    vllm_command: VllmBenchmarkCommandConfig = VllmBenchmarkCommandConfig()
     output_path: Path = custom_output.joinpath("instance")
     custom_collect_output_path: Path = Field(
         default_factory=lambda: custom_output.joinpath("result/custom_collect_output_path").resolve(),
@@ -156,7 +163,8 @@ class MindieConfig(BaseModel):
     config_path: Path = Path(os.path.join(mindie_service_path, "conf", "config.json"))
     config_bak_path: Path = Path(os.path.join(mindie_service_path, "conf", "config_bak.json"))
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
-    command: str = "bash run_mindie.sh"
+    command: MindieCommandConfig = MindieCommandConfig()
+    vllm_command: VllmCommandConfig = VllmCommandConfig()
     log_path: Path = Path(os.path.join(mindie_service_path, "logs"))
 
 
