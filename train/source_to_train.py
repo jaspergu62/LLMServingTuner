@@ -402,7 +402,6 @@ def source_to_model(input_path: str, model_type: str):
         batch_rows = read_batch_data(cursor)
         data_by_pid = group_exec_data_by_pid(exec_rows)
         csv_file = os.path.join(input_path, 'request.csv')
-        model_type
         req_df = read_csv_s(csv_file, header=0)
         rids_ori = fetch_rids_from_db(ori_db_path)
         if model_type == 'vllm':
