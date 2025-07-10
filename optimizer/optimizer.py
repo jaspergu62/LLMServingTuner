@@ -31,8 +31,7 @@ from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, Ben
 from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output, FOLDER_LIMIT_SIZE
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp, get_folder_size
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
-from msserviceprofiler.modelevalstate.common import get_train_sub_path
-from msserviceprofiler.msguard.security.io import read_csv_s
+from msserviceprofiler.modelevalstate.common import get_train_sub_path, read_csv_s
 from msserviceprofiler.msguard.security import open_s
 
 

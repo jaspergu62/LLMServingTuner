@@ -27,8 +27,7 @@ from msserviceprofiler.modelevalstate.config.config import (
     PerformanceIndex,
     OptimizerConfigField
 )
-from msserviceprofiler.msguard.security.io import read_csv_s
-
+from msserviceprofiler.modelevalstate.common import read_csv_s
 
 
 class DataStorage:

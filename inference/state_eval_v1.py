@@ -43,7 +43,7 @@ from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField
 from msserviceprofiler.modelevalstate.inference.dataset import InputData, DataProcessor, \
     CustomLabelEncoder, preset_category_data
 from msserviceprofiler.modelevalstate.inference.file_reader import FileHanlder, StaticFile
-from msserviceprofiler.msguard.security.io import read_csv_s
+from msserviceprofiler.modelevalstate.common import read_csv_s
 
 
 sub_thread = None

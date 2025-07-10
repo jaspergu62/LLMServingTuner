@@ -21,14 +21,15 @@ from pathlib import Path
 from loguru import logger
 from packaging import version
 from msserviceprofiler.msguard import validate_params, Rule
+from msserviceprofiler.msguard.security import open_s
 
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
 
 def check_flag(target_file, patch_file):
-    with open(target_file, "r", encoding="utf-8") as f:
+    with open_s(target_file, "r", encoding="utf-8") as f:
         data = f.readlines()
-    with open(patch_file, "r", encoding="utf-8") as f:
+    with open_s(patch_file, "r", encoding="utf-8") as f:
         patch_data = f.readlines()
     i = 0
     diff_flag = True

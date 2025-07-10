@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import numpy as np
 from matplotlib import pyplot as plt
 from loguru import logger
-
+from msserviceprofiler.msguard.security import open_s
 from msserviceprofiler.modelevalstate.common import State
 
 
@@ -161,7 +161,7 @@ class AnalysisState:
             plt.close()
         else:
             plt.show()
-        with open(config.save_path.joinpath(f"{config.title}.txt"), 'w') as f:
+        with open_s(config.save_path.joinpath(f"{config.title}.txt"), 'w') as f:
             f.write('mean\n')
             f.write(json.dumps(_mean))
             f.write('\n')

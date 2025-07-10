@@ -16,7 +16,7 @@
 from pathlib import Path
  
 from loguru import logger
-from msserviceprofiler.msguard.constraints.rule import Rule 
+from msserviceprofiler.msguard import Rule 
 from msserviceprofiler.modelevalstate.patch.patch_manager import check_flag, add_patch
 
  
