@@ -13,6 +13,8 @@ from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
 from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME
 from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy
+from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig
+from msserviceprofiler.modelevalstate.config.custom_command import MindieCommandConfig, VllmCommandConfig
 
 
 class OptimizerConfigField(BaseModel):
@@ -73,8 +75,6 @@ class PerformanceIndex(BaseModel):
 
 
 class BenchMarkConfig(BaseModel):
-    from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, \
-        VllmBenchmarkCommandConfig
     name: str = "benchmark"
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: BenchmarkCommandConfig = BenchmarkCommandConfig()
@@ -156,7 +156,6 @@ class LatencyModel(BaseModel):
 
 
 class MindieConfig(BaseModel):
-    from msserviceprofiler.modelevalstate.config.custom_command import MindieCommandConfig, VllmCommandConfig
     # 运行mindie时，要修改的mindie config
     mindie_service_default_path: str = "/usr/local/Ascend/mindie/latest/mindie-service"
     mindie_service_path: str = os.getenv("MIES_INSTALL_PATH", mindie_service_default_path)
