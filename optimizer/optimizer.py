@@ -47,10 +47,9 @@ def validate_parameters(common_generate_speed, perf_generate_token_speed, first_
 
 
 class BenchMark:
-    from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
-    
     def __init__(self, benchmark_config, throughput_type: str = "common",
                  bak_path: Optional[Path] = None):
+        from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
         self.benchmark_config = benchmark_config
         self.throughput_type = throughput_type
         self.bak_path = bak_path
@@ -483,8 +482,8 @@ class Scheduler:
             logger.error(f"Failed running. bak path: {self.simulator.bak_path}")
             error_info = e
             del_log = False
-        self.data_storage.save(performance_index, tuple(self.simulate_run_info), self.benchmark.benchmark_config,
-                               error=error_info, backup=self.current_back_path)
+        self.data_storage.save(performance_index, tuple(self.simulate_run_info), error=error_info, 
+                               backup=self.current_back_path)
         self.stop_target_server(del_log)
         if error_info:
             raise error_info
