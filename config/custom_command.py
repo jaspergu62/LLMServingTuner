@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) Huawei Technologies Co., Ltd. 2023-2024. All rights reserved.
 import os
+import shutil
+from loguru import logger
 from pydantic import BaseModel
+from msserviceprofiler.msguard import Rule
  
  
 class BenchmarkCommandConfig(BaseModel):
@@ -19,11 +22,15 @@ class BenchmarkCommandConfig(BaseModel):
  
 class BenchmarkCommand:
     def __init__(self, benchmark_command_config: BenchmarkCommandConfig):
-        self.process = "benchmark"
+        self.process = shutil.which("benchmark")
         self.benchmark_command_config = benchmark_command_config
  
     @property
     def command(self):
+        if not Rule.input_file_read(self.benchmark_command_config.dataset_path):
+            logger.error("the file of dataset_path is not safe, please check")
+            return
+        
         return [self.process,
                 "--DatasetPath", self.benchmark_command_config.dataset_path,
                 "--DatasetType", self.benchmark_command_config.dataset_type,
@@ -56,6 +63,9 @@ class VllmBenchmarkCommand:
  
     @property
     def command(self):
+        if not Rule.input_file_read(self.benchmark_command_config.dataset_path):
+            logger.error("the file of dataset_path is not safe, please check")
+            return
         return ["python", self.benchmark_command_config.serving,
                 "--backend", self.benchmark_command_config.backend,
                 "--host", self.benchmark_command_config.host,
@@ -83,7 +93,7 @@ class MindieCommand:
     def command(self):
         mindie_service_default_path: str = "/usr/local/Ascend/mindie/latest/mindie-service"
         mindie_service_path: str = os.getenv("MIES_INSTALL_PATH", mindie_service_default_path)
-        mindie_command_path: str = mindie_service_path + "/bin/mindieservice_daemon"
+        mindie_command_path: str = os.path.join(mindie_service_path, "bin", "mindieservice_daemon")
         return [mindie_command_path]
  
  
@@ -96,7 +106,7 @@ class VllmCommandConfig(BaseModel):
  
 class VllmCommand:
     def __init__(self, command_config: VllmCommandConfig):
-        self.process = "vllm"
+        self.process = shutil.which("vllm")
         self.command_config = command_config
  
     @property
