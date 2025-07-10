@@ -29,7 +29,7 @@ class BenchmarkCommand:
     def command(self):
         if not Rule.input_file_read(self.benchmark_command_config.dataset_path):
             logger.error("the file of dataset_path is not safe, please check")
-            return
+            return None
         
         return [self.process,
                 "--DatasetPath", self.benchmark_command_config.dataset_path,
@@ -65,7 +65,7 @@ class VllmBenchmarkCommand:
     def command(self):
         if not Rule.input_file_read(self.benchmark_command_config.dataset_path):
             logger.error("the file of dataset_path is not safe, please check")
-            return
+            return None
         return ["python", self.benchmark_command_config.serving,
                 "--backend", self.benchmark_command_config.backend,
                 "--host", self.benchmark_command_config.host,
