@@ -44,6 +44,35 @@ def find_first_simulate_csv(input_path_2):
     return files[0]
 
 
+def calculate_total_simulate_time(df_prefill, df3, df1):
+    total_simulate_time = 0
+    total_decode_simulate_time = 0
+    
+    for _, row in df_prefill.iterrows():
+        digits = re.findall(r'\d+', row['reqinfo'])
+        reqinfo_list = [int(num) for num in digits]
+        non_zero_values = [x for i, x in enumerate(reqinfo_list) if i % 2 == 0]
+        
+        for val in non_zero_values:
+            if pd.isna(df3.iloc[val]['reply_token_size']):
+                continue
+            during_time = df3.iloc[val]['first_token_latency']
+            decode_time = (df3.iloc[val]['execution_time(microsecond)'] - df3.iloc[val]['first_token_latency'])
+            arrive_time = row['start_time(microsecond)'] - during_time
+            complete_time = row['start_time(microsecond)'] + decode_time
+            
+            filtered_df1 = df1[df1['start_time(microsecond)'] > arrive_time]
+            filtered_df1 = filtered_df1[filtered_df1['start_time(microsecond)'] <= row['start_time(microsecond)']]
+            
+            filtered_df2 = df1[df1['start_time(microsecond)'] < complete_time]
+            filtered_df2 = filtered_df2[filtered_df2['start_time(microsecond)'] >= row['start_time(microsecond)']]
+            
+            total_simulate_time += filtered_df1['simulate_time'].sum()
+            total_decode_simulate_time += filtered_df2['simulate_time'].sum()
+    
+    return total_simulate_time, total_decode_simulate_time
+
+
 def analyze(input_path_1, input_path_2):
     profiling_path = os.path.join(input_path_1, 'request.csv')
     df3 = read_csv_s(profiling_path, header=0)
@@ -62,40 +91,11 @@ def analyze(input_path_1, input_path_2):
     # 确认两文件的行数相同
     if len(df1) != len(df2):
         raise ValueError("两个CSV文件的行数必须相同")
-
     # 将第二个CSV文件中的`during_time`列添加到第一个CSV文件中，并修改列名
     df1['simulate_time'] = df2['simulate_time'] / 10 ** 6
-
-    total_simulate_time = 0
-    total_decode_simulate_time = 0
     df3.sort_values(by='http_rid', ascending=True, inplace=True)
     df_prefill = df1[df1['batch_type'] == 'prefill']
-    for _, row in df_prefill.iterrows():
-
-        digits = re.findall(r'\d+', row['reqinfo'])
-
-        # 将这些字符串转换为整数列表
-        reqinfo_list = [int(num) for num in digits]
-
-        # 使用列表推导式筛选偶数位的数字
-        non_zero_values = [x for i, x in enumerate(reqinfo_list) if i % 2 == 0]
-        # 遍历这些值
-        for val in non_zero_values:
-
-            if pd.isna(df3.iloc[val]['reply_token_size']):
-                continue
-            during_time = df3.iloc[val]['first_token_latency']
-            decode_time = (df3.iloc[val]['execution_time(microsecond)'] - df3.iloc[val]['first_token_latency'])
-            arrive_time = row['start_time(microsecond)'] - during_time
-            complete_time = row['start_time(microsecond)'] + decode_time
-            filtered_df1 = df1[df1['start_time(microsecond)'] > arrive_time]
-            filtered_df2 = df1[df1['start_time(microsecond)'] < complete_time]
-            # 进一步筛选出 start_time 小于等于 row['start_time'] 的行
-            filtered_df1 = filtered_df1[filtered_df1['start_time(microsecond)'] <= row['start_time(microsecond)']]
-            filtered_df2 = filtered_df2[filtered_df2['start_time(microsecond)'] >= row['start_time(microsecond)']]
-            # 计算 simulate_time 的总和
-            total_simulate_time += filtered_df1['simulate_time'].sum()
-            total_decode_simulate_time += filtered_df2['simulate_time'].sum()
+    total_simulate_time, total_decode_simulate_time = calculate_total_simulate_time(df_prefill, df3, df1)
 
     df3['completed_time'] = df3['start_time_httpReq(microsecond)'] + df3['execution_time(microsecond)']
     total_latency = df3['first_token_latency'].sum() + total_simulate_time

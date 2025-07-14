@@ -56,7 +56,7 @@ class BenchMark:
         self.run_log_offset = None
         self.run_log_fp = None
         self.process = None
-        self.pattern = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%$")
+        self.pattern = re.compile(r'\(([^)]+)')
         self.command = BenchmarkCommand(self.benchmark_config.command).command
 
     def backup(self, del_log=True):
@@ -94,7 +94,8 @@ class BenchMark:
                     _m_res = self.pattern.search(req_returnd)
                     if not _m_res:
                         continue
-                    success_rate = float(_m_res.group(1)) / 100
+                    cleaned_str = _m_res.group(1).replace(' ', '').rstrip('%')
+                    success_rate = float(cleaned_str) / 100
                 except (KeyError, AttributeError) as e:
                     logger.error(f"Failed in get GenerateSpeed. error: {e}")
                 continue
