@@ -94,8 +94,6 @@ def analyze(input_path_1, input_path_2):
         raise ValueError("两个CSV文件的行数必须相同")
     # 将第二个CSV文件中的`during_time`列添加到第一个CSV文件中，并修改列名
     df1['simulate_time'] = df2['simulate_time'] / 10 ** 6
-    total_simulate_time = 0
-    total_decode_simulate_time = 0
     df3.sort_values(by='http_rid', ascending=True, inplace=True)
     df_prefill = df1[df1['batch_type'] == 'prefill']
     total_simulate_time, total_decode_simulate_time = calculate_total_simulate_time(df_prefill, df3, df1)
