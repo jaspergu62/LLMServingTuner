@@ -674,7 +674,7 @@ class PSOOptimizer:
                                         options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
                                         breakpoint_cost=self.history_cost, **self.pso_init_kwargs)
-        cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
+        cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters, verbose=False)
         best_position = {_field.name: _field.value for _field in map_param_with_value(joint_vars, self.target_field)}
         logger.info(f"best cost {cost}, best joint_vars: {best_position}")
 

@@ -265,7 +265,7 @@ class Simulator:
             flags = os.O_WRONLY | os.O_CREAT
             modes = stat.S_IWUSR | stat.S_IRUSR
             with os.fdopen(os.open(self.mindie_config.config_path, flags, modes), "w") as fout:
-                json.dump(self.default_config, fout)
+                json.dump(self.default_config, fout, indent=4)
         except Exception as e:
             logger.error(f"Failed to stop simulator process. {e}")
 
