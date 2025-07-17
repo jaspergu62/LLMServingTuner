@@ -51,8 +51,8 @@ class StateParam:
         self.model_dir: Path = self.base_path.joinpath("model")
         self.step_dir: Path = self.base_path.joinpath("step")
         self.bak_dir: Path = self.base_path.joinpath("bak")
-        self.model_dir.mkdir(parents=True, exist_ok=True)
-        self.step_dir.mkdir(parents=True, exist_ok=True)
-        self.bak_dir.mkdir(parents=True, exist_ok=True)
+        self.model_dir.mkdir(parents=True, exist_ok=True, mode=0o750)
+        self.step_dir.mkdir(parents=True, exist_ok=True, mode=0o750)
+        self.bak_dir.mkdir(parents=True, exist_ok=True, mode=0o750)
         self.xgb_model_save_model_path: Path = self.model_dir.joinpath("xgb_model.ubj")  # 保存模型的路径
         self.xgb_model_load_model_path: Path = self.model_dir.joinpath("xgb_model.ubj")  # 加载模型的路径, 进行预测使用

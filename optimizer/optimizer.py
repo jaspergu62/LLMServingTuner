@@ -297,13 +297,12 @@ class ProfilerBenchmark(BenchMark):
 
 
 class VllmBenchMark(BenchMark):
-    from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
-
     def __init__(self, benchmark_config, throughput_type: str = "common", bak_path: Optional[Path] = None):
+        from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
         super().__init__(benchmark_config, throughput_type, bak_path)
         self.output_path = benchmark_config.output_path
         if not self.output_path.exists():
-            self.output_path.mkdir(parents=True)
+            self.output_path.mkdir(parents=True, mode=0o750)
         self.command = VllmBenchmarkCommand(self.benchmark_config.vllm_command).command
 
     def get_performance_index(self):
@@ -715,7 +714,7 @@ def main(args: argparse.Namespace):
     if args.backup:
         bak_path = settings.output.joinpath("bak")
         if not bak_path.exists():
-            bak_path.mkdir(parents=True)
+            bak_path.mkdir(parents=True, mode=0o750)
     # 单机benchmark
     if args.benchmark_policy == BenchMarkPolicy.benchmark.value:
         benchmark = BenchMark(settings.benchmark, bak_path=bak_path)

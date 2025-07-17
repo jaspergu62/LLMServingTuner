@@ -36,7 +36,7 @@ class Scheduler:
     def backup(self, params):
         back_path = Path(params)
         if not back_path.exists():
-            back_path.mkdir(parents=True)
+            back_path.mkdir(parents=True, mode=0o750)
         _result = f"{self.cmd.history[-1]}:done"
         self.communication.send_command(_result)
         self.communication.clear_res()

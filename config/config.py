@@ -97,7 +97,7 @@ class BenchMarkConfig(BaseModel):
                      "profile_output_path")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
 
     @field_validator("work_path")
@@ -122,7 +122,7 @@ class DataStorageConfig(BaseModel):
     @field_validator("store_dir")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
     
 
@@ -138,12 +138,12 @@ class LatencyModel(BaseModel):
     cache_data: Optional[Path] = Field(
         default_factory=lambda data: data["base_path"].joinpath("cache").resolve())
 
-    @field_validator("static_file_dir")
+    @field_validator("cache_data")
     @classmethod
     def validate_cache_data(cls, path: Optional[Path] = None):
         if path:
             if not Path(path).exists():
-                path.mkdir(parents=True)
+                path.mkdir(parents=True, mode=0o750)
         return path
     
     @field_validator("static_file_dir")
@@ -151,7 +151,7 @@ class LatencyModel(BaseModel):
     def validate_static_file_dir(cls, path: Optional[None]):
         if path is None:
             path = cls.base_path.joinpath("model_static_file")
-            path.mkdir(parents=True)
+            path.mkdir(parents=True, mode=0o750)
         return path
 
 
@@ -173,12 +173,6 @@ class MindieConfig(BaseModel):
     def check_dir(cls, path: Path) -> Path:
         if not path.exists():
             logger.error(f"FileNotFound: {path!r}")
-        return path
-
-    @field_validator("log_path")
-    @classmethod
-    def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
         return path
 
 
@@ -276,7 +270,7 @@ class Settings(BaseSettings):
     @field_validator("output")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
 
 

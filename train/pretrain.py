@@ -230,7 +230,7 @@ class PretrainModel:
 
     def bak_model(self, increment_stage: str = "base"):
         _bak_dir = self.state_param.bak_dir.joinpath(increment_stage)
-        _bak_dir.mkdir(parents=True, exist_ok=True)
+        _bak_dir.mkdir(parents=True, exist_ok=True, mode=0o750)
         shutil.copy(self.state_param.xgb_model_save_model_path,
                     _bak_dir.joinpath(self.state_param.xgb_model_save_model_path.name))
 
@@ -297,7 +297,7 @@ class TrainVersion1:
         logger.info(f"train data shape {train_data.shape}")
         sp.comments = f"input files: {file_paths} \n"
         save_path = sp.step_dir.joinpath("base")
-        save_path.mkdir(parents=True, exist_ok=True)
+        save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
         pm.train(train_data.reset_index(drop=True), middle_save_path=save_path)
         sp.comments += f'feature shape {pm.dataset.features.shape}\n'
         sp.comments += (f"data shuffle: True, \n train case: {pm.dataset.train_x.shape}, "
@@ -305,7 +305,7 @@ class TrainVersion1:
         pm.bak_model()
         logger.info("test data {test_data.shape}")
         save_path = sp.step_dir.joinpath("1")
-        save_path.mkdir(parents=True, exist_ok=True)
+        save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
         pm.predict(test_data.reset_index(drop=True), save_path)
         logger.info("finished train")
 
@@ -318,7 +318,7 @@ class TrainVersion1:
                 # 1000行
                 lines = fl.read_lines()
                 save_path = sp.step_dir.joinpath(str(count))
-                save_path.mkdir(parents=True, exist_ok=True)
+                save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
                 pm.predict(lines, save_path=save_path)
                 pm.partial_train(lines, middle_save_path=save_path)
                 count += 1
@@ -331,7 +331,7 @@ class TrainVersion1:
         # 全量训练
         train_data = fl.read_lines()
         save_path = sp.step_dir.joinpath("base")
-        save_path.mkdir(parents=True, exist_ok=True)
+        save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
         pm.train(train_data, middle_save_path=save_path)
         pm.bak_model()
 
@@ -355,7 +355,7 @@ def pretrain(input_path, output_path):
     # 创建输出目录
     output = Path(output_path).expanduser().resolve()
     if not output.exists:
-        output.mkdir(parents=True)
+        output.mkdir(parents=True, mode=0o750)
     # 运行模型训练
     sp = StateParam(
         base_path=output,
@@ -390,7 +390,7 @@ def pretrain(input_path, output_path):
     train_data["label"] = dataset.labels
     _train_file = output.joinpath("cache/train_data.csv")
     if not _train_file.parent.exists():
-        _train_file.parent.mkdir(parents=True)
+        _train_file.parent.mkdir(parents=True, mode=0o750)
     train_data.to_csv(output.joinpath("cache/train_data.csv"), index=False)
 
 

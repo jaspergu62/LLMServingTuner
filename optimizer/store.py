@@ -34,7 +34,7 @@ class DataStorage:
     def __init__(self, config: DataStorageConfig):
         self.config = config
         if not self.config.store_dir.exists():
-            self.config.store_dir.mkdir(parents=True)
+            self.config.store_dir.mkdir(parents=True, mode=0o750)
         self.save_file = self.config.store_dir.joinpath(f"data_storage_{RUN_TIME}.csv")
 
     @staticmethod

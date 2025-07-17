@@ -144,7 +144,7 @@ class Simulate:
             else:
                 ServiceField.req_id_and_max_decode_length = {}
             if not Path(ServiceField.config_path.static_file_dir).exists():
-                Path(ServiceField.config_path.static_file_dir).mkdir(parents=True)
+                Path(ServiceField.config_path.static_file_dir).mkdir(parents=True, mode=0o750)
             static_file = StaticFile(base_path=ServiceField.config_path.static_file_dir)
             ServiceField.fh = FileHanlder(static_file)
             ServiceField.fh.load_static_data()

@@ -69,7 +69,7 @@ class CachePredict:
         self.new_label = None
         self.output = data_path.joinpath(f"train_{os.getpid()}_{datetime.today().strftime('%Y%m%d%H%M%S')}.csv")
         if not self.output.parent.exists():
-            self.output.parent.mkdir(parents=True)
+            self.output.parent.mkdir(parents=True, mode=0o750)
 
     def update(self, data: List, label: float):
         _compare_data = [round(k) for k in data]

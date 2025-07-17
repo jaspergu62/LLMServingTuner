@@ -73,9 +73,9 @@ class CustomCommand:
 class CommunicationForFile:
     def __init__(self, cmd_file: Path, res_file: Path, timeout=120):
         if not cmd_file.parent.exists():
-            cmd_file.parent.mkdir(parents=True)
+            cmd_file.parent.mkdir(parents=True, mode=0o750)
         if not res_file.parent.exists():
-            res_file.parent.mkdir(parents=True)
+            res_file.parent.mkdir(parents=True, mode=0o750)
         self.cmd_file = cmd_file
         self.cmd_file_lock = cmd_file.parent.joinpath(f"{cmd_file.name}.lock")
         flags = os.O_WRONLY | os.O_CREAT
