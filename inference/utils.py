@@ -16,9 +16,9 @@ from functools import reduce, lru_cache
 import re
 from typing import Tuple
 from dataclasses import dataclass
+from pathlib import Path
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.inference.common import (
@@ -525,7 +525,11 @@ class PreprocessTool:
 
 
 def save_dataframe_to_csv(filtered_df, output, file_name, check_columns=None):
-    if filtered_df is None or not isinstance(filtered_df, pd.DataFrame) or filtered_df.empty or output is None:
+    if output is None:
+        logger.warning("the path of output can not be none")
+        return
+    
+    if filtered_df is None or not isinstance(filtered_df, pd.DataFrame) or filtered_df.empty:
         logger.warning("Writing csv %r failed due to invalid dataframe:\n\t%s", file_name, filtered_df)
         return
     
