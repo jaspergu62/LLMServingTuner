@@ -44,6 +44,7 @@ from msserviceprofiler.modelevalstate.inference.dataset import InputData, DataPr
     CustomLabelEncoder, preset_category_data
 from msserviceprofiler.modelevalstate.inference.file_reader import FileHanlder, StaticFile
 from msserviceprofiler.modelevalstate.common import read_csv_s
+from msserviceprofiler.modelevalstate.inference.utils import save_dataframe_to_csv
 
 
 sub_thread = None
@@ -97,7 +98,8 @@ class CachePredict:
             return
         data = self.new_data.copy()
         data[self.new_label.name] = self.new_label
-        data.to_csv(self.output, index=False)
+        parent_dir, filename = os.path.split(self.output)
+        save_dataframe_to_csv(data, parent_dir, filename)
 
 
 def update_cache(cache_predict: Optional[CachePredict], persistent_threshold: int = 100):
