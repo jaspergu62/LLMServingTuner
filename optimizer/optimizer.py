@@ -237,7 +237,7 @@ class AisBench:
                 success_rate = 0
             else:
                 json_file = rate_files[0]
-                with open(json_file, "r") as f:
+                with open_s(json_file, "r") as f:
                     data = json.load(f)
                 total_requests = data["Total Requests"]["total"]
                 success_req = data["Success Requests"]["total"]
@@ -302,7 +302,7 @@ class AisBench:
                 concurrency = int(k.value)
             if k.name == "REQUESTRATE":
                 rate = int(k.value)
-        with open(api_path, 'r', encoding='utf-8') as f:
+        with open_s(api_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         # 修改 request_rate 和 batch_size
         for i, line in enumerate(lines):
@@ -312,7 +312,7 @@ class AisBench:
                 lines[i] = f'        batch_size={concurrency},\n'
 
         # 将修改后的内容写回文件
-        with open(api_path, 'w', encoding='utf-8') as f:
+        with open_s(api_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
         if CUSTOM_OUTPUT not in os.environ:
             os.environ[CUSTOM_OUTPUT] = str(custom_output)
