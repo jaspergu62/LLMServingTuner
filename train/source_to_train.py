@@ -135,19 +135,9 @@ def read_batch_req_data(cursor) -> List[Tuple]:
         raise ValueError(f"读取 batch_req 表时出错: {e}") from e
 
 
-def calculate_block_sums(req_rows: List[Tuple]) -> Dict[int, float]:
+def calculate_block_sums(req_df: pd.DataFrame) -> Dict[int, float]:
     """按 batch_id 分组并计算 block 的总和"""
-    batch_id_block_sum = {}
-    for _, row in req_rows.iterrows():
-        batch_id = row['batch_id']
-        block = row['block']
-        if not isinstance(block, (int, float)):
-            continue
-        if batch_id in batch_id_block_sum:
-            batch_id_block_sum[batch_id] += block
-        else:
-            batch_id_block_sum[batch_id] = block
-    return batch_id_block_sum
+    return req_df.groupby('batch_id')['block'].sum().to_dict()
 
 
 def create_output_folder(input_path: str) -> str:
@@ -339,9 +329,9 @@ def save_processed_data_to_csv_vllm(
         current_batch_index = 0
         batch_data = process_batch_data(exec_data, batch_rows, current_batch_index)
 
-        parrent_path = os.path.join(output_folder, f'pid_{pid}')
-        os.makedirs(parrent_path, exist_ok=True)
-        file_path = os.path.join(parrent_path, 'feature.csv')
+        parent_path = os.path.join(output_folder, f'pid_{pid}')
+        os.makedirs(parent_path, exist_ok=True)
+        file_path = os.path.join(parent_path, 'feature.csv')
         exec_data_reset = exec_data.reset_index(drop=True)
         batch_data_reset = batch_data.reset_index(drop=True)
 

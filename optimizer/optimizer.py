@@ -218,6 +218,8 @@ class AisBench:
         first_token_time = None
         decode_time = None
         success_rate = None
+        if not aisbench_output_path.exists():
+            logger.error("the output of aisbench is not find")
         result_files = glob.glob(f"{aisbench_output_path}/**/*.csv", recursive=True)
         if len(result_files) != 1:
             logger.error("The aisbench result for csv files are not unique; please check")
@@ -252,7 +254,7 @@ class AisBench:
                                 time_per_output_token=time_per_output_token, success_rate=success_rate)
 
     def prepare(self):
-        remove_file(Path(self.benchmark_config.output_path))
+        remove_file(Path(self.benchmark_config.aisbench_output_path))
         remove_file(Path(self.benchmark_config.custom_collect_output_path))
 
     def check_success(self, print_log=False):
