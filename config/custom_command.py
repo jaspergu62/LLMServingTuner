@@ -64,7 +64,7 @@ class AisbenchCommand:
                 "--models", self.aisbench_command_config.models,
                 "--datasets", self.aisbench_command_config.datasets,
                 "--mode", self.aisbench_command_config.mode,
-                "--num_prompts", self.aisbench_command_config.num_prompts,
+                "--num-prompts", self.aisbench_command_config.num_prompts,
                 "--debug"]
  
  
