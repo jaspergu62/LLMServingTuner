@@ -11,7 +11,8 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
-from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, AisbenchCommandConfig
+from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, \
+    AisbenchCommandConfig
 from msserviceprofiler.modelevalstate.config.custom_command import MindieCommandConfig, VllmCommandConfig
 from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME
 from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy

@@ -28,6 +28,8 @@ FOLDER_LIMIT_SIZE = 1024 * 1024 * 1024
 class EnginePolicy(Enum):
     mindie = 'mindie'
     vllm = 'vllm'
+
+    
 class DeployPolicy(Enum):
     single = "single"
     multiple = "multiple"

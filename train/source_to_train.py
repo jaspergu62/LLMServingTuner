@@ -103,7 +103,7 @@ def group_exec_data_by_pid(exec_rows: List[Tuple]) -> Dict[int, List[Tuple]]:
     data_by_pid = {}
     grouped = exec_rows.groupby('pid')
     for pid, group in grouped:
-        data_by_pid[pid]=group
+        data_by_pid[pid] = group
     return data_by_pid
 
 
@@ -299,7 +299,6 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         merged_row['block_sum'] = block_sum
         merged_row['total_prefill_token'] = total_prefill_token
         merged_row['max_seq_len'] = max_seq_len
-        print(merged_row)
         tuple_elements = process_row_data(merged_row)
         process_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(process_row)

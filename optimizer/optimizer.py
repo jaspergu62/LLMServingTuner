@@ -38,7 +38,14 @@ from msserviceprofiler.msguard.security import open_s
 _analyze_mapping = {AnalyzeTool.profiler.value: analyze_profiler}
 
 
-def validate_parameters(generate_speed, first_token_time, decode_time):
+def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
+    if common_generate_speed is None and perf_generate_token_speed is None:
+        raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
+    if first_token_time is None or decode_time is None:
+        raise ValueError("Not Found first_token_time.")
+    
+
+def aisbench_validate_parameters(generate_speed, first_token_time, decode_time):
     if generate_speed is None:
         raise ValueError("Not Found generate_speed")
     if first_token_time is None:
@@ -216,7 +223,7 @@ class AisBench:
             logger.error("The aisbench result for csv files are not unique; please check")
         else:
             result_file = result_files[0]
-            df = read_csv_s(result_file ,header=0)
+            df = read_csv_s(result_file, header=0)
             ttft_average = df[df["Performance Parameters"] == "TTFT"]["Average"].values[0]
             first_token_time = ttft_average.split()[0]
             tpot_average = df[df["Performance Parameters"] == "TPOT"]["Average"].values[0]
@@ -238,7 +245,7 @@ class AisBench:
                     success_rate = success_req / total_requests
                 else:
                     logger.error("total_requests can not be 0; please check")
-        validate_parameters(generate_speed, first_token_time, decode_time)
+        aisbench_validate_parameters(generate_speed, first_token_time, decode_time)
         time_to_first_token = float(first_token_time) / 10 ** 3
         time_per_output_token = float(decode_time) / 10 ** 3
         return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
@@ -834,7 +841,7 @@ def arg_parse(subparsers):
                         help="Indicates whether the multi-node running policy is used.")
     parser.add_argument("--backup", default=False, action="store_true",
                         help="Whether to back up data.")
-    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.aisbench.value,
+    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.benchmark.value,
                         choices=[k.value for k in list(BenchMarkPolicy)],
                         help="Whether to use custom performance indicators.")
     parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value, 
