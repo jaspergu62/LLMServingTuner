@@ -97,7 +97,7 @@ class VllmBenchmarkCommand:
                 "--dataset-name", self.benchmark_command_config.dataset_name,
                 "--dataset-path", self.benchmark_command_config.dataset_path,
                 "--num-prompts", self.benchmark_command_config.num_prompts,
-                "--max-concurrency", "$MAXCONCURRENCY",
+                "--max-concurrency", "$CONCURRENCY",
                 "--request-rate", "$REQUESTRATE",
                 "--result-dir", "$MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT",
                 "--save-result"]

@@ -237,7 +237,7 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
         merged_row['block_sum'] = block_sum
         merged_row['total_prefill_token'] = total_prefill_token
         merged_row['max_seq_len'] = max_seq_len
-        tuple_elements = process_row_data(combined_row)
+        tuple_elements = process_row_data(merged_row)
         process_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(process_row)
     return processed_data
@@ -265,7 +265,7 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
         if getattr(csv_data, attr, None) is None:
             raise ValueError(f"{attr} cannot be None")
     processed_data = []
-    for i, merged_row in csv_data.exec_data.iterrows():
+    for i, merged_row in csv_data.merged_df.iterrows():
         total_prefill_token = 0
         max_seq_len = 0
         total_req_info = []

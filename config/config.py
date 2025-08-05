@@ -81,6 +81,7 @@ class BenchMarkConfig(BaseModel):
     aisbench_command: AisbenchCommandConfig = AisbenchCommandConfig()
     command: BenchmarkCommandConfig = BenchmarkCommandConfig()
     vllm_command: VllmBenchmarkCommandConfig = VllmBenchmarkCommandConfig()
+    aisbench_output_path: Path = custom_output.joinpath("outputs")
     output_path: Path = custom_output.joinpath("instance")
     custom_collect_output_path: Path = Field(
         default_factory=lambda: custom_output.joinpath("result/custom_collect_output_path").resolve(),

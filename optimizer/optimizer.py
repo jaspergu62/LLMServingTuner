@@ -204,21 +204,21 @@ class AisBench:
         self.run_log_offset = None
         self.run_log_fp = None
         self.process = None
-        self.command = AisbenchCommand(self.benchmark_config.command).command
+        self.command = AisbenchCommand(self.benchmark_config.aisbench_command).command
 
     def backup(self, del_log=True):
-        backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
+        backup(self.benchmark_config.aisbench_output_path, self.bak_path, self.__class__.__name__)
         if not del_log:
             backup(self.run_log, self.bak_path, self.__class__.__name__)
 
     def get_performance_index(self):
         from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
 
-        output_path = Path(self.benchmark_config.output_path)
+        aisbench_output_path = Path(self.benchmark_config.aisbench_output_path)
         first_token_time = None
         decode_time = None
         success_rate = None
-        result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
+        result_files = glob.glob(f"{aisbench_output_path}/**/*.csv", recursive=True)
         if len(result_files) != 1:
             logger.error("The aisbench result for csv files are not unique; please check")
         else:
@@ -287,7 +287,7 @@ class AisBench:
         api_dir = ais_dir.joinpath("benchmark", "configs", "models")
         # 启动测试
         logger.info("Start the aisbench test.")
-        api_name = self.benchmark_config.command.models
+        api_name = self.benchmark_config.aisbench_command.models
         for file_path in api_dir.rglob("*.py"):
             if file_path.name == f"{api_name}.py":
                 api_path = file_path
@@ -298,7 +298,7 @@ class AisBench:
         else:
             cwd = os.getcwd()
         for k in run_params:
-            if k.name == "MAXCONCURRENCY":
+            if k.name == "CONCURRENCY":
                 concurrency = int(k.value)
             if k.name == "REQUESTRATE":
                 rate = int(k.value)
@@ -870,7 +870,7 @@ def main(args: argparse.Namespace):
             bak_path.mkdir(parents=True, mode=0o750)
     # 单机benchmark
     if args.benchmark_policy == BenchMarkPolicy.aisbench.value:
-        benchmark = AisBench(settings.aisbench, bak_path=bak_path)
+        benchmark = AisBench(settings.benchmark, bak_path=bak_path)
     elif args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
         benchmark = VllmBenchMark(settings.benchmark, bak_path=bak_path)
     elif args.benchmark_policy == BenchMarkPolicy.profiler_benchmark:

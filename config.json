@@ -15,10 +15,8 @@
         "max_output_len": "256",
         "http": "http://127.0.0.1:1025",
         "management_http": "http://127.0.0.1:1026"
-      }
-    },
-    "aisbench": {
-      "command": {
+      },
+      "aisbench_command": {
         "models": "models",
         "datasets": "datasets",
         "mode": "all",
