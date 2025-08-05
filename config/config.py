@@ -11,7 +11,7 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, JsonConfigSettingsSource
-from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig
+from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, AisbenchCommandConfig
 from msserviceprofiler.modelevalstate.config.custom_command import MindieCommandConfig, VllmCommandConfig
 from .base_config import INSTALL_PATH, RUN_PATH, ServiceType, custom_output, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME
 from .base_config import modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy
@@ -77,6 +77,7 @@ class PerformanceIndex(BaseModel):
 class BenchMarkConfig(BaseModel):
     name: str = "benchmark"
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
+    aisbench_command: AisbenchCommandConfig = AisbenchCommandConfig()
     command: BenchmarkCommandConfig = BenchmarkCommandConfig()
     vllm_command: VllmBenchmarkCommandConfig = VllmBenchmarkCommandConfig()
     output_path: Path = custom_output.joinpath("instance")
@@ -238,6 +239,7 @@ class Settings(BaseSettings):
     latency_model: LatencyModel = LatencyModel()
     simulator: MindieConfig = MindieConfig()
     benchmark: BenchMarkConfig = BenchMarkConfig()
+    aisbench: BenchMarkConfig = BenchMarkConfig()
     data_storage: DataStorageConfig = DataStorageConfig()
     pso_options: PsoOptions = PsoOptions()
     pso_strategy: PsoStrategy = PsoStrategy()

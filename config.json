@@ -17,6 +17,14 @@
         "management_http": "http://127.0.0.1:1026"
       }
     },
+    "aisbench": {
+      "command": {
+        "models": "models",
+        "datasets": "datasets",
+        "mode": "all",
+        "num_prompts": "num_prompts"
+      }
+    },
     "target_field": [
       {
         "name": "max_batch_size",

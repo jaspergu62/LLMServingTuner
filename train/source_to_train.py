@@ -84,11 +84,16 @@ class DatabaseConnector:
             self.conn.close()
 
 
-def read_batch_exec_data(cursor) -> List[Tuple]:
-    """读取 batch_exec 表中的数据"""
+def read_batch_exec_data(cursor) -> pd.DataFrame:
+    """读取 batch_exec 表中的数据，并返回包含列名的 DataFrame"""
     try:
         cursor.execute("SELECT * FROM batch_exec WHERE name = 'forward';")
-        return cursor.fetchall()
+        data = cursor.fetchall()
+        # 获取列名
+        columns = [col[0] for col in cursor.description]
+        # 创建 DataFrame
+        df = pd.DataFrame(data, columns=columns)
+        return df
     except sqlite3.Error as e:
         raise ValueError(f"读取 batch_exec 表时出错: {e}") from e
 
@@ -96,11 +101,9 @@ def read_batch_exec_data(cursor) -> List[Tuple]:
 def group_exec_data_by_pid(exec_rows: List[Tuple]) -> Dict[int, List[Tuple]]:
     """按 pid 分组 batch_exec 数据"""
     data_by_pid = {}
-    for row in exec_rows:
-        pid = row[2]
-        if pid not in data_by_pid:
-            data_by_pid[pid] = []
-        data_by_pid[pid].append(row)
+    grouped = exec_rows.groupby('pid')
+    for pid, group in grouped:
+        data_by_pid[pid]=group
     return data_by_pid
 
 
@@ -108,7 +111,12 @@ def read_batch_data(cursor) -> List[Tuple]:
     """读取 batch 表中的数据"""
     try:
         cursor.execute("SELECT * FROM batch WHERE name IN ('BatchSchedule', 'batchFrameworkProcessing');")
-        return cursor.fetchall()
+        data = cursor.fetchall()
+        # 获取列名
+        columns = [col[0] for col in cursor.description]
+        # 创建 DataFrame
+        df = pd.DataFrame(data, columns=columns)
+        return df
     except sqlite3.Error as e:
         raise ValueError(f"读取 batch 表时出错: {e}") from e
 
@@ -117,7 +125,12 @@ def read_batch_req_data(cursor) -> List[Tuple]:
     """读取 batch_req 表中的数据"""
     try:
         cursor.execute("SELECT * FROM batch_req;")
-        return cursor.fetchall()
+        data = cursor.fetchall()
+        # 获取列名
+        columns = [col[0] for col in cursor.description]
+        # 创建 DataFrame
+        df = pd.DataFrame(data, columns=columns)
+        return df
     except sqlite3.Error as e:
         raise ValueError(f"读取 batch_req 表时出错: {e}") from e
 
@@ -125,9 +138,9 @@ def read_batch_req_data(cursor) -> List[Tuple]:
 def calculate_block_sums(req_rows: List[Tuple]) -> Dict[int, float]:
     """按 batch_id 分组并计算 block 的总和"""
     batch_id_block_sum = {}
-    for row in req_rows:
-        batch_id = row[0]
-        block = row[4]
+    for _, row in req_rows.iterrows():
+        batch_id = row['batch_id']
+        block = row['block']
         if not isinstance(block, (int, float)):
             continue
         if batch_id in batch_id_block_sum:
@@ -165,8 +178,7 @@ def write_csv_header(csvfile) -> None:
 
 @dataclass
 class ExecutionDataVllm:
-    exec_data: List[Tuple]
-    batch_data: List[Tuple]
+    merged_df: List[Tuple]
     req_df: pd.DataFrame
     rids_ori: List[Any]
     kvcache_df: pd.DataFrame
@@ -174,48 +186,20 @@ class ExecutionDataVllm:
 
 @dataclass
 class ExecutionDataMindie:
-    exec_data: List[Tuple]
-    batch_data: List[Tuple]
+    merged_df: List[Tuple]
     req_df: pd.DataFrame
     rids_ori: List[Any]
     index_dict: Dict[Tuple, Any]
     batch_id_block_sum: Dict[int, float]
 
 
-def process_row_data_vllm(combined_row, process_req_info):
-    processed_data = []
-    if len(combined_row) >= 16:
-        # 处理 combined_row[10]
-        if combined_row[10] == 'Prefill':
-            combined_row[10] = 'prefill'
-        else:
-            combined_row[10] = 'decode'
-        
-        # 创建元组元素
-        tuple_elements = (
-            combined_row[10],   # batch_type
-            combined_row[9],    # batch_size
-            combined_row[13],   # total_need_blocks
-            int(combined_row[14]),  # total_prefill_token
-            int(combined_row[15]),  # max_seq_len
-            combined_row[12]    # forward时长
-        )
-        
-        # 组合新的元组并添加到 processed_data
-    else:
-        logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
-    return tuple_elements, process_req_info
-
-
 def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
-    check_attrs = ["exec_data", "batch_data", "req_df", "rids_ori", "kvcache_df"]
+    check_attrs = ["merged_df", "req_df", "rids_ori", "kvcache_df"]
     for attr in check_attrs:
         if getattr(csv_data, attr, None) is None:
             raise ValueError(f"{attr} cannot be None")
     processed_data = []
-    for i, _ in enumerate(csv_data.exec_data):
-        exec_row = csv_data.exec_data[i]
-        batch_row = csv_data.batch_data[i]
+    for i, merged_row in csv_data.merged_df.iterrows():
         total_prefill_token = 0
         max_seq_len = 0
         total_req_info = []
@@ -245,45 +229,43 @@ def process_execution_data_vllm(csv_data: ExecutionDataVllm) -> List[Tuple]:
             req_info = (int(recv_token), req_block, iters[j])
             total_req_info.append(req_info)
         process_req_info = tuple(total_req_info)
-        start = exec_row[3]  # forward 开始时间
-        end = exec_row[4]  # forward结束时间
+        start = merged_row['start']  # forward开始时间
+        end = merged_row['end']  # forward结束时间
         model_exec = end - start
         current_batch_id = i
-        combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        tuple_elements, process_req_info = process_row_data_vllm(combined_row, process_req_info)
+        merged_row['model_exec'] = model_exec
+        merged_row['block_sum'] = block_sum
+        merged_row['total_prefill_token'] = total_prefill_token
+        merged_row['max_seq_len'] = max_seq_len
+        tuple_elements = process_row_data(combined_row)
         process_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(process_row)
     return processed_data
 
 
-def process_row_data_mindie(combined_row, process_req_info):
-    if len(combined_row) >= 19:
-        if combined_row[10] == 'Prefill':
-            combined_row[10] = 'prefill'
-        else:
-            combined_row[10] = 'decode'
-        tuple_elements = (
-            combined_row[10],  # batch_type
-            combined_row[9],  # batch_size
-            combined_row[16],  # total_need_blocks
-            int(combined_row[17]),  # total_prefill_token
-            int(combined_row[18]),  # max_seq_len
-            combined_row[15]  # forwar时长
-        )
+def process_row_data(combined_row):
+    if combined_row['batch_type'] == 'Prefill':
+        combined_row['batch_type'] = 'prefill'
     else:
-        logger.error(f"combined_row 的长度不足，当前长度为 {len(combined_row)}")
-    return tuple_elements, process_req_info
+        combined_row['batch_type'] = 'decode'
+    tuple_elements = (
+        combined_row['batch_type'],  # batch_type
+        combined_row['batch_size'],  # batch_size
+        combined_row['block_sum'],  # total_need_blocks
+        int(combined_row['total_prefill_token']),  # total_prefill_token
+        int(combined_row['max_seq_len']),  # max_seq_len
+        combined_row['model_exec']  # forwar时长
+    )
+    return tuple_elements
     
 
 def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
-    check_attrs = ["exec_data", "batch_data", "req_df", "rids_ori", "index_dict", "batch_id_block_sum"]
+    check_attrs = ["merged_df", "req_df", "rids_ori", "index_dict", "batch_id_block_sum"]
     for attr in check_attrs:
         if getattr(csv_data, attr, None) is None:
             raise ValueError(f"{attr} cannot be None")
     processed_data = []
-    for i, _ in enumerate(csv_data.exec_data):
-        exec_row = csv_data.exec_data[i]
-        batch_row = csv_data.batch_data[i]
+    for i, merged_row in csv_data.exec_data.iterrows():
         total_prefill_token = 0
         max_seq_len = 0
         total_req_info = []
@@ -308,13 +290,17 @@ def process_execution_data_mindie(csv_data: ExecutionDataMindie) -> List[Tuple]:
             req_info = (int(recv_token), req_block, iters[j])
             total_req_info.append(req_info)
         process_req_info = tuple(total_req_info)
-        start = exec_row[3]  # forward开始时间
-        end = exec_row[4]  # forward结束时间
+        start = merged_row['start']  # forward开始时间
+        end = merged_row['end']  # forward结束时间
         model_exec = end - start
         current_batch_id = i
         block_sum = csv_data.batch_id_block_sum.get(current_batch_id + 1, 0)
-        combined_row = list(exec_row) + list(batch_row) + [model_exec, block_sum, total_prefill_token, max_seq_len]
-        tuple_elements, process_req_info = process_row_data_mindie(combined_row, process_req_info)
+        merged_row['model_exec'] = model_exec
+        merged_row['block_sum'] = block_sum
+        merged_row['total_prefill_token'] = total_prefill_token
+        merged_row['max_seq_len'] = max_seq_len
+        print(merged_row)
+        tuple_elements = process_row_data(merged_row)
         process_row = tuple([tuple_elements]) + tuple([process_req_info])
         processed_data.append(process_row)
     return processed_data
@@ -357,10 +343,19 @@ def save_processed_data_to_csv_vllm(
         parrent_path = os.path.join(output_folder, f'pid_{pid}')
         os.makedirs(parrent_path, exist_ok=True)
         file_path = os.path.join(parrent_path, 'feature.csv')
+        exec_data_reset = exec_data.reset_index(drop=True)
+        batch_data_reset = batch_data.reset_index(drop=True)
 
+        # 使用 merge 方法按行合并，并指定后缀处理重叠列名
+        merged_df = exec_data_reset.merge(
+            batch_data_reset,
+            left_index=True,
+            right_index=True,
+            suffixes=('_exec', '_batch')
+        )
         with open_s(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
-            an_data = ExecutionDataVllm(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
+            an_data = ExecutionDataVllm(merged_df, processed_data.req_df, processed_data.rids_ori, 
                                     processed_data.kvcache_df)
             feature_data = process_execution_data_vllm(an_data)
             for row in feature_data:
@@ -375,14 +370,22 @@ def save_processed_data_to_csv_mindie(
     for pid, exec_data in processed_data.data_by_pid.items():
         current_batch_index = 0
         batch_data = process_batch_data(exec_data, batch_rows, current_batch_index)
-
         parrent_path = os.path.join(output_folder, f'pid_{pid}')
         os.makedirs(parrent_path, exist_ok=True)
         file_path = os.path.join(parrent_path, 'feature.csv')
+        exec_data_reset = exec_data.reset_index(drop=True)
+        batch_data_reset = batch_data.reset_index(drop=True)
 
+        # 使用 merge 方法按行合并，并指定后缀处理重叠列名
+        merged_df = exec_data_reset.merge(
+            batch_data_reset,
+            left_index=True,
+            right_index=True,
+            suffixes=('_exec', '_batch')
+        )
         with open_s(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
-            an_data = ExecutionDataMindie(exec_data, batch_data, processed_data.req_df, processed_data.rids_ori, 
+            an_data = ExecutionDataMindie(merged_df, processed_data.req_df, processed_data.rids_ori, 
                                     processed_data.index_dict, processed_data.batch_id_block_sum)
             feature_data = process_execution_data_mindie(an_data)
             for row in feature_data:
@@ -416,9 +419,9 @@ def source_to_model(input_path: str, model_type: str):
         else:
             req_rows = read_batch_req_data(cursor)
             index_dict = {}
-            for row in req_rows:
-                key = (row[1], row[3])
-                value = row[4]
+            for _, row in req_rows.iterrows():
+                key = (row['req_id'], row['iter'])
+                value = row['block']
                 index_dict[key] = value
                 batch_id_block_sum = calculate_block_sums(req_rows)
             csv_data = ProcessedDataMindie(input_path,

@@ -23,11 +23,11 @@ import time
 from math import exp, inf
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
-
+import glob
 import numpy as np
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy
+from msserviceprofiler.modelevalstate.config.base_config import AnalyzeTool, BenchMarkPolicy, DeployPolicy, EnginePolicy
 from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, custom_output, FOLDER_LIMIT_SIZE
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp, get_folder_size
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
@@ -38,11 +38,13 @@ from msserviceprofiler.msguard.security import open_s
 _analyze_mapping = {AnalyzeTool.profiler.value: analyze_profiler}
 
 
-def validate_parameters(common_generate_speed, perf_generate_token_speed, first_token_time, decode_time):
-    if common_generate_speed is None and perf_generate_token_speed is None:
-        raise ValueError("Not Found common_generate_speed or perf_generate_token_speed.")
-    if first_token_time is None or decode_time is None:
+def validate_parameters(generate_speed, first_token_time, decode_time):
+    if generate_speed is None:
+        raise ValueError("Not Found generate_speed")
+    if first_token_time is None:
         raise ValueError("Not Found first_token_time.")
+    if decode_time is None:
+        raise ValueError("Not Found decode_time.")
 
 
 class BenchMark:
@@ -186,7 +188,148 @@ class BenchMark:
             remove_file(Path(self.run_log))
 
 
-class ProfilerBenchmark(BenchMark):
+class AisBench:
+    def __init__(self, benchmark_config, bak_path: Optional[Path] = None):
+        from msserviceprofiler.modelevalstate.config.custom_command import AisbenchCommand
+        self.benchmark_config = benchmark_config
+        self.bak_path = bak_path
+        self.run_log = None
+        self.run_log_offset = None
+        self.run_log_fp = None
+        self.process = None
+        self.command = AisbenchCommand(self.benchmark_config.command).command
+
+    def backup(self, del_log=True):
+        backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
+        if not del_log:
+            backup(self.run_log, self.bak_path, self.__class__.__name__)
+
+    def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
+
+        output_path = Path(self.benchmark_config.output_path)
+        first_token_time = None
+        decode_time = None
+        success_rate = None
+        result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
+        if len(result_files) != 1:
+            logger.error("The aisbench result for csv files are not unique; please check")
+        else:
+            result_file = result_files[0]
+            df = read_csv_s(result_file ,header=0)
+            ttft_average = df[df["Performance Parameters"] == "TTFT"]["Average"].values[0]
+            first_token_time = ttft_average.split()[0]
+            tpot_average = df[df["Performance Parameters"] == "TPOT"]["Average"].values[0]
+            decode_time = tpot_average.split()[0]
+            output_average = df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0]
+            generate_speed = output_average.split()[0]
+            rate_dir = os.path.dirname(result_file)
+            rate_files = glob.glob(f"{rate_dir}/*dataset.json", recursive=True)
+            if len(rate_files) != 1:
+                logger.error("The aisbench result files for json are not unique; please check")
+                success_rate = 0
+            else:
+                json_file = rate_files[0]
+                with open(json_file, "r") as f:
+                    data = json.load(f)
+                total_requests = data["Total Requests"]["total"]
+                success_req = data["Success Requests"]["total"]
+                if total_requests != 0:
+                    success_rate = success_req / total_requests
+                else:
+                    logger.error("total_requests can not be 0; please check")
+        validate_parameters(generate_speed, first_token_time, decode_time)
+        time_to_first_token = float(first_token_time) / 10 ** 3
+        time_per_output_token = float(decode_time) / 10 ** 3
+        return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
+                                time_per_output_token=time_per_output_token, success_rate=success_rate)
+
+    def prepare(self):
+        remove_file(Path(self.benchmark_config.output_path))
+        remove_file(Path(self.benchmark_config.custom_collect_output_path))
+
+    def check_success(self, print_log=False):
+        if self.run_log:
+            run_log_path = Path(self.run_log)
+            if run_log_path.exists() and print_log:
+                try:
+                    with open_s(run_log_path, "r", encoding="utf-8") as f:
+                        f.seek(self.run_log_offset)
+                        output = f.read()
+                        self.run_log_offset = f.tell()
+                        logger.info(f"aisbench out: \n{output}")
+                except (UnicodeError, OSError) as e:
+                    logger.error(f"Failed read aisbench log. error {e}")
+        try:
+            if self.process.poll() is None:
+                return False
+            elif self.process.poll() == 0:
+                return True
+            else:
+                raise subprocess.SubprocessError(
+                    f"Failed in run aisbench. return code: {self.process.returncode}. ")
+        except AttributeError as e:
+            logger.error(f"Failed to check process status, error {e}")
+            return False
+
+    def run(self, run_params):
+        import ast
+        import ais_bench
+        aisbench_dir = ais_bench.__file__
+        ais_dir = Path(aisbench_dir).parent
+        api_dir = ais_dir.joinpath("benchmark", "configs", "models")
+        # 启动测试
+        logger.info("Start the aisbench test.")
+        api_name = self.benchmark_config.command.models
+        for file_path in api_dir.rglob("*.py"):
+            if file_path.name == f"{api_name}.py":
+                api_path = file_path
+        self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_aisbench")
+        self.run_log_offset = 0
+        if self.benchmark_config.work_path:
+            cwd = self.benchmark_config.work_path
+        else:
+            cwd = os.getcwd()
+        for k in run_params:
+            if k.name == "MAXCONCURRENCY":
+                concurrency = int(k.value)
+            if k.name == "REQUESTRATE":
+                rate = int(k.value)
+        with open(api_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        # 修改 request_rate 和 batch_size
+        for i, line in enumerate(lines):
+            if 'request_rate' in line:
+                lines[i] = f'        request_rate={rate},\n'
+            if 'batch_size' in line:
+                lines[i] = f'        batch_size={concurrency},\n'
+
+        # 将修改后的内容写回文件
+        with open(api_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        if CUSTOM_OUTPUT not in os.environ:
+            os.environ[CUSTOM_OUTPUT] = str(custom_output)
+        try:
+            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, 
+                                            stderr=subprocess.STDOUT, text=True, cwd=cwd)
+        except OSError as e:
+            logger.error(f"Failed to run benchmark. error {e}")
+            raise e
+        logger.info(f"command: {' '.join(self.command)}, log file: {self.run_log}")
+
+    def stop(self, del_log=True):
+        self.backup(del_log)
+        close_file_fp(self.run_log_fp)
+        try:
+            if self.process and self.process.poll() is None:
+                self.process.kill()
+        except AttributeError as e:
+            logger.error(f"Failed to kill process. error {e}")
+        if del_log:
+            remove_file(Path(self.run_log))
+
+
+class ProfilerBenchmark(AisBench):
     def __init__(self, benchmark_config, *args, analyze_tool: AnalyzeTool = AnalyzeTool.default,
                  **kwargs):
         super().__init__(benchmark_config, *args, **kwargs)
@@ -296,10 +439,10 @@ class ProfilerBenchmark(BenchMark):
             logger.error(f"Failed to kill process. error {e}")
 
 
-class VllmBenchMark(BenchMark):
-    def __init__(self, benchmark_config, throughput_type: str = "common", bak_path: Optional[Path] = None):
+class VllmBenchMark(AisBench):
+    def __init__(self, benchmark_config, bak_path: Optional[Path] = None):
         from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
-        super().__init__(benchmark_config, throughput_type, bak_path)
+        super().__init__(benchmark_config, bak_path)
         self.output_path = benchmark_config.output_path
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True, mode=0o750)
@@ -336,7 +479,7 @@ class VllmBenchMark(BenchMark):
 
     def run(self, run_params):
         # 启动测试
-        logger.info("Start the benchmark test.")
+        logger.info("Start the vllm_benchmark test.")
         self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_benchmark")
         self.run_log_offset = 0
         if self.benchmark_config.work_path:
@@ -364,7 +507,7 @@ class VllmBenchMark(BenchMark):
             self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp, 
                                             stderr=subprocess.STDOUT, text=True, cwd=cwd)
         except OSError as e:
-            logger.error(f"Failed to run benchmark. error {e}")
+            logger.error(f"Failed to run vllm_benchmark. error {e}")
             raise e
         logger.info(f"command: {' '.join(self.command)}, log file: {self.run_log}")
 
@@ -691,9 +834,12 @@ def arg_parse(subparsers):
                         help="Indicates whether the multi-node running policy is used.")
     parser.add_argument("--backup", default=False, action="store_true",
                         help="Whether to back up data.")
-    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.benchmark.value,
+    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.aisbench.value,
                         choices=[k.value for k in list(BenchMarkPolicy)],
                         help="Whether to use custom performance indicators.")
+    parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value, 
+                        choices=[k.value for k in list(EnginePolicy)],
+                        help="Whether to back up data.")
     parser.set_defaults(func=main)
 
 
@@ -706,7 +852,7 @@ def main(args: argparse.Namespace):
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
-    if args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
+    if args.engine == EnginePolicy.vllm.value:
         simulator = VllmSimulator(settings.simulator)
     else:
         simulator = Simulator(settings.simulator)
@@ -716,8 +862,8 @@ def main(args: argparse.Namespace):
         if not bak_path.exists():
             bak_path.mkdir(parents=True, mode=0o750)
     # 单机benchmark
-    if args.benchmark_policy == BenchMarkPolicy.benchmark.value:
-        benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
+    if args.benchmark_policy == BenchMarkPolicy.aisbench.value:
+        benchmark = AisBench(settings.aisbench, bak_path=bak_path)
     elif args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
         benchmark = VllmBenchMark(settings.benchmark, bak_path=bak_path)
     elif args.benchmark_policy == BenchMarkPolicy.profiler_benchmark:

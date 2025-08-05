@@ -16,12 +16,21 @@
             "dataset_path": "dataset_path"
         }
     },
+    "aisbench": {
+      "command": {
+        "models": "models",
+        "datasets": "datasets",
+        "mode": "all",
+        "num_prompts": "num_prompts"
+      }
+    },
     "simulator": {
         "vllm_command": {
             "host": "host",
             "port": "port",
             "model": "model_path",
-            "served_model_name": "model_name"
+            "served_model_name": "model_name",
+            "others": ""
         }
     },
     "target_field": [

@@ -53,7 +53,7 @@ class DataStorage:
         return history_data
 
     def save(self, performance_index: PerformanceIndex, params: Tuple[OptimizerConfigField], **kwargs):
-        logger.info("Save result with DataStorage.")
+        logger.info(f"Save result with DataStorage. File path: {self.save_file}")
         _column = []
         _value = []
         for k, v in performance_index.model_dump().items():
