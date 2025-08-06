@@ -231,8 +231,6 @@ class AisBench:
             first_token_time = ttft_average.split()[0]
             tpot_average = df[df["Performance Parameters"] == "TPOT"]["Average"].values[0]
             decode_time = tpot_average.split()[0]
-            output_average = df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0]
-            generate_speed = output_average.split()[0]
             rate_dir = os.path.dirname(result_file)
             rate_files = glob.glob(f"{rate_dir}/*dataset.json", recursive=True)
             if len(rate_files) != 1:
@@ -246,6 +244,8 @@ class AisBench:
                 success_req = data["Success Requests"]["total"]
                 if total_requests != 0:
                     success_rate = success_req / total_requests
+                    output_average = data["Output Token Throughput"]["total"]
+                    generate_speed = output_average.split()[0]
                 else:
                     logger.error("total_requests can not be 0; please check")
         aisbench_validate_parameters(generate_speed, first_token_time, decode_time)
