@@ -218,6 +218,7 @@ class AisBench:
         first_token_time = None
         decode_time = None
         success_rate = None
+        generate_speed = None
         if not aisbench_output_path.exists():
             logger.error("the output of aisbench is not find")
         result_files = glob.glob(f"{aisbench_output_path}/**/*.csv", recursive=True)
