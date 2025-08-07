@@ -20,11 +20,8 @@ from msserviceprofiler.modelevalstate.inference.simulate import Simulate
 from msserviceprofiler.modelevalstate.inference.simulate_vllm import SimulateVllm
  
  
-MODEL_EVAL_STATE_COLLECT = "MODEL_EVAL_STATE_COLLECT"
 MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
 MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
-collection_env = os.getenv(MODEL_EVAL_STATE_COLLECT) or os.getenv(MODEL_EVAL_STATE_COLLECT.lower())
-collect_flag = collection_env and (collection_env.lower() == "true" or collection_env.lower() != "false")
 simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
 simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
 optimizer_env = os.getenv(MODEL_EVAL_STATE_ALL) or os.getenv(MODEL_EVAL_STATE_ALL.lower())

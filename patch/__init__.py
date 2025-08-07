@@ -25,20 +25,12 @@ VLLM_ASCEND = "vllm_ascend"
 
 simulate_patch = []
 optimize_patch = []
-collection_patch = []
-simulate_patch_elegant = []
-optimize_patch_elegant = []
-collection_patch_elegant = []
 vllm_simulate_patch = []
 vllm_optimize_patch = []
 
 env_patch = {
-    "MODEL_EVAL_STATE_COLLECT": collection_patch,
     "MODEL_EVAL_STATE_SIMULATE": simulate_patch,
-    "MODEL_EVAL_STATE_ALL": optimize_patch,
-    "MODEL_EVAL_STATE_COLLECT_ELEGANT": collection_patch_elegant,
-    "MODEL_EVAL_STATE_SIMULATE_ELEGANT": simulate_patch_elegant,
-    "MODEL_EVAL_STATE_ALL_ELEGANT": optimize_patch_elegant
+    "MODEL_EVAL_STATE_ALL": optimize_patch
 }
 
 vllm_env_patch = {
@@ -51,16 +43,6 @@ try:
 
     simulate_patch.append(Patch2rc1)
     optimize_patch.append(Patch2rc1)
-    collection_patch.append(Patch2rc1)
-except ImportError as e:
-    warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
-
-try:
-    from msserviceprofiler.modelevalstate.patch.plugin_simulate_patch import Patch2rc1
-
-    simulate_patch_elegant.append(Patch2rc1)
-    optimize_patch_elegant.append(Patch2rc1)
-    collection_patch_elegant.append(Patch2rc1)
 except ImportError as e:
     warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
