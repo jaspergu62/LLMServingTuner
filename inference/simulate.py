@@ -159,6 +159,8 @@ class Simulate:
     @staticmethod
     def generate_random_token(plugin_object, shape, max_value=32000):
         # max_value 是vacab size，就是词表的范围
+        if np.prod(shape) > max_value + 1:
+            raise ValueError("token数量超过词表的范围，无法进行无放回抽样")
         array = np.random.choice(np.arange(0, max_value + 1), size=np.prod(shape), replace=False)
         array = np.reshape(array, shape)
         array = np.where(array == plugin_object.eos_token_id, np.random.randint(0, max_value + 1), array)

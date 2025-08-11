@@ -190,19 +190,27 @@ class FileHanlder:
                 if i == 0:
                     op_type = FileHanlder.check_filed(row, op_type)
                     continue
-                for _row in row:
-                    if not _row:
-                        raise ValueError(f"Empty data found in {op_path!r}. i: {i}, row: {row}")
-                if op_type == BATCH_SIZE:
-                    _relation_key = (int(row[0]),)
-                    _relation_value = tuple(row[1:])
-                else:
-                    _relation_key = (int(row[0]), int(row[1]))
-                    _relation_value = tuple(row[2:])
-                if _relation_key not in all_op_data:
-                    all_op_data[_relation_key] = (_relation_value,)
-                else:
-                    all_op_data[_relation_key] = (*all_op_data[_relation_key], _relation_value)
+                try:
+                    for _row in row:
+                        if not _row:
+                            raise ValueError(f"Empty data found in {op_path!r}. i: {i}, row: {row}")
+                    if op_type == BATCH_SIZE:
+                        if len(row) < 1:
+                            raise ValueError(f"Insufficient data in row {i}. Expected at least 1 column.")
+                        _relation_key = (int(row[0]),)
+                        _relation_value = tuple(row[1:])
+                    else:
+                        if len(row) < 2:
+                            raise ValueError(f"Insufficient data in row {i}. Expected at least 2 columns.")
+                        _relation_key = (int(row[0]), int(row[1]))
+                        _relation_value = tuple(row[2:])
+                    if _relation_key not in all_op_data:
+                        all_op_data[_relation_key] = (_relation_value,)
+                    else:
+                        all_op_data[_relation_key] = (*all_op_data[_relation_key], _relation_value)
+                except Exception as e:
+                    logger.error(f"Unexpected error occurred at row {i}: {e}")
+                    continue
         if not all_op_data:
             raise ValueError("all_op_data is None.")
         return all_op_data
@@ -229,17 +237,33 @@ class FileHanlder:
                 return tuple(op_info[_relation_key])
             else:
                 tmp_list = list(op_info.keys())
-                _cur_batch = min(range(len(tmp_list)), key=lambda i: abs(tmp_list[i][0] - batch_size))
-                tmp_list = [k for k in op_info.keys() if tmp_list[_cur_batch][0] == k[0]]
-                _cur_max_seq_len = min(range(len(tmp_list)), key=lambda i: abs(tmp_list[i][1] - max_seq_len))
-                return tuple(op_info[tmp_list[_cur_max_seq_len]])
+                if not tmp_list:
+                    return None 
+                try:
+                    _cur_batch = min(range(len(tmp_list)), key=lambda i: abs(tmp_list[i][0] - batch_size))
+                    tmp_list_filtered = [k for k in tmp_list if k[0] == tmp_list[_cur_batch][0]]
+                    if not tmp_list_filtered:
+                        return None  
+                    _cur_max_seq_len = min(range(len(tmp_list_filtered)), key=lambda i: abs(tmp_list_filtered[i][1] - max_seq_len))
+                    return tuple(op_info[tmp_list_filtered[_cur_max_seq_len]])
+                except IndexError as e:
+                    logger.error(f"error occurred when get_op_filed for max_seq_len: {e}")
+                    return None  
         else:
             if (batch_size,) in op_info:
                 return tuple(op_info[(batch_size,)])
             else:
                 tmp_list = list(op_info.keys())
-                _cur_index = min(range(len(tmp_list)), key=lambda i: abs(tmp_list[i][0] - batch_size))
-                return tuple(op_info[tmp_list[_cur_index]])
+                if not tmp_list:
+                    
+                    return None  
+                try:
+                    _cur_index = min(range(len(tmp_list)), key=lambda i: abs(tmp_list[i][0] - batch_size))
+                    return tuple(op_info[tmp_list[_cur_index]])
+                except IndexError:
+                    # 捕捉索引越界错误
+                    logger.error(f"error occurred when get_op_filed for max_batch_size: {e}")
+                    return None  
 
     def load_static_data(self):
         if self.data_file_paths.hardware_path.exists():

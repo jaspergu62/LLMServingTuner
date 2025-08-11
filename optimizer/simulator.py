@@ -104,28 +104,31 @@ class Simulator:
     @staticmethod
     def set_config(origin_config, key: str, value: Any):
         next_level = None
-        if "." in key:
-            _f_index = key.index(".")
-            _cur_key, next_level = key[:_f_index], key[_f_index + 1:]
-        else:
-            _cur_key = key
-        if next_level is None:
-            if isinstance(origin_config, dict):
-                origin_config[_cur_key] = value
-            elif isinstance(origin_config, list):
-                if len(origin_config) > int(_cur_key):
-                    origin_config[int(_cur_key)] = value
-                else:
-                    origin_config.append(value)
-            return
-        if "." in next_level:
-            _next_index = next_level.index(".")
-            _next_key, _next_next_level = next_level[:_next_index], next_level[_next_index + 1:]
-        elif next_level:
-            _next_key = next_level
-            _next_next_level = None
-        else:
-            _next_key = None
+        try:
+            if "." in key:
+                _f_index = key.index(".")
+                _cur_key, next_level = key[:_f_index], key[_f_index + 1:]
+            else:
+                _cur_key = key
+            if next_level is None:
+                if isinstance(origin_config, dict):
+                    origin_config[_cur_key] = value
+                elif isinstance(origin_config, list):
+                    if len(origin_config) > int(_cur_key):
+                        origin_config[int(_cur_key)] = value
+                    else:
+                        origin_config.append(value)
+                return
+            if "." in next_level:
+                _next_index = next_level.index(".")
+                _next_key = next_level[:_next_index]
+            elif next_level:
+                _next_key = next_level
+            else:
+                _next_key = None
+        except Exception as e:
+                logger.error(f"Unexpected error occurred at {key}")
+                raise e
         if isinstance(origin_config, dict):
             Simulator.set_config_for_dict(origin_config, _cur_key, _next_key, next_level, value)
         elif isinstance(origin_config, list):
