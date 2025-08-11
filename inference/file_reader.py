@@ -244,7 +244,8 @@ class FileHanlder:
                     tmp_list_filtered = [k for k in tmp_list if k[0] == tmp_list[_cur_batch][0]]
                     if not tmp_list_filtered:
                         return None  
-                    _cur_max_seq_len = min(range(len(tmp_list_filtered)), key=lambda i: abs(tmp_list_filtered[i][1] - max_seq_len))
+                    _cur_max_seq_len = min(range(len(tmp_list_filtered)), \
+                                           key=lambda i: abs(tmp_list_filtered[i][1] - max_seq_len))
                     return tuple(op_info[tmp_list_filtered[_cur_max_seq_len]])
                 except IndexError as e:
                     logger.error(f"error occurred when get_op_filed for max_seq_len: {e}")

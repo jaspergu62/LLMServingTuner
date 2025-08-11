@@ -16,7 +16,7 @@ import os
 import stat
 import time
 from pathlib import Path
- 
+from loguru import logger
 from filelock import FileLock
 from msserviceprofiler.msguard.security import open_s
  
@@ -155,5 +155,5 @@ class CommunicationForFile:
             # 检查是否超时
             if time.time() - start_time > timeout:
                 # 超时处理，例如发送错误信息或退出循环
-                print("未接收到eof响应，超时退出")
+                logger.error("未接收到eof响应，超时退出")
                 break

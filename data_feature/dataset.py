@@ -241,7 +241,7 @@ class MyDataSet:
         # 数据预处理
         if len(lines_data.columns) < 3:
             logger.error(f"DataFrame for train with swifter 列数不足，实际列数为 {len(lines_data.columns)}")
-            return 
+            return None
         columns_list = lines_data.columns[2:].tolist()
         field_cache = {col: ast.literal_eval(col) for col in columns_list}
 

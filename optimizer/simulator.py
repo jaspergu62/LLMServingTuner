@@ -127,8 +127,8 @@ class Simulator:
             else:
                 _next_key = None
         except Exception as e:
-                logger.error(f"Unexpected error occurred at {key}")
-                raise e
+            logger.error(f"Unexpected error occurred at {key}")
+            raise e
         if isinstance(origin_config, dict):
             Simulator.set_config_for_dict(origin_config, _cur_key, _next_key, next_level, value)
         elif isinstance(origin_config, list):
