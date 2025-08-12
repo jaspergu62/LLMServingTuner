@@ -57,7 +57,6 @@ def aisbench_validate_parameters(generate_speed, first_token_time, decode_time):
 class BenchMark:
     def __init__(self, benchmark_config, throughput_type: str = "common",
                  bak_path: Optional[Path] = None):
-        from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
         self.benchmark_config = benchmark_config
         self.throughput_type = throughput_type
         self.bak_path = bak_path
@@ -66,6 +65,10 @@ class BenchMark:
         self.run_log_fp = None
         self.process = None
         self.pattern = re.compile(r'\(([^)]+)')
+        self.update_command()
+
+    def update_command(self):
+        from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
         self.command = BenchmarkCommand(self.benchmark_config.command).command
 
     def backup(self, del_log=True):
@@ -156,6 +159,7 @@ class BenchMark:
 
     def run(self, run_params):
         # 启动测试
+        self.update_command()
         logger.info("Start the benchmark test.")
         self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_benchmark")
         self.run_log_offset = 0
@@ -197,13 +201,16 @@ class BenchMark:
 
 class AisBench:
     def __init__(self, benchmark_config, bak_path: Optional[Path] = None):
-        from msserviceprofiler.modelevalstate.config.custom_command import AisbenchCommand
         self.benchmark_config = benchmark_config
         self.bak_path = bak_path
         self.run_log = None
         self.run_log_offset = None
         self.run_log_fp = None
         self.process = None
+        self.update_command()
+
+    def update_command(self):
+        from msserviceprofiler.modelevalstate.config.custom_command import AisbenchCommand
         self.command = AisbenchCommand(self.benchmark_config.aisbench_command).command
 
     def backup(self, del_log=True):
@@ -451,11 +458,14 @@ class ProfilerBenchmark(AisBench):
 
 class VllmBenchMark(AisBench):
     def __init__(self, benchmark_config, bak_path: Optional[Path] = None):
-        from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
         super().__init__(benchmark_config, bak_path)
         self.output_path = benchmark_config.output_path
         if not self.output_path.exists():
             self.output_path.mkdir(parents=True, mode=0o750)
+        self.update_command()
+
+    def update_command(self):
+        from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
         self.command = VllmBenchmarkCommand(self.benchmark_config.vllm_command).command
 
     def get_performance_index(self):
@@ -489,6 +499,7 @@ class VllmBenchMark(AisBench):
 
     def run(self, run_params):
         # 启动测试
+        self.update_command()
         logger.info("Start the vllm_benchmark test.")
         self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_benchmark")
         self.run_log_offset = 0
@@ -626,6 +637,7 @@ class Scheduler:
         error_info = None
         del_log = True
         performance_index = PerformanceIndex()
+        self.benchmark.update_command()
         try:
             self.run_target_server(params, params_field)
             time.sleep(1)
