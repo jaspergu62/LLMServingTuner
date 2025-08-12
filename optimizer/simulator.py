@@ -286,9 +286,6 @@ class VllmSimulator(Simulator):
         self.process = None
         self.command = self.VllmCommand(self.vllm_config.vllm_command).command
 
-    def update_cmd(self):
-        self.command = self.VllmCommand(self.vllm_config.vllm_command).command
-
     @staticmethod
     def prepare_before_start_server():
         pkill_path = shutil.which("pkill")
@@ -296,6 +293,9 @@ class VllmSimulator(Simulator):
             subprocess.run([pkill_path, "-15", "vllm"])
         else:
             logger.error("pkill not found in path")
+            
+    def update_cmd(self):
+        self.command = self.VllmCommand(self.vllm_config.vllm_command).command
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         self.update_cmd()
