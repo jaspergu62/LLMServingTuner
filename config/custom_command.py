@@ -69,6 +69,7 @@ class AisbenchCommand:
  
  
 class VllmBenchmarkCommandConfig(BaseModel):
+    serving: str = ""
     backend: str = "vllm"
     host: str = "127.0.0.1"
     port: str = "6379"

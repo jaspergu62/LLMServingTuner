@@ -464,6 +464,14 @@ class VllmBenchMark(AisBench):
             self.output_path.mkdir(parents=True, mode=0o750)
         self.update_command()
 
+    def backup(self, del_log=True):
+        backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
+        if not del_log:
+            backup(self.run_log, self.bak_path, self.__class__.__name__)
+    
+    def prepare(self):
+        remove_file(Path(self.benchmark_config.output_path))
+
     def update_command(self):
         from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
         self.command = VllmBenchmarkCommand(self.benchmark_config.vllm_command).command
