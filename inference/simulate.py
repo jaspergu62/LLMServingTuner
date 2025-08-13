@@ -16,7 +16,6 @@ import atexit
 import json
 import os
 import queue
-import signal
 import stat
 import threading
 import time
@@ -102,21 +101,15 @@ def write_file(file_logger):
     file_logger.close()
 
 
-def exit_handler(file_logger):
-    file_logger.close()
-
-
-def signal_handler(signum, frame):
+def signal_handler(file_logger):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
-    raise RuntimeError("signal handel, ending...")
+    file_logger.close()
 
 
 file_log = FileLogger(Path(settings.benchmark.custom_collect_output_path).joinpath(f"simulate_{os.getpid()}.csv"))
-atexit.register(exit_handler, file_log)
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
+atexit.register(signal_handler, file_log)
 
 
 class Simulate:
@@ -191,16 +184,22 @@ class Simulate:
         all_need_blocks = np.count_nonzero(input_metadata.block_tables > -1, axis=-1)
         request_field = []
         _total_req_input_len = []
-        for _cache_id_index, _cache_id in enumerate(cached_ids):
-            _req_input_len = all_input_length[_cache_id_index] - output_len_count[_cache_id_index]
-            _total_req_input_len.append(_req_input_len)
-            request_field.append(RequestField(_req_input_len,
-                                              all_need_blocks[_cache_id_index],
-                                              output_len_count[_cache_id_index]))
-        batch_field = BatchField(batch_stage, input_metadata.batch_size,
-                                 np.count_nonzero(input_metadata.block_tables > -1, axis=-1).sum(),
-                                 sum(_total_req_input_len), max(_total_req_input_len))
-
+        try:
+            for _cache_id_index, _cache_id in enumerate(cached_ids):
+                _req_input_len = all_input_length[_cache_id_index] - output_len_count[_cache_id_index]
+                _total_req_input_len.append(_req_input_len)
+                request_field.append(RequestField(_req_input_len,
+                                                all_need_blocks[_cache_id_index],
+                                                output_len_count[_cache_id_index]))
+            batch_field = BatchField(batch_stage, input_metadata.batch_size,
+                                    np.count_nonzero(input_metadata.block_tables > -1, axis=-1).sum(),
+                                    sum(_total_req_input_len), max(_total_req_input_len))
+        except IndexError as e:
+            ServiceField.batch_field = None
+            ServiceField.request_field = None
+            batch_field = None
+            return batch_field, request_field
+        
         request_field = tuple(sorted(request_field))
         ServiceField.batch_field = batch_field
         ServiceField.request_field = request_field

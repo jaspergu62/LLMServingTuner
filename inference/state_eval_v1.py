@@ -23,6 +23,7 @@
 
 """
 import os
+import atexit
 import queue
 import signal
 import time
@@ -119,15 +120,13 @@ def update_cache(cache_predict: Optional[CachePredict], persistent_threshold: in
     cache_predict.save()
 
 
-def signal_handler(signum, frame):
+def signal_handler():
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
-    raise RuntimeError("signal handel, ending...")
+    
 
-
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
+atexit.register(signal_handler)
 
 
 class XGBStateEvaluate:
