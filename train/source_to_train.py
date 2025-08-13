@@ -412,7 +412,7 @@ def source_to_model(input_path: str, model_type: str):
                 key = (row['req_id'], row['iter'])
                 value = row['block']
                 index_dict[key] = value
-                batch_id_block_sum = calculate_block_sums(req_rows)
+            batch_id_block_sum = calculate_block_sums(req_rows)
             csv_data = ProcessedDataMindie(input_path,
                 data_by_pid,
                 batch_rows,
