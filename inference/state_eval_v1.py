@@ -120,13 +120,13 @@ def update_cache(cache_predict: Optional[CachePredict], persistent_threshold: in
     cache_predict.save()
 
 
-def signal_handler():
+def signal_process():
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
     
 
-atexit.register(signal_handler)
+atexit.register(signal_process)
 
 
 class XGBStateEvaluate:

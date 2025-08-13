@@ -101,7 +101,7 @@ def write_file(file_logger):
     file_logger.close()
 
 
-def signal_handler(file_logger):
+def signal_process(file_logger):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
@@ -109,7 +109,7 @@ def signal_handler(file_logger):
 
 
 file_log = FileLogger(Path(settings.benchmark.custom_collect_output_path).joinpath(f"simulate_{os.getpid()}.csv"))
-atexit.register(signal_handler, file_log)
+atexit.register(signal_process, file_log)
 
 
 class Simulate:
