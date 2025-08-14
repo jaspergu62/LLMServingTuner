@@ -49,11 +49,10 @@ class MyDataSetWithSwifter(MyDataSet):
     def proprocess_with_swifter(self, lines_data: Optional[DataFrame] = None):
         logger.info("dataset preprocess.")
         # 数据预处理
-        if len(lines_data.columns) < 3:
+        if len(lines_data.columns) < 2:
             logger.error(f"DataFrame for train with swifter 列数不足，实际列数为 {len(lines_data.columns)}")
             return None
-        columns_list = lines_data.columns[2:].tolist()
-        field_cache = {col: ast.literal_eval(col) for col in columns_list}
+        
 
         # 将各个特征数据转换为列数据
         batch_df = pd.concat(
@@ -77,13 +76,16 @@ class MyDataSetWithSwifter(MyDataSet):
             ENV_FIELD: self.convert_env_info,
             HARDWARE_FIELD: self.convert_hardware_info,
         }
-        for col in columns_list:
-            field_type = field_cache[col]
-            if field_type in convert_funcs:
-                func = convert_funcs[field_type]
-                df = pd.concat(lines_data[col].swifter.apply(func, args=(col,)).values)
-                self.sub_columns.append(df.columns.tolist())
-                _load_data.append(df)
+        if len(lines_data.columns) > 2:
+            columns_list = lines_data.columns[2:].tolist()
+            field_cache = {col: ast.literal_eval(col) for col in columns_list}
+            for col in columns_list:
+                field_type = field_cache[col]
+                if field_type in convert_funcs:
+                    func = convert_funcs[field_type]
+                    df = pd.concat(lines_data[col].swifter.apply(func, args=(col,)).values)
+                    self.sub_columns.append(df.columns.tolist())
+                    _load_data.append(df)
 
         # 提取 features 和labels
         self.load_data = pd.concat(_load_data, axis=1)
