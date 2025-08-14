@@ -239,9 +239,9 @@ class MyDataSet:
     def preprocess(self, lines_data: Optional[DataFrame] = None):
         logger.info("dataset preprocess.")
         # 数据预处理
-        columns_list = lines_data.columns[2:].tolist()
-        field_cache = {col: eval(col) for col in columns_list}
-
+        if len(lines_data.columns) < 2:
+            logger.error(f"DataFrame for train with swifter 列数不足，实际列数为 {len(lines_data.columns)}")
+            return None
         # 将各个特征数据转换为列数据
         batch_df = pd.concat(lines_data.iloc[:, 0].apply(self.convert_batch_info, args=(lines_data.columns[0],)).values)
         request_df = pd.concat(
@@ -262,13 +262,16 @@ class MyDataSet:
             ENV_FIELD: self.convert_env_info,
             HARDWARE_FIELD: self.convert_hardware_info,
         }
-        for col in columns_list:
-            field_type = field_cache[col]
-            if field_type in convert_funcs:
-                func = convert_funcs[field_type]
-                df = pd.concat(lines_data[col].apply(func, args=(col,)).values)
-                self.sub_columns.append(df.columns.tolist())
-                _load_data.append(df)
+        if len(lines_data.columns) > 2:
+            columns_list = lines_data.columns[2:].tolist()
+            field_cache = {col: ast.literal_eval(col) for col in columns_list}
+            for col in columns_list:
+                field_type = field_cache[col]
+                if field_type in convert_funcs:
+                    func = convert_funcs[field_type]
+                    df = pd.concat(lines_data[col].apply(func, args=(col,)).values)
+                    self.sub_columns.append(df.columns.tolist())
+                    _load_data.append(df)
 
         # 提取 features 和labels
         self.load_data = pd.concat(_load_data, axis=1)
@@ -282,7 +285,7 @@ class MyDataSet:
         logger.info("dataset preprocess with list comprehension")
         # 数据预处理
         columns_list = lines_data.columns.tolist()
-        field_cache = {col: eval(col) for col in columns_list}
+        field_cache = {col: ast.literal_eval(col) for col in columns_list}
         batch_df = pd.concat([self.convert_batch_info(item, columns_list[0]) for item in lines_data.iloc[:, 0]], axis=0)
         request_df = pd.concat(
             [self.convert_request_info_by_df(item, columns_list[1]) for item in lines_data.iloc[:, 1]], axis=0

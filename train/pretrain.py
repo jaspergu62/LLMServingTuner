@@ -146,11 +146,14 @@ class PretrainModel:
         # 使用模型进行预测
         target_data = []
         for _, row in features.iterrows():
-            _predict = self.model.predict((row,))[0]
-            stage = self.get_stage_after_preprocess(row, self.dataset.custom_encoder)
-            _cur_node = NodeInfo(stage, row.batch_size)
-            setattr(_cur_node, self.state_param.predict_field, _predict)
-            target_data.append(_cur_node)
+            try:
+                _predict = self.model.predict((row,))[0]
+                stage = self.get_stage_after_preprocess(row, self.dataset.custom_encoder)
+                _cur_node = NodeInfo(stage, row.batch_size)
+                setattr(_cur_node, self.state_param.predict_field, _predict)
+                target_data.append(_cur_node)
+            except Exception as e:
+                logger.error(f"get_nodes_with_model_predict时出错：{e}")  
         return tuple(target_data)
 
     def predict_and_plot(self, features: DataFrame, labels: DataFrame, predict_field: str, save_path: Optional[Path]):

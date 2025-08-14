@@ -16,7 +16,7 @@ import os
 import stat
 import time
 from pathlib import Path
- 
+from loguru import logger
 from filelock import FileLock
 from msserviceprofiler.msguard.security import open_s
  
@@ -144,9 +144,16 @@ class CommunicationForFile:
         return status
  
     def clear_res(self):
+        start_time = time.time()
+        timeout = 10  # 设置超时时间为10秒
         while True:
             time.sleep(1)
             data = self.recv_command()
             if data.strip().lower() == CustomCommand.cmd_eof:
                 self.send_command(CustomCommand.cmd_eof)
+                break
+            # 检查是否超时
+            if time.time() - start_time > timeout:
+                # 超时处理，例如发送错误信息或退出循环
+                logger.error("未接收到eof响应，超时退出")
                 break

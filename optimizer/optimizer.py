@@ -579,6 +579,8 @@ class Scheduler:
 
     def monitoring_status(self):
         logger.info("monitor status")
+        start_time = time.time()
+        timeout = 3600  # 设置超时时间为1小时，可以根据实际需求调整
         while True:
             if self.simulator.process.poll() is not None:
                 self.simulator.stop(del_log=False)
@@ -587,6 +589,10 @@ class Scheduler:
                                                  f"return code: {self.simulator.process.returncode}.")
             if self.benchmark.check_success():
                 return
+            if time.time() - start_time > timeout:
+                self.simulator.stop(del_log=False)
+                self.benchmark.stop(del_log=False)
+                raise TimeoutError("Monitoring status timed out.")
             time.sleep(1)
 
     def run_target_server(self, params: np.ndarray, params_field):
