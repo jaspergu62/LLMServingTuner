@@ -35,7 +35,7 @@ from msserviceprofiler.modelevalstate.inference.constant import (
     ALL_ARCHITECTURE,
     ALL_ARCHITECTURE_MAPPING
 )
-from msserviceprofiler.msguard.security.io import open_s
+from msserviceprofiler.msguard.security.io import open_s, mkdir_s
 
 OUTPUT_LENGTH_FIELD = "output_length"
 TOTAL_OUTPUT_LENGTH = "total_output_length"
@@ -540,7 +540,7 @@ def save_dataframe_to_csv(filtered_df, output, file_name, check_columns=None):
             return
     
     output_path = Path(output)
-    output_path.parent.mkdir(parents=True, exist_ok=True, mode=0o750)
+    mkdir_s(output_path)
     file_path = output_path / file_name
     file_path = str(file_path)
 
