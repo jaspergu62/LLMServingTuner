@@ -49,15 +49,6 @@ from msserviceprofiler.msguard.security.io import open_s
 matplotlib.use("Agg")
 
 
-def save_to_csv(df: pd.DataFrame, file_path: Path):
-    # 确保文件路径是字符串
-    file_path_str = str(file_path)
-    with open_s(file_path_str, "w") as f:
-        pass
-    # 保存 DataFrame 到 CSV 文件
-    df.to_csv(file_path_str, index=False)
-
-
 class MyDataSet:
     def __init__(
         self,

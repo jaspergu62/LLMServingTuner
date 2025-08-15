@@ -42,6 +42,7 @@ from msserviceprofiler.modelevalstate.inference.common import HistInfo, model_op
 from msserviceprofiler.modelevalstate.inference.constant import OpAlgorithm
 from msserviceprofiler.modelevalstate.model.xgb_state_model import StateXgbModel
 from msserviceprofiler.modelevalstate.train.state_param import StateParam
+from msserviceprofiler.modelevalstate.inference.utils import save_dataframe_to_csv
 
 
 @dataclass
@@ -391,10 +392,8 @@ def pretrain(input_path, output_path):
     TrainVersion1.simple_train(train_files, sp, pm)
     train_data = dataset.features.copy(deep=False)
     train_data["label"] = dataset.labels
-    _train_file = output.joinpath("cache/train_data.csv")
-    if not _train_file.parent.exists():
-        _train_file.parent.mkdir(parents=True, mode=0o750)
-    train_data.to_csv(output.joinpath("cache/train_data.csv"), index=False)
+    _train_dir = output.joinpath("cache")
+    save_dataframe_to_csv(train_data, _train_dir, "train_data.csv")
 
 
 def main(args):

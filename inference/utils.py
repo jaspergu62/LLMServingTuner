@@ -13,10 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from functools import reduce, lru_cache
+import re
 from typing import Tuple
 from dataclasses import dataclass
+from pathlib import Path
 import numpy as np
 import pandas as pd
+from loguru import logger
 
 from msserviceprofiler.modelevalstate.inference.common import (
     OP_EXPECTED_FIELD_MAPPING,
@@ -32,11 +35,13 @@ from msserviceprofiler.modelevalstate.inference.constant import (
     ALL_ARCHITECTURE,
     ALL_ARCHITECTURE_MAPPING
 )
+from msserviceprofiler.msguard.security.io import open_s, mkdir_s
 
 OUTPUT_LENGTH_FIELD = "output_length"
 TOTAL_OUTPUT_LENGTH = "total_output_length"
 TOTAL_SEQ_LENGTH = "total_seq_length"
 TOTAL_PREFILL_TOKEN = "total_prefill_token"
+CSV_BLACK_LIST = r'^[＋－＝％＠\+\-=%@]|;[＋－＝％＠\+\-=%@]'
 
 
 
@@ -517,3 +522,56 @@ class PreprocessTool:
                     new_row.append(origin_row[i])
 
         return tuple(new_row), tuple(new_index)
+
+
+def save_dataframe_to_csv(filtered_df, output, file_name, check_columns=None):
+    if output is None:
+        logger.warning("the path of output can not be none")
+        return
+    
+    if filtered_df is None or not isinstance(filtered_df, pd.DataFrame) or filtered_df.empty:
+        logger.warning("Writing csv %r failed due to invalid dataframe:\n\t%s", file_name, filtered_df)
+        return
+    
+    # check column names
+    for col in filtered_df.columns:
+        if not _check_csv_value_is_valid(col):
+            logger.error(f"Column name {col} contains malicious value.")
+            return
+    
+    output_path = Path(output)
+    mkdir_s(output_path)
+    file_path = output_path / file_name
+    file_path = str(file_path)
+
+    if not _preprocess_dataframe(filtered_df, check_columns):
+        logger.warning(f"DataFrame contains invalid values. Aborting write to {file_name}.")
+        return
+    
+    with open_s(file_path, "w") as f:
+        filtered_df.to_csv(f, index=False)
+        logger.info(f"Write to {file_name} success.")
+
+
+def _preprocess_dataframe(df, check_columns=None):
+    if not check_columns:
+        return True
+    for col in check_columns:
+        if col in df.columns:
+            has_invalid_value = any(not _check_csv_value_is_valid(x) for x in df[col])
+            if has_invalid_value:
+                logger.warning(f"Column {col} contains malicious values")
+                return False
+            
+    return True
+
+    
+def _check_csv_value_is_valid(value: str):
+    if not isinstance(value, str):
+        return True
+    try:
+        # -1.00 or +1.00 should be considered as digit numbers
+        float(value)
+    except ValueError:
+        return not bool(re.compile(CSV_BLACK_LIST).search(value))
+    return True
