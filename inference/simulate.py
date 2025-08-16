@@ -16,16 +16,17 @@ import atexit
 import json
 import os
 import queue
+import signal
 import stat
 import threading
 import time
 from pathlib import Path
 from threading import Thread
 from typing import Optional
-
+from loguru import logger
 import numpy as np
 import torch
-
+import copy
 from msserviceprofiler.modelevalstate.config.config import settings
 from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG, BatchStage
 from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField, RequestField, ConfigPath
@@ -101,7 +102,7 @@ def write_file(file_logger):
     file_logger.close()
 
 
-def signal_process(file_logger):
+def signal_handler(file_logger):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join()
@@ -109,12 +110,13 @@ def signal_process(file_logger):
 
 
 file_log = FileLogger(Path(settings.benchmark.custom_collect_output_path).joinpath(f"simulate_{os.getpid()}.csv"))
-atexit.register(signal_process, file_log)
+atexit.register(signal_handler, file_log)
 
 
 class Simulate:
     first = True
     predict_cache = {}
+    request_seq_len = {}
 
     @staticmethod
     def init(plugin_object):
@@ -180,9 +182,14 @@ class Simulate:
         output_len_count = plugin_object.input_manager.cache.output_len_count[cached_ids]
         if input_metadata.is_prefill:
             batch_stage = BatchStage.PREFILL
+            for i, req_id in enumerate(input_metadata.batch_request_ids):
+                Simulate.request_seq_len[req_id] = input_metadata.batch_seq_len[i]
+            all_input_length = input_metadata.batch_seq_len
         else:
             batch_stage = BatchStage.DECODE
-        all_input_length = input_metadata.batch_seq_len
+            all_input_length = []
+            for req_id in input_metadata.batch_request_ids:
+                all_input_length.append(Simulate.request_seq_len[req_id])
         all_need_blocks = np.count_nonzero(input_metadata.block_tables > -1, axis=-1)
         request_field = []
         _total_req_input_len = []
@@ -196,12 +203,13 @@ class Simulate:
             batch_field = BatchField(batch_stage, input_metadata.batch_size,
                                     np.count_nonzero(input_metadata.block_tables > -1, axis=-1).sum(),
                                     sum(_total_req_input_len), max(_total_req_input_len))
-        except IndexError as e:
+        except Exception as e:
+            logger.warning(f"process ServiceField in generate_features failed: {e}")
             ServiceField.batch_field = None
             ServiceField.request_field = None
             batch_field = None
             return batch_field, request_field
-        
+
         request_field = tuple(sorted(request_field))
         ServiceField.batch_field = batch_field
         ServiceField.request_field = request_field
