@@ -26,7 +26,7 @@ from typing import Optional
 from loguru import logger
 import numpy as np
 import torch
-import copy
+
 from msserviceprofiler.modelevalstate.config.config import settings
 from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG, BatchStage
 from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField, RequestField, ConfigPath
