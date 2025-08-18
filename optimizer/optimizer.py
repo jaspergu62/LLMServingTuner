@@ -691,7 +691,7 @@ class ScheduleWithMultiMachine(Scheduler):
                 _cur_bak_path = get_train_sub_path(self.bak_path)
                 if not Rule.input_file_read.is_satisfied_by(_cur_bak_path):
                     logger.error("the file of multimachine_bak_path is not safe, please check")
-                    return None
+                    return 
                 self.simulator.bak_path = _cur_bak_path
                 self.benchmark.bak_path = _cur_bak_path
                 _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"
