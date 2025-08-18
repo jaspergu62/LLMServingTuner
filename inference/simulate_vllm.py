@@ -57,6 +57,8 @@ class SimulateVllm:
                 ServiceField.req_id_and_max_decode_length = {}
             if not Path(ServiceField.config_path.static_file_dir).exists():
                 Path(ServiceField.config_path.static_file_dir).mkdir(parents=True, mode=0o750)
+            elif not Path(ServiceField.config_path.static_file_dir).is_dir():
+                logger.error(f"{ServiceField.config_path.static_file_dir!r} is not a directory.")
             static_file = StaticFile(base_path=ServiceField.config_path.static_file_dir)
             ServiceField.fh = FileHanlder(static_file)
             ServiceField.fh.load_static_data()
