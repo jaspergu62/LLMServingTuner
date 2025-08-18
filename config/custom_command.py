@@ -23,6 +23,8 @@ class BenchmarkCommandConfig(BaseModel):
 class BenchmarkCommand:
     def __init__(self, benchmark_command_config: BenchmarkCommandConfig):
         self.process = shutil.which("benchmark")
+        if self.process is None:
+            raise ValueError("Error: The 'benchmark' executable was not found in the system PATH.")
         self.benchmark_command_config = benchmark_command_config
  
     @property
@@ -56,6 +58,8 @@ class AisbenchCommandConfig(BaseModel):
 class AisbenchCommand:
     def __init__(self, aisbench_command_config: AisbenchCommandConfig):
         self.process = shutil.which("ais_bench")
+        if self.process is None:
+            raise ValueError("Error: The 'ais_bench' executable was not found in the system PATH.")
         self.aisbench_command_config = aisbench_command_config
  
     @property
@@ -131,6 +135,8 @@ class VllmCommandConfig(BaseModel):
 class VllmCommand:
     def __init__(self, command_config: VllmCommandConfig):
         self.process = shutil.which("vllm")
+        if self.process is None:
+            raise ValueError("Error: The 'vllm' executable was not found in the system PATH.")
         self.command_config = command_config
  
     @property

@@ -33,6 +33,7 @@ from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.common import get_train_sub_path, read_csv_s
 from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.msguard import Rule
 
 
 _analyze_mapping = {AnalyzeTool.profiler.value: analyze_profiler}
@@ -688,6 +689,9 @@ class ScheduleWithMultiMachine(Scheduler):
                 self.benchmark.bak_path = None
             else:
                 _cur_bak_path = get_train_sub_path(self.bak_path)
+                if not Rule.input_file_read.is_satisfied_by(_cur_bak_path):
+                    logger.error("the file of multimachine_bak_path is not safe, please check")
+                    return 
                 self.simulator.bak_path = _cur_bak_path
                 self.benchmark.bak_path = _cur_bak_path
                 _cmd = f"{self.cmd.backup} params:{_cur_bak_path}"

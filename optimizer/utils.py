@@ -40,7 +40,8 @@ def remove_file(output_path: Path):
             try:
                 shutil.rmtree(file)
             except OSError:
-                remove_file(file)
+                logger.error(f"remove file failed, file_path :{output_path!r}")
+                return
 
 
 def kill_children(children):

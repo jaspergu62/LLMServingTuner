@@ -78,27 +78,23 @@ class CommunicationForFile:
             res_file.parent.mkdir(parents=True, mode=0o750)
         self.cmd_file = cmd_file
         self.cmd_file_lock = cmd_file.parent.joinpath(f"{cmd_file.name}.lock")
-        flags = os.O_WRONLY | os.O_CREAT
-        modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IROTH | stat.S_IWOTH
         if not self.cmd_file_lock.exists():
-            with os.fdopen(os.open(self.cmd_file_lock, flags, modes), "w") as f:
+            with open_s(self.cmd_file_lock, "w") as f:
                 pass
         self.res_file = res_file
         self.res_file_lock = res_file.parent.joinpath(f"{res_file.name}.lock")
         if not self.res_file_lock.exists():
-            with os.fdopen(os.open(self.res_file_lock, flags, modes), "w") as f:
+            with open_s(self.res_file_lock, "w") as f:
                 pass
         self.timeout = timeout
  
     def send_command(self, cmd):
-        flags = os.O_WRONLY | os.O_CREAT
-        modes = stat.S_IWUSR | stat.S_IRUSR | stat.S_IROTH
         with FileLock(self.cmd_file_lock):
             if self.cmd_file.exists():
                 with open_s(self.cmd_file, "w") as fcmd:
                     fcmd.write(cmd)
             else:
-                with os.fdopen(os.open(self.cmd_file, flags, modes), "w", buffering=1024) as fcmd:
+                with open_s(self.cmd_file, "w", buffering=1024) as fcmd:
                     fcmd.write(cmd)
  
     def recv_command(self):

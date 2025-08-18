@@ -26,6 +26,7 @@ from typing import Optional
 from loguru import logger
 import numpy as np
 import torch
+from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.config import settings
 from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG, BatchStage
@@ -105,7 +106,9 @@ def write_file(file_logger):
 def signal_handler(file_logger):
     predict_queue.put(None)
     if sub_thread:
-        sub_thread.join()
+        sub_thread.join(timeout=3)
+        if sub_thread.is_alive():
+            raise TimeoutError("子线程未在指定时间完成")
     file_logger.close()
 
 
@@ -275,4 +278,8 @@ class Simulate:
     def predict_and_save(time_sleep: bool = False):
         res = Simulate.predict(time_sleep)
         # 增加异步写入能力
-        predict_queue.put_nowait(res)
+        try:
+            predict_queue.put_nowait(res)
+        except queue.Full:
+            logger.error("predict_queue is full")
+            predict_queue.put(res)

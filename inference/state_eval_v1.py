@@ -125,7 +125,9 @@ def update_cache(cache_predict: Optional[CachePredict], persistent_threshold: in
 def signal_process():
     predict_queue.put(None)
     if sub_thread:
-        sub_thread.join()
+        sub_thread.join(timeout=3)
+        if sub_thread.is_alive():
+            raise TimeoutError("子线程未在指定时间完成")
     
 
 atexit.register(signal_process)
