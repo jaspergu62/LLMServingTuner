@@ -106,6 +106,8 @@ def signal_process(file_logger):
     predict_queue.put(None)
     if sub_thread:
         sub_thread.join(timeout=3)
+        if sub_thread.is_alive():
+            raise TimeoutError("子线程未在指定时间完成")
     file_logger.close()
 
 
