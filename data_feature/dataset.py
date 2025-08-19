@@ -232,7 +232,7 @@ class MyDataSet:
         # 数据预处理
         if len(lines_data.columns) < 2:
             logger.error(f"DataFrame for train with swifter 列数不足，实际列数为 {len(lines_data.columns)}")
-            return None
+            return None, None
         # 将各个特征数据转换为列数据
         batch_df = pd.concat(lines_data.iloc[:, 0].apply(self.convert_batch_info, args=(lines_data.columns[0],)).values)
         request_df = pd.concat(

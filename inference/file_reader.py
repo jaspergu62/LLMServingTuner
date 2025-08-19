@@ -181,6 +181,32 @@ class FileHanlder:
         return op_type
 
     @staticmethod
+    def process_op_data(row: List[str], op_type: Optional[str], op_path: str, all_op_data: dict, i: int) -> \
+        Dict[Tuple, Tuple[ModelOpField]]:
+        try:
+            for _row in row:
+                if not _row:
+                    raise ValueError(f"Empty data found in {op_path!r}. i: {i}, row: {row}")
+            if op_type == BATCH_SIZE:
+                if len(row) < 1:
+                    raise ValueError(f"Insufficient data in row {i}. Expected at least 1 column.")
+                _relation_key = (int(row[0]),)
+                _relation_value = tuple(row[1:])
+            else:
+                if len(row) < 2:
+                    raise ValueError(f"Insufficient data in row {i}. Expected at least 2 columns.")
+                _relation_key = (int(row[0]), int(row[1]))
+                _relation_value = tuple(row[2:])
+            if _relation_key not in all_op_data:
+                all_op_data[_relation_key] = (_relation_value,)
+            else:
+                all_op_data[_relation_key] = (*all_op_data[_relation_key], _relation_value)
+        except Exception as e:
+            logger.error(f"Unexpected error occurred at row {i}: {e}")
+            return None
+        return all_op_data
+
+    @staticmethod
     def load_op_data(op_path: Path) -> Dict[Tuple, Tuple[ModelOpField]]:
         op_type = BATCH_SIZE
         all_op_data = {}
@@ -190,27 +216,7 @@ class FileHanlder:
                 if i == 0:
                     op_type = FileHanlder.check_filed(row, op_type)
                     continue
-                try:
-                    for _row in row:
-                        if not _row:
-                            raise ValueError(f"Empty data found in {op_path!r}. i: {i}, row: {row}")
-                    if op_type == BATCH_SIZE:
-                        if len(row) < 1:
-                            raise ValueError(f"Insufficient data in row {i}. Expected at least 1 column.")
-                        _relation_key = (int(row[0]),)
-                        _relation_value = tuple(row[1:])
-                    else:
-                        if len(row) < 2:
-                            raise ValueError(f"Insufficient data in row {i}. Expected at least 2 columns.")
-                        _relation_key = (int(row[0]), int(row[1]))
-                        _relation_value = tuple(row[2:])
-                    if _relation_key not in all_op_data:
-                        all_op_data[_relation_key] = (_relation_value,)
-                    else:
-                        all_op_data[_relation_key] = (*all_op_data[_relation_key], _relation_value)
-                except Exception as e:
-                    logger.error(f"Unexpected error occurred at row {i}: {e}")
-                    continue
+                all_op_data = FileHanlder.process_op_data(row, op_type, op_path, all_op_data, i)
         if not all_op_data:
             raise ValueError("all_op_data is None.")
         return all_op_data
