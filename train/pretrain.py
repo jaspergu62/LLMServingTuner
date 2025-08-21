@@ -249,39 +249,6 @@ class PretrainModel:
             plt.show()
 
 
-class ReqDecodePretrainModel(PretrainModel):
-    def train(self, lines_data: Optional[DataFrame] = None,
-              middle_save_path: Optional[Path] = None):
-        self.dataset.construct_data(lines_data, plt_data=self.plt_data, middle_save_path=middle_save_path)
-        rmse = self.model.train(self.dataset, middle_save_path=middle_save_path)
-        self.rmse.append(rmse)
-
-    def get_nodes_with_model_predict(self, features: DataFrame):
-        # 使用模型进行预测
-        target_data = []
-        for _, row in features.iterrows():
-            _predict = ceil(self.model.predict((row,))[0])
-            target_data.append(_predict)
-        return tuple(target_data)
-
-    def predict_and_plot(self, features: DataFrame, labels: DataFrame, predict_field: str, save_path: Optional[Path]):
-        origin_data = labels.values
-        data = self.get_nodes_with_model_predict(features)
-
-        r2 = r2_score(origin_data, data)
-        self.r2.append(r2)
-        mape = mean_absolute_percentage_error(origin_data,
-                                              data)
-        self.mape.append(mape)
-        AnalysisState.plot_pred_and_real(data, origin_data, save_path)
-        ax = sns.lineplot(pd.DataFrame({"predict": data, "real": origin_data}))
-        if save_path:
-            plt.savefig(save_path.joinpath("decode_num_predict_real.png"))
-        else:
-            plt.show()
-        plt.close()
-
-
 class TrainVersion1:
     @staticmethod 
     def simple_train(file_paths: List[Path], sp: StateParam, pm: PretrainModel):
@@ -312,33 +279,6 @@ class TrainVersion1:
         save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
         pm.predict(test_data.reset_index(drop=True), save_path)
         logger.info("finished train")
-
-    @staticmethod
-    def increment_train(fl: FileReader, sp: StateParam, pm: PretrainModel):
-        # 增量训练
-        count = 1
-        while True:
-            try:
-                # 1000行
-                lines = fl.read_lines()
-                save_path = sp.step_dir.joinpath(str(count))
-                save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
-                pm.predict(lines, save_path=save_path)
-                pm.partial_train(lines, middle_save_path=save_path)
-                count += 1
-            except StopIteration:
-                break
-        pm.bak_model(increment_stage="finished")
-
-    @staticmethod
-    def full_train(fl: FileReader, sp: StateParam, pm: PretrainModel):
-        # 全量训练
-        train_data = fl.read_lines()
-        save_path = sp.step_dir.joinpath("base")
-        save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
-        pm.train(train_data, middle_save_path=save_path)
-        pm.bak_model()
-
 
 
 parser = argparse.ArgumentParser(prog="Train Model.")
