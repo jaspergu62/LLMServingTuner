@@ -194,14 +194,13 @@ class SimulateVllm:
                         continue
                     # 更新这个SequenceOutput的输出token。
                     _origin_token = _seq_out.output_token
-                    if _cur_out_len < (
-                            _max_out_len - 1) and _seq_out.output_token in SimulateVllm.req_to_stop_token_ids.get(
-                            _req_id, [eos_token_id]):
-                        _seq_out.output_token = np.random.randint(0, min(SimulateVllm.req_to_stop_token_ids))
+                    _cur_req_eos_token_id = SimulateVllm.req_to_stop_token_ids.get(_req_id, [eos_token_id])
+                    if _cur_out_len < (_max_out_len - 1) and _seq_out.output_token in _cur_req_eos_token_id:
+                        _seq_out.output_token = np.random.randint(0, min(_cur_req_eos_token_id))
                         _seq_out.logprobs[_seq_out.output_token] = _seq_out.logprobs.get(_origin_token)
                         _seq_out.logprobs.pop(_origin_token)
                     elif _cur_out_len >= (_max_out_len - 1):
-                        _seq_out.output_token = SimulateVllm.req_to_stop_token_ids.get(_req_id, [eos_token_id])[0]
+                        _seq_out.output_token = _cur_req_eos_token_id[0]
                         _seq_out.logprobs[_seq_out.output_token] = _seq_out.logprobs.get(_origin_token)
                         _seq_out.logprobs.pop(_origin_token)
                     # 处理完这个请求

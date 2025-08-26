@@ -15,6 +15,7 @@
 
 
 import os
+import shutil
 import stat
 from pathlib import Path
 
@@ -51,20 +52,23 @@ def check_flag(target_file, patch_file):
 @validate_params({'patch_file': Rule.input_file_read})
 @validate_params({'target_file': Rule.output_path_write})
 def add_patch(target_file, patch_file):
-    flags = os.O_WRONLY | os.O_CREAT
-    modes = stat.S_IWUSR | stat.S_IRUSR
-    with open(patch_file, "r", encoding="utf-8") as f:
+    with open_s(patch_file, "r", encoding="utf-8") as f:
         patch_data = f.readlines()
-    with os.fdopen(os.open(target_file, flags, modes), "a") as f:
-        for _row in patch_data:
-            f.write(_row)
+    try:
+        with open_s(target_file, "a", encoding="utf-8") as f:
+            f.writelines(patch_data)
+            f.flush()
+    except Exception as e:
+        logger.error(f"add patch failed, error: {e}")
+        raise e
+
     # 没有打补丁的，添加补丁文件内容
     logger.info("The patch is installed successfully.")
 
 
 class Patch2rc1:
-    mindie_llm = "2.0"
-    mindie_llm_low = "2.0a9"
+    mindie_llm = "2.2"
+    mindie_llm_low = "2.1rc1"
 
     @staticmethod
     def check_version(target_version):
@@ -82,15 +86,25 @@ class Patch2rc1:
         import mindie_llm
         file_path = mindie_llm.__path__[0]
         # 检查文件是否存在
-        plugin_manager_file = Path(file_path).joinpath("text_generator/plugins/plugin_manager.py").resolve()
-        if not Rule.input_file_read.is_satisfied_by(plugin_manager_file):
-            logger.error("not found patch file for mindie")
-            return
-        plugin_manager_patch = _patch_dir.joinpath("plugin_manager_patch.patch")
-        diff_flag = check_flag(plugin_manager_file, plugin_manager_patch)
+        simulate_plugin_file = Path(file_path).joinpath("text_generator/plugins/simulate/simulate_plugin.py").resolve()
+        simulate_init_file = Path(file_path).joinpath("text_generator/plugins/simulate/__init__.py").resolve()
+        plugins_init_file = Path(file_path).joinpath("text_generator/plugins/__init__.py").resolve()
+        if not Rule.input_file_read.is_satisfied_by(plugins_init_file):
+            raise FileNotFoundError(plugins_init_file)
+        if not simulate_init_file.parent.exists():
+            simulate_init_file.parent.mkdir(parents=True, mode=0o750)
+
+        simulate_plugin_patch = _patch_dir.joinpath("mindie_plugin/simulate/simulate_plugin.py")
+        simulate_init_patch = _patch_dir.joinpath("mindie_plugin/simulate/__init__.py")
+        if not simulate_init_file.exists():
+            shutil.copy(simulate_init_patch, simulate_init_file)
+        if not simulate_plugin_file.exists():
+            shutil.copy(simulate_plugin_patch, simulate_plugin_file)
+        plugins_init_patch = _patch_dir.joinpath("mindie_plugin/plugin_init_patch.py")
+        diff_flag = check_flag(plugins_init_file, plugins_init_patch)
         if not diff_flag:
             # 已经打过补丁，不需要打了
             logger.info("The patch aleady exists.")
             return
-        add_patch(plugin_manager_file, plugin_manager_patch)
+        add_patch(plugins_init_file, plugins_init_patch)
 

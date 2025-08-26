@@ -13,33 +13,21 @@ RUN_PATH = Path(os.getcwd())
 MODEL_EVAL_STATE_CONFIG_PATH = "MODEL_EVAL_STATE_CONFIG_PATH"
 modelevalstate_config_path = os.getenv(MODEL_EVAL_STATE_CONFIG_PATH) or os.getenv(MODEL_EVAL_STATE_CONFIG_PATH.lower())
 if not modelevalstate_config_path:
-    modelevalstate_config_path = RUN_PATH.joinpath("config.json")
+    modelevalstate_config_path = RUN_PATH.joinpath("config.toml")
 modelevalstate_config_path = Path(modelevalstate_config_path).absolute().resolve()
 
-CUSTOM_OUTPUT = "MODEL_EVAL_STATE_CUSTOM_OUTPUT"
-custom_output = os.getenv(CUSTOM_OUTPUT) or os.getenv(CUSTOM_OUTPUT.lower())
-if custom_output:
-    custom_output = Path(custom_output).resolve()
-else:
-    custom_output = RUN_PATH
-FOLDER_LIMIT_SIZE = 1024 * 1024 * 1024
+CUSTOM_OUTPUT = "MODEL_EVAL_STATE_OUTPUT"
+VLLM_CUSTOM_OUTPUT = "MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT"
+MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
+MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
+simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
+simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
+optimizer_env = os.getenv(MODEL_EVAL_STATE_ALL) or os.getenv(MODEL_EVAL_STATE_ALL.lower())
+optimizer_flag = optimizer_env and (optimizer_env.lower() == "true" or optimizer_env.lower() != "false")
 
 
-class EnginePolicy(Enum):
-    mindie = 'mindie'
-    vllm = 'vllm'
-
-    
-class DeployPolicy(Enum):
-    single = "single"
-    multiple = "multiple"
-
-
-class BenchMarkPolicy(Enum):
-    benchmark = "benchmark"
-    profiler_benchmark = "profiler_benchmark"
-    vllm_benchmark = "vllm_benchmark"
-    aisbench = 'aisbench'
+MINDIE_BENCHMARK_PERF_COLUMNS = ["average", "max", "min", "p75", "p90", "slo_p90", "p99", "n"]
+FOLDER_LIMIT_SIZE = 1024 * 1024 * 1024  # 1GB
 
 
 class AnalyzeTool(Enum):
@@ -48,6 +36,29 @@ class AnalyzeTool(Enum):
     vllm_benchmark = "vllm"
 
 
+class BenchMarkPolicy(Enum):
+    benchmark = "benchmark"
+    profiler_benchmark = "profiler_benchmark"
+    vllm_benchmark = "vllm_benchmark"
+
+
+class DeployPolicy(Enum):
+    single = "single"
+    multiple = "multiple"
+
+
 class ServiceType(Enum):
     master = "master"
     slave = "slave"
+
+
+class MetricAlgorithm(BaseModel):
+    metric: str = "FirstTokenTime"
+    algorithm: str = "average"
+
+
+class PerformanceConfig(BaseModel):
+    time_to_first_token: MetricAlgorithm = MetricAlgorithm(metric="FirstTokenTime",
+                                                           algorithm="average")
+    time_per_output_token: MetricAlgorithm = MetricAlgorithm(metric="DecodeTime",
+                                                             algorithm="average")

@@ -12,8 +12,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import sys
 
-current_dir = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(current_dir)
+PLUGIN_WHITE_LIST = [*PLUGIN_WHITE_LIST, 'simulate']
+
+
+class SimulatePluginParameterValidator(PluginParameterValidator):
+    def __init__(self, speculation_gamma):
+        super().__init__(speculation_gamma)
+        self.rules['simulate'] = {
+            PLUGIN_FIELDS: set(),  # 没有额外的字段要求
+            PLUGIN_CHECK_FUNC: lambda data: True  # 不需要额外校验
+        }
+
+
+PluginParameterValidator = SimulatePluginParameterValidator

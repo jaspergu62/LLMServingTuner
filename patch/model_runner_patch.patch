@@ -18,19 +18,14 @@ import os
  
 from msserviceprofiler.modelevalstate.inference.simulate import Simulate
 from msserviceprofiler.modelevalstate.inference.simulate_vllm import SimulateVllm
+
+from msserviceprofiler.modelevalstate.config.constant import simulate_flag
  
- 
-MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
-MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
-simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
-simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
-optimizer_env = os.getenv(MODEL_EVAL_STATE_ALL) or os.getenv(MODEL_EVAL_STATE_ALL.lower())
-optimizer_flag = optimizer_env and (optimizer_env.lower() == "true" or optimizer_env.lower() != "false")
  
 class NPUModelRunnerCustom(NPUModelRunner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if simulate_flag or optimizer_flag:
+        if simulate_flag:
             SimulateVllm.init()
     @torch.inference_mode()
     def execute_model(
@@ -50,7 +45,7 @@ class NPUModelRunnerCustom(NPUModelRunner):
             assert model_input.lora_mapping is not None
             self.set_active_loras(model_input.lora_requests,
                                   model_input.lora_mapping)
-        if simulate_flag or optimizer_flag:
+        if simulate_flag:
             if not self.in_profile_run and self.is_driver_worker:
                 SimulateVllm.init()
                 SimulateVllm.generate_features(model_input)
@@ -128,13 +123,12 @@ class NPUModelRunnerCustom(NPUModelRunner):
             model_forward_start = torch_npu.npu.Event(enable_timing=True)
             model_forward_end = torch_npu.npu.Event(enable_timing=True)
             model_forward_start.record()
-        _simulate_flag = (simulate_flag or optimizer_flag)
         _model_input_valid = (not self.in_profile_run) and model_input.seq_lens is not None and self.is_driver_worker
-        if _simulate_flag  and _model_input_valid:
+        if simulate_flag  and _model_input_valid:
             logits = Simulate.generate_logits(len(model_input.seq_lens), self.vocab_size, self.device,
                                               self.model_config.dtype)
             Simulate.predict_and_save()
-        elif _simulate_flag and not _model_input_valid:
+        elif simulate_flag and not _model_input_valid:
             return []
         else:
             if not bypass_model_exec:
@@ -228,7 +222,7 @@ class NPUModelRunnerCustom(NPUModelRunner):
                 hidden_states = hidden_or_intermediate_states
  
             output.hidden_states = hidden_states
-        if _simulate_flag  and _model_input_valid:
+        if simulate_flag  and _model_input_valid:
             SimulateVllm.update_token(model_input, output, self.model.config.eos_token_id)
         return [output]
 NPUModelRunner = NPUModelRunnerCustom
