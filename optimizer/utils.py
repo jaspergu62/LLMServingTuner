@@ -14,6 +14,7 @@
 # limitations under the License.
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
 import psutil
@@ -52,8 +53,8 @@ def kill_children(children):
             child.send_signal(9)
             child.wait(10)
         except Exception as e:
-            logger.error(f"Failed in kill the {child.pid} process. detail: {e}")
-            continue
+            subprocess.run(["kill", "-9", str(child.pid)])
+
         if child.is_running():
             logger.error(f"Failed to kill the {child.pid} process.")
 
