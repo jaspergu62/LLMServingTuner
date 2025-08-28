@@ -12,6 +12,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import glob
+import importlib
 import json
 import os
 import re
@@ -23,19 +25,157 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkConfig, ProfileConfig, VllmBenchmarkConfig, \
-    VLLM_CUSTOM_OUTPUT, MINDIE_BENCHMARK_PERF_COLUMNS, settings
-from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField
-from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand, VllmBenchmarkCommand
+from msserviceprofiler.modelevalstate.config.config import (
+    AnalyzeTool, BenchMarkConfig, ProfileConfig, VllmBenchmarkConfig,
+    AisBenchConfig, settings, PerformanceIndex, OptimizerConfigField
+)
+from msserviceprofiler.modelevalstate.config.base_config import VLLM_CUSTOM_OUTPUT, MINDIE_BENCHMARK_PERF_COLUMNS
+from msserviceprofiler.modelevalstate.config.custom_command import (
+    BenchmarkCommand, VllmBenchmarkCommand, AisBenchCommand
+)
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.optimizer.custom_process import CustomProcess
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file
-from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.modelevalstate.common import read_csv_s
+from msserviceprofiler.msguard.security import open_s, walk_s
 
 
 _analyze_mapping = {
     AnalyzeTool.profiler.value: analyze_profiler
 }
+MS_TO_S = 10 ** 3
+US_TO_S = 10 ** 6
+
+
+class AisBench(CustomProcess):
+    def __init__(self, benchmark_config: AisBenchConfig, bak_path: Optional[Path] = None, print_log: bool = False):
+        super().__init__(bak_path=bak_path, print_log=print_log, process_name=benchmark_config.process_name)
+        self.benchmark_config = benchmark_config
+        self.work_path = self.benchmark_config.work_path
+        self.update_command()
+        self.mindie_benchmark_perf_columns = [k.lower().strip() for k in MINDIE_BENCHMARK_PERF_COLUMNS]
+ 
+    def update_command(self):
+        self.command = AisBenchCommand(self.benchmark_config.command).command
+ 
+    def backup(self, del_log=True):
+        backup(self.benchmark_config.output_path, self.bak_path, self.__class__.__name__)
+        if not del_log:
+            backup(self.run_log, self.bak_path, self.__class__.__name__)
+ 
+    def get_performance_metric(self, metric_name: str, algorithm: str = "average"):
+        output_path = Path(self.benchmark_config.command.output_path)
+        result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
+        if len(result_files) != 1:
+            logger.error("The aisbench result for csv files are not unique; please check")
+        metric_name = metric_name.lower().strip()
+        algorithm = algorithm.strip().lower()
+ 
+        if algorithm not in self.mindie_benchmark_perf_columns:
+            raise ValueError(f"The {algorithm} does not support it; "
+                             f"only {self.mindie_benchmark_perf_columns} are supported.")
+        algorithm_index = self.mindie_benchmark_perf_columns.index(algorithm)
+        for file in result_files:
+            df = read_csv_s(file)
+            _columns = [k.lower().strip() for k in df.columns]
+            if metric_name not in _columns:
+                continue
+            _i = _columns.index(metric_name)
+            _res = df.iloc[:, _i][algorithm_index]
+            if isinstance(_res, str):
+                if _res.split()[1].strip() == "ms":
+                    return float(_res.split()[0]) / MS_TO_S
+                elif _res.split()[1].strip() == "us":
+                    return float(_res.split()[0]) / US_TO_S
+                return float(_res.split()[0])
+            return _res
+ 
+    def get_performance_index(self):
+        output_path = Path(self.benchmark_config.command.output_path)
+        first_token_time = None
+        decode_time = None
+        success_rate = None
+        generate_speed = None
+        throughput = None
+        if not output_path.exists():
+            logger.error(f"the output of aisbench is not find: {output_path}")
+        result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
+        if len(result_files) != 1:
+            logger.error("The aisbench result for csv files are not unique; please check")
+        else:
+            result_file = result_files[0]
+            df = read_csv_s(result_file, header=0)
+            ttft_average = df[df["Performance Parameters"] == "TTFT"]["Average"].values[0]
+            first_token_time = ttft_average.split()[0]
+            tpot_average = df[df["Performance Parameters"] == "TPOT"]["Average"].values[0]
+            decode_time = tpot_average.split()[0]
+            rate_dir = os.path.dirname(result_file)
+            rate_files = glob.glob(f"{rate_dir}/*dataset.json", recursive=True)
+            if len(rate_files) != 1:
+                logger.error("The aisbench result files for json are not unique; please check")
+                success_rate = 0
+            else:
+                json_file = rate_files[0]
+                with open_s(json_file, "r") as f:
+                    data = json.load(f)
+                total_requests = data["Total Requests"]["total"]
+                success_req = data["Success Requests"]["total"]
+                if total_requests != 0:
+                    success_rate = success_req / total_requests
+                    output_average = data["Output Token Throughput"]["total"]
+                    generate_speed = output_average.split()[0]
+                else:
+                    logger.error("total_requests can not be 0; please check")
+            throughput = df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0].split()[0]
+        time_to_first_token = float(first_token_time) / MS_TO_S
+        time_per_output_token = float(decode_time) / MS_TO_S
+        return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
+                                time_per_output_token=time_per_output_token, success_rate=success_rate,
+                                throughput=throughput)
+ 
+    def prepare(self):
+        remove_file(Path(self.benchmark_config.output_path))
+ 
+    def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
+        self.update_command()
+        super().before_run(run_params)
+        module = importlib.import_module("ais_bench")
+        aisbench_dir = module.__file__
+        ais_dir = Path(aisbench_dir).parent
+        api_dir = ais_dir.joinpath("benchmark", "configs", "models")
+        # 启动测试
+        logger.debug("Start the aisbench test.")
+        api_name = self.benchmark_config.command.models
+        api_path = None
+        for file_path in api_dir.rglob("*.py"):
+            if file_path.name == f"{api_name}.py":
+                api_path = file_path
+        if not api_path:
+            raise FileNotFoundError("Not Found {api_name}.py")
+        concurrency = rate = None
+        for k in run_params:
+            if k.name == "CONCURRENCY":
+                concurrency = int(k.value)
+            if k.name == "REQUESTRATE":
+                rate = int(k.value)
+        with open_s(api_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        _request_rate_pattern = re.compile(r"(request_rate=)\d{1,10}(?:\.\d{1,10})?,")
+        _batch_size_pattern = re.compile(r"(batch_size=)\d{1,10}(?:\.\d{1,10})?,")
+        # 修改 request_rate 和 batch_size
+        for i, line in enumerate(lines):
+            if 'request_rate=' in line:
+                _res = _request_rate_pattern.search(lines[i])
+                if _res and rate:
+                    lines[i] = lines[i].replace(_res.group(), f"request_rate={rate},")
+            if 'batch_size' in line:
+                _res = _batch_size_pattern.search(lines[i])
+                if _res and concurrency:
+                    lines[i] = lines[i].replace(_res.group(), f"batch_size={concurrency},")
+ 
+        # 将修改后的内容写回文件
+        with open_s(api_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
 
 
 class BenchMark(CustomProcess):
@@ -45,7 +185,7 @@ class BenchMark(CustomProcess):
         self.benchmark_config = benchmark_config
         self.throughput_type = throughput_type
         self.process = None
-        self.pattern = re.compile(r"\s*(\d+\.?\d*)\s*\%")
+        self.pattern = re.compile(r"^\s*(\d{1,10}(?:\.\d{1,10})?)\s*\%$")
         self.mindie_benchmark_perf_columns = [k.lower().strip() for k in MINDIE_BENCHMARK_PERF_COLUMNS]
         self.command = BenchmarkCommand(self.benchmark_config.command).command
 
@@ -63,14 +203,19 @@ class BenchMark(CustomProcess):
     def get_req_token_info(self, results_per_request_path: Optional[Path] = None):
         if not results_per_request_path:
             output_path = Path(self.benchmark_config.command.save_path)
-            for _file in output_path.iterdir():
+            for file_path in walk_s(output_path):
+                _file = Path(file_path)
                 if _file.name.startswith("results_per_request"):
                     results_per_request_path = _file
                     break
         if results_per_request_path is None:
-            raise FileNotFoundError(f"Not Found results_per_request_path: {results_per_request_path}")
+            raise FileNotFoundError(f"Not Found results_per_request_path: {results_per_request_path!r}")
         with open_s(results_per_request_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse JSON file {results_per_request_path!r}: {e}")
+                return None
         _http_rid = []
         _recv_token_size = []
         _reply_token_size = []
@@ -87,26 +232,38 @@ class BenchMark(CustomProcess):
 
     def get_ttft_tpot(self, file):
         first_token_time = decode_time = None
-        df = pd.read_csv(file)
-        if self.benchmark_config.performance_config.time_to_first_token.metric in df.columns:
-            if self.benchmark_config.performance_config.time_to_first_token.algorithm.lower() not in self.mindie_benchmark_perf_columns:
+        df = read_csv_s(file)
+        ttft_metric = self.benchmark_config.performance_config.time_to_first_token.metric
+        if ttft_metric in df.columns:
+            ttft_algorithm = self.benchmark_config.performance_config.time_to_first_token.algorithm.lower()
+            if ttft_algorithm not in self.mindie_benchmark_perf_columns:
                 raise ValueError(f"Only one of these is supported {self.mindie_benchmark_perf_columns}. "
-                                 f"but {self.benchmark_config.performance_config.time_to_first_token.algorithm.lower()} was obtained."
-                                 f"please check the configuration file and modify benchmark.performance_config.time_to_first_token.algorithm.")
-            _index = self.mindie_benchmark_perf_columns.index(
-                self.benchmark_config.performance_config.time_to_first_token.algorithm.lower())
-            first_token_time = float(
-                df[self.benchmark_config.performance_config.time_to_first_token.metric][_index].split()[0])
-        if self.benchmark_config.performance_config.time_per_output_token.metric in df.columns:
-            if self.benchmark_config.performance_config.time_per_output_token.algorithm.lower() not in self.mindie_benchmark_perf_columns:
+                                 f"but {ttft_algorithm} was obtained."
+                                 f"please check the configuration file and modify \
+                                  benchmark.performance_config.time_to_first_token.algorithm.")
+            _index = self.mindie_benchmark_perf_columns.index(ttft_algorithm)
+            try:
+                first_token_time = float(df[ttft_metric][_index].split()[0])
+            except ValueError as e:
+                raise ValueError(f"Failed to parse time_to_first_token value: {e}") from e
+
+        tpot_metric = self.benchmark_config.performance_config.time_per_output_token.metric
+        if tpot_metric in df.columns:
+            tpot_algorithm = self.benchmark_config.performance_config.time_per_output_token.algorithm.lower()
+            if tpot_algorithm not in self.mindie_benchmark_perf_columns:
                 raise ValueError(f"Only one of these is supported {self.mindie_benchmark_perf_columns}. "
-                                 f"but {self.benchmark_config.performance_config.time_per_output_token.algorithm.lower()} was obtained."
-                                 f"please check the configuration file and modify benchmark.performance_config.time_per_output_token.algorithm.")
-            _index = self.mindie_benchmark_perf_columns.index(
-                self.benchmark_config.performance_config.time_per_output_token.algorithm.lower())
-            decode_time = float(
-                df[self.benchmark_config.performance_config.time_per_output_token.metric][_index].split()[0])
-        perf_generate_token_speed = float(df["GeneratedTokenSpeed"][0].split()[0])
+                                 f"but {tpot_algorithm} was obtained."
+                                 f"please check the configuration file and modify \
+                                  benchmark.performance_config.time_per_output_token.algorithm.")
+            _index = self.mindie_benchmark_perf_columns.index(tpot_algorithm)
+            try:
+                decode_time = float(df[tpot_metric][_index].split()[0])
+            except ValueError as e:
+                raise ValueError(f"Failed to parse time_per_output_token value: {e}") from e
+        try:
+            perf_generate_token_speed = float(df["GeneratedTokenSpeed"][0].split()[0])
+        except ValueError as e:
+            raise ValueError(f"Failed to parse GeneratedTokenSpeed value: {e}") from e
         return first_token_time, decode_time, perf_generate_token_speed
 
     def get_performance_metric(self, metric_name: str, algorithm: str = "average"):
@@ -118,25 +275,29 @@ class BenchMark(CustomProcess):
                              f"only {self.mindie_benchmark_perf_columns} are supported.")
         algorithm_index = self.mindie_benchmark_perf_columns.index(algorithm)
 
-        for file in output_path.iterdir():
+        for file_path in walk_s(output_path):
+            file = Path(file_path)
             if "result_perf" not in file.name:
                 continue
-            df = pd.read_csv(file)
+            df = read_csv_s(file)
             _columns = [k.lower().strip() for k in df.columns]
             if metric_name not in _columns:
                 continue
             _i = _columns.index(metric_name)
             _res = df.iloc[:, _i][algorithm_index]
             if isinstance(_res, str):
-                if _res.split()[1].strip() == "ms":
-                    return float(_res.split()[0]) / 10 ** 3
-                elif _res.split()[1].strip() == "us":
-                    return float(_res.split()[0]) / 10 ** 6
-                return float(_res.split()[0])
+                parts = _res.split()
+                if len(parts) > 1:  # 确保分割后有足够的元素
+                    if parts[1].strip() == "ms":
+                        return float(parts[0]) / MS_TO_S
+                    elif parts[1].strip() == "us":
+                        return float(parts[0]) / US_TO_S
+                # 如果没有单位或者单位不是ms/us，直接转换
+                return float(parts[0])
             return _res
 
     def update_result_common(self, file, performance_index):
-        df = pd.read_csv(file)
+        df = read_csv_s(file)
         _generate_speed = common_generate_speed = None
         try:
             if "OutputGenerateSpeed" in df.columns:
@@ -183,8 +344,8 @@ class BenchMark(CustomProcess):
             raise ValueError("Not Found first_token_time.")
         if self.throughput_type != "common":
             performance_index.generate_speed = perf_generate_token_speed
-        time_to_first_token = first_token_time / 10 ** 3
-        time_per_output_token = decode_time / 10 ** 3
+        time_to_first_token = first_token_time / MS_TO_S
+        time_per_output_token = decode_time / MS_TO_S
         performance_index.time_to_first_token = time_to_first_token
         performance_index.time_per_output_token = time_per_output_token
         performance_index.ttft_max = self.get_performance_metric("FirstTokenTime", "max")
@@ -305,36 +466,48 @@ class VllmBenchMark(CustomProcess):
 
     def get_performance_index(self):
         output_path = Path(self.benchmark_config.command.result_dir)
-        generate_speed = None
-        time_per_output_token = None
-        time_to_first_token = None
-        success_rate = None
-        for file in output_path.iterdir():
+        performance_index = PerformanceIndex()
+        for file in walk_s(output_path):
+            file = Path(file)
             if not file.name.endswith(".json"):
                 continue
-            with open(file, mode='r', encoding="utf-8") as f:
+            with open_s(file, mode='r', encoding="utf-8") as f:
                 data = json.load(f)
 
-            generate_speed = data.get("output_throughput", 0)
-            time_to_first_token = data.get(self.benchmark_config.performance_config.time_to_first_token.metric,
-                                           0) / 10 ** 3
-            time_per_output_token = data.get(self.benchmark_config.performance_config.time_per_output_token.metric,
-                                             0) / 10 ** 3
+            performance_index.generate_speed = data.get("output_throughput", 0)
+            ttft_metric = self.benchmark_config.performance_config.time_to_first_token.metric
+            performance_index.time_to_first_token = data.get(ttft_metric, 0) / MS_TO_S
+            tpot_metric = self.benchmark_config.performance_config.time_per_output_token.metric
+            performance_index.time_per_output_token = data.get(tpot_metric, 0) / MS_TO_S
             num_prompts = data.get("num_prompts", 1)
             completed = data.get("completed", 0)
-            success_rate = completed / num_prompts
-        return PerformanceIndex(generate_speed=generate_speed,
-                                time_to_first_token=time_to_first_token,
-                                time_per_output_token=time_per_output_token,
-                                success_rate=success_rate)
+            performance_index.success_rate = 0
+            if num_prompts > 0:
+                performance_index.success_rate = completed / num_prompts
+            performance_index.throughput = float(data.get("request_throughput", 3.0))
+            if "p75_ttft_ms" in data:
+                performance_index.ttft_p75 = float(data.get("p75_ttft_ms")) / MS_TO_S
+            if "p90_ttft_ms" in data:
+                performance_index.ttft_p90 = float(data.get("p90_ttft_ms")) / MS_TO_S
+            if "p99_ttft_ms" in data:
+                performance_index.ttft_p99 = float(data.get("p99_ttft_ms")) / MS_TO_S
+            if "p75_tpot_ms" in data:
+                performance_index.tpot_p75 = float(data.get("p75_tpot_ms")) / MS_TO_S
+            if "p90_tpot_ms" in data:
+                performance_index.tpot_p90 = float(data.get("p90_tpot_ms")) / MS_TO_S
+            if "p99_tpot_ms" in data:
+                performance_index.tpot_p99 = float(data.get("p99_tpot_ms")) / MS_TO_S
+        return performance_index
+
 
     def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
         self.update_command()
         super().before_run(run_params)
-        Path(self.benchmark_config.command.result_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.benchmark_config.command.result_dir).mkdir(parents=True, exist_ok=True, mode=0o750)
+
         if VLLM_CUSTOM_OUTPUT not in os.environ:
             os.environ[VLLM_CUSTOM_OUTPUT] = str(self.benchmark_config.command.result_dir)
         _var_name = f"${VLLM_CUSTOM_OUTPUT}"
-        if _var_name in self.command:
-            _i = self.command.index(_var_name)
-            self.command[_i] = str(self.benchmark_config.command.result_dir)
+        for i, item in enumerate(self.command):
+            if item == _var_name:
+                self.command[i] = str(self.benchmark_config.command.result_dir)

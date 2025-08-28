@@ -22,10 +22,11 @@ from typing import Tuple, Optional, List
 import psutil
 from loguru import logger
 
-from modelevalstate.config.config import CUSTOM_OUTPUT, settings, MODEL_EVAL_STATE_CONFIG_PATH, \
+from msserviceprofiler.modelevalstate.config.config import CUSTOM_OUTPUT, settings, MODEL_EVAL_STATE_CONFIG_PATH, \
     modelevalstate_config_path
-from modelevalstate.config.config import OptimizerConfigField
-from modelevalstate.optimizer.utils import close_file_fp, remove_file, kill_children, backup, kill_process
+from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField
+from msserviceprofiler.modelevalstate.optimizer.utils import close_file_fp, remove_file, kill_children, \
+    backup, kill_process
 from msserviceprofiler.msguard.security import open_s
 
 
@@ -77,27 +78,22 @@ class CustomProcess:
     def before_run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
         self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_")
         self.run_log_offset = 0
-        if run_params:
-            for k in run_params:
-                if k.config_position == "env":
-                    # env 类型的数据，设置环境变量和更新命令中包含的变量,设置时全部为大写
-                    os.environ[k.name.upper().strip()] = str(k.value)
-                    _var_name = f"${k.name.upper().strip()}"
-                    if _var_name not in self.command:
-                        continue
-                    _i = self.command.index(_var_name)
-                    if k.value:
-                        self.command[_i] = str(k.value)
-                    else:
-                        # 这个元素没设置的话，从命令中删除该命令预填值
-                        self.command.pop(_i)
-                        self.command.pop(_i - 1)
-        if CUSTOM_OUTPUT not in os.environ:
-            # 设置输出目录
-            os.environ[CUSTOM_OUTPUT] = str(settings.output)
-        # 设置读取的json文件
-        if MODEL_EVAL_STATE_CONFIG_PATH not in os.environ:
-            os.environ[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
+        if not run_params:
+            return
+        for k in run_params:
+            if k.config_position == "env":
+                # env 类型的数据，设置环境变量和更新命令中包含的变量,设置时全部为大写
+                os.environ[k.name.upper().strip()] = str(k.value)
+                _var_name = f"${k.name.upper().strip()}"
+                if _var_name not in self.command:
+                    continue
+                _i = self.command.index(_var_name)
+                if k.value:
+                    self.command[_i] = str(k.value)
+                    continue
+                self.command.pop(_i)
+                if _i > 0:
+                    self.command.pop(_i - 1)
 
     def run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
         # 启动测试
@@ -107,8 +103,15 @@ class CustomProcess:
             except Exception as e:
                 logger.error(f"Failed to check env. {e}")
         self.before_run(run_params)
+        environ = os.environ.copy()
+        if CUSTOM_OUTPUT not in environ:
+            # 设置输出目录
+            environ[CUSTOM_OUTPUT] = str(settings.output)
+        # 设置读取的json文件
+        if MODEL_EVAL_STATE_CONFIG_PATH not in environ:
+            environ[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
         try:
-            self.process = subprocess.Popen(self.command, env=os.environ, stdout=self.run_log_fp,
+            self.process = subprocess.Popen(self.command, env=environ, stdout=self.run_log_fp,
                                             stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
         except OSError as e:
             logger.error(f"Failed to run {self.command}. error {e}")
@@ -131,8 +134,8 @@ class CustomProcess:
         return output
 
     def check_success(self):
-        output = self.get_log()
         if self.print_log:
+            output = self.get_log()
             logger.info(output)
         if self.process.poll() is None:
             return False

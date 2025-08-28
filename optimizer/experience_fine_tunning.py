@@ -17,11 +17,13 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from msserviceprofiler.modelevalstate.config.config import default_support_field, PerformanceIndex, map_param_with_value
+from msserviceprofiler.modelevalstate.config.config import default_support_field, PerformanceIndex, \
+    map_param_with_value
 
 
 class StopFineTune(Exception):
     pass
+
 
 class MindIeFineTune:
     def __init__(self, ttft_penalty: float = 0, tpot_penalty: float = 0, target_field: Optional[Tuple] = None,
@@ -59,8 +61,9 @@ class MindIeFineTune:
         # 对mindie 参数进行微调
         if self.ttft_penalty == 0 and self.tpot_penalty == 0:
             raise StopFineTune("No penalties, no need to fine-tune.")
-        if (self.ttft_penalty != 0 and self.ttft_slo == 0) or \
-                (self.tpot_penalty != 0 and self.tpot_slo == 0):
+        ttft_flag = self.ttft_penalty != 0 and self.ttft_slo == 0
+        tpot_flag = self.tpot_penalty != 0 and self.tpot_slo == 0
+        if ttft_flag or tpot_flag:
             raise ValueError("Penalty is set but SLO is zero.")
         if performance_index.time_per_output_token is None:
             raise ValueError("Missing performance data for TPOT.")
@@ -93,7 +96,7 @@ class MindIeFineTune:
             best_diff = min(tpot_diff, ttft_diff)
             signed_factor = best_diff * self.step_size
         else:
-            raise StopFineTune
+            raise StopFineTune("No need to fine-tune.")
         simulate_run_info = map_param_with_value(params, self.target_field)
         was_updated = self.update_request_rate(simulate_run_info, signed_factor)
         if not was_updated:

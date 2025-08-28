@@ -14,7 +14,7 @@
 # limitations under the License.
 from math import exp, inf
 
-from modelevalstate.config.config import PerformanceIndex
+from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
 
 
 class PerformanceTuner:
@@ -55,14 +55,14 @@ class PerformanceTuner:
         else:
             return inf
 
-        if performance_index.time_to_first_token is not None:
+        if performance_index.time_to_first_token is not None and self.ttft_slo > 0:
             try:
                 cost_ft = exp(self.ttft_penalty * (performance_index.time_to_first_token / self.ttft_slo - 1))
                 total_cost += self.w_ft * cost_ft
             except (OverflowError, ZeroDivisionError):
                 return inf
 
-        if performance_index.time_per_output_token is not None:
+        if performance_index.time_per_output_token is not None and self.tpot_slo > 0:
             try:
                 cost_pot = exp(self.tpot_penalty * (performance_index.time_per_output_token / self.tpot_slo - 1))
                 total_cost += self.w_pot * cost_pot
