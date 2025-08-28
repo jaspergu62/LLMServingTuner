@@ -24,19 +24,24 @@ import pandas as pd
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie
-from msserviceprofiler.modelevalstate.config.config import AnalyzeTool, BenchMarkPolicy, MindieConfig, settings
-from msserviceprofiler.modelevalstate.config.config import DeployPolicy, map_param_with_value, ServiceType, field_to_param
-from msserviceprofiler.modelevalstate.config.config import default_support_field, PsoOptions, PerformanceIndex
+from msserviceprofiler.modelevalstate.config.config import (
+    MindieConfig, settings, map_param_with_value, field_to_param,
+    default_support_field, PsoOptions, PerformanceIndex
+)
+from msserviceprofiler.modelevalstate.config.base_config import (
+    EnginePolicy, DeployPolicy, AnalyzeTool,
+    ServiceType, BenchMarkPolicy
+)
 from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
-from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, ProfilerBenchmark
+from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, ProfilerBenchmark, AisBench
 from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import MindIeFineTune, StopFineTune
-from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
 from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
-from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, enable_simulate
-from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 from msserviceprofiler.modelevalstate.optimizer.utils import kill_process, get_required_field_from_json
+from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, enable_simulate
+
+
+MAX_ITER_NUM = 200
 
 
 @atexit.register
@@ -48,11 +53,11 @@ class PSOOptimizer(PerformanceTuner):
     def __init__(self, scheduler: Scheduler, n_particles: int = 10, iters=100, pso_options: PsoOptions = None,
                  target_field: Optional[Tuple] = None, load_history_data: Optional[List] = None,
                  load_breakpoint: bool = False, pso_init_kwargs: Optional[Dict] = None,
-                 mindie_fine_tune: MindIeFineTune = MindIeFineTune(), max_fine_tune: int = 10, **kwargs):
+                 mindie_fine_tune: MindIeFineTune = None, max_fine_tune: int = 10, **kwargs):
         super().__init__(**kwargs)
         self.scheduler = scheduler
-        self.n_particles = n_particles
-        self.iters = iters
+        self.n_particles = min(n_particles, MAX_ITER_NUM)
+        self.iters = min(iters, MAX_ITER_NUM)
         self.target_field = target_field if target_field else default_support_field
         if not pso_options:
             self.pso_options = PsoOptions()
@@ -68,7 +73,7 @@ class PSOOptimizer(PerformanceTuner):
         self.default_res = None
         self.sample_data = None
         self.mindie_fine_tune = mindie_fine_tune
-        self.max_fine_tune = max_fine_tune
+        self.max_fine_tune = min(max_fine_tune, MAX_ITER_NUM)
 
     @staticmethod
     def is_within_boundary(target_pos, min_bound, max_bound):
@@ -221,15 +226,17 @@ class PSOOptimizer(PerformanceTuner):
     def best_params(self, fitnese_list, params_list, performance_index_list):
         # 分析最佳参数
         if not performance_index_list or not fitnese_list or not params_list:
-            raise ValueError(f"Input is empty."
+            logger.error(f"Input is empty."
                              f"performance_index_list:{performance_index_list},"
                              f"fitnese_list: {fitnese_list},"
                              f"params_list: {params_list}")
+            return None, None, None
         if len(fitnese_list) != len(params_list) != len(performance_index_list):
-            raise ValueError(f"The number of input elements does not match."
+            logger.error(f"The number of input elements does not match."
                              f"performance_index_list:{len(performance_index_list)},"
                              f"fitnese_list: {len(fitnese_list)},"
                              f"params_list: {len(params_list)}")
+            return None, None, None
         if self.tpot_penalty == 0 and self.ttft_penalty == 0:
             _generate_speed = [p.generate_speed for p in performance_index_list]
             _best_index = _generate_speed.index(max(_generate_speed))
@@ -260,8 +267,8 @@ class PSOOptimizer(PerformanceTuner):
             if _tpot_threshold == 0 or _ttft_threshold == 0:
                 return fitnese_list[0], params_list[0], performance_index_list[0]
             _performance_diff = [((p.time_per_output_token - _tpot_threshold) / _tpot_threshold,
-                                  (p.time_to_first_token - _ttft_threshold) / _ttft_threshold) for p in
-                                 performance_index_list]
+                                  (p.time_to_first_token - _ttft_threshold) / _ttft_threshold) 
+                                  for p in performance_index_list]
             # ttft 和 tpot 都满足条件
             _performance_lt_slo_index = [i for i, v in enumerate(_performance_diff) if v < (0, 0)]
             if _performance_lt_slo_index:
@@ -288,7 +295,18 @@ class PSOOptimizer(PerformanceTuner):
             return
         mc.avg_input_length = self.scheduler.benchmark.get_performance_metric("InputTokens")
         mc.max_input_length = self.scheduler.benchmark.get_performance_metric("InputTokens", algorithm="max")
-        mc.max_output_length = int(self.scheduler.benchmark.benchmark_config.command.max_output_len)
+        if isinstance(self.scheduler.benchmark, BenchMark):
+            mc.max_output_length = min(int(self.scheduler.benchmark.benchmark_config.command.max_output_len),
+                                       mc.max_output_length)
+        else:
+            mc.max_output_length = self.scheduler.benchmark.get_performance_metric("OutputTokens", algorithm="max")
+        logger.debug(f"avg_input_length: {mc.avg_input_length}, max_input_length: {mc.max_input_length},"
+                     f"max_output_length: {mc.max_output_length}")
+        max_batch_size_lb, max_batch_size_ub = mc.get_max_batch_size_bound()
+        if not isinf(max_batch_size_ub):
+            scale_max_batch_size_ub = int(max_batch_size_ub * settings.scaling_coefficient)
+        else:
+            scale_max_batch_size_ub = inf
         logger.debug(f"avg_input_length: {mc.avg_input_length}, max_input_length: {mc.max_input_length},"
                      f"max_output_length: {mc.max_output_length}")
         max_batch_size_lb, max_batch_size_ub = mc.get_max_batch_size_bound()
@@ -318,7 +336,7 @@ class PSOOptimizer(PerformanceTuner):
         mc = None
         if is_mindie() and settings.theory_guided_enable:
             mc = MindieModelConfig(self.scheduler.simulator.mindie_config.config_path)
-        for i, _field in enumerate(self.target_field):
+        for _, _field in enumerate(self.target_field):
             if _field.config_position.startswith("BackendConfig"):
                 _field.value = get_required_field_from_json(self.scheduler.simulator.default_config,
                                                             _field.config_position)
@@ -341,6 +359,7 @@ class PSOOptimizer(PerformanceTuner):
             self.mindie_prepare(mc)
 
     def run(self):
+        from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
         self.prepare()
         # 备份原target field, 调整新的target field用来寻优
         _bak_target_field = self.target_field
@@ -383,7 +402,9 @@ class PSOOptimizer(PerformanceTuner):
                 self.scheduler.benchmark.benchmark_config.command.num_prompts = str(_bak_number)
         _record_fitness, _record_params, _record_res = self.refine_optimization_candidates(best_results)
         best_fitness, best_param, best_performance_index = self.best_params(_record_fitness, _record_params,
-                                                                            _record_res)
+                                                                 _record_res)
+        if best_param is None or best_fitness is None or best_performance_index is None:
+            return
         _position = {_field.name: _field.value for _field in map_param_with_value(best_param, self.target_field)}
         logger.info(f"vars: {_position}, performance index: "
                     f"ttft: {best_performance_index.time_to_first_token} \n"
@@ -392,31 +413,37 @@ class PSOOptimizer(PerformanceTuner):
 
 
 def main(args: argparse.Namespace):
+    from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
+    from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
+
     bak_path = None
     if args.backup:
         bak_path = settings.output.joinpath("bak")
         if not bak_path.exists():
-            bak_path.mkdir(parents=True)
+            bak_path.mkdir(parents=True, mode=0o750)
 
-    if is_mindie():
+    if args.engine == EnginePolicy.mindie.value:
         target_field = settings.mindie.target_field
         simulator = Simulator(settings.mindie, bak_path=bak_path)
-        # 单机benchmark
-        if args.benchmark_policy == BenchMarkPolicy.profiler_benchmark.value:
-            benchmark = ProfilerBenchmark(settings.profile, benchmark_config=settings.benchmark, bak_path=bak_path,
-                                          analyze_tool=AnalyzeTool.profiler)
-        else:
-            benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
-    elif is_vllm():
+    elif args.engine == EnginePolicy.vllm.value:
         simulator = VllmSimulator(settings.vllm, bak_path=bak_path)
-        benchmark = VllmBenchMark(settings.vllm_benchmark, bak_path=bak_path)
         target_field = settings.vllm.target_field
-
     else:
         raise ValueError("No supported environment found; currently only mindie and vllm are supported. ")
+    
+    if args.benchmark_policy == BenchMarkPolicy.benchmark.value:
+        benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
+    elif args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
+        benchmark = VllmBenchMark(settings.vllm_benchmark, bak_path=bak_path)
+    elif args.benchmark_policy == BenchMarkPolicy.profiler_benchmark.value:
+        benchmark = ProfilerBenchmark(settings.profile, benchmark_config=settings.benchmark, bak_path=bak_path,
+                                          analyze_tool=AnalyzeTool.profiler)
+    else:
+        benchmark = AisBench(settings.ais_bench, bak_path=bak_path)
+
     # 存储结果，只在主节点存储结果
     data_storage = DataStorage(settings.data_storage, simulator, benchmark)
     # 初始化调度模块，支持单机和多机。
@@ -457,8 +484,10 @@ def main(args: argparse.Namespace):
     pso.run()
 
 
-def arg_parse():
-    parser = argparse.ArgumentParser(prog='optimizer')
+def arg_parse(subparsers):
+    parser = subparsers.add_parser(
+        "optimizer", formatter_class=argparse.ArgumentDefaultsHelpFormatter, help="optimize for performance"
+    )
     parser.add_argument("-lb", "--load_breakpoint", default=False, action="store_true",
                         help="Continue from where the last optimization was aborted.")
     parser.add_argument("-d", "--deploy_policy", default=DeployPolicy.single.value,
@@ -466,8 +495,10 @@ def arg_parse():
                         help="Indicates whether the multi-node running policy is used.")
     parser.add_argument("--backup", default=False, action="store_true",
                         help="Whether to back up data.")
-    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.benchmark.value,
+    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.ais_bench.value,
                         choices=[k.value for k in list(BenchMarkPolicy)],
                         help="Whether to use custom performance indicators.")
-    args = parser.parse_args()
-    return args
+    parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value,
+                        choices=[k.value for k in list(EnginePolicy)],
+                        help="The engine used for model evaluation.")
+    parser.set_defaults(func=main)

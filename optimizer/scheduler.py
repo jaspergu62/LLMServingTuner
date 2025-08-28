@@ -21,9 +21,9 @@ import numpy as np
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path
-from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField
-from msserviceprofiler.modelevalstate.config.config import map_param_with_value, CommunicationConfig, FOLDER_LIMIT_SIZE
-from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark
+from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField, \
+    map_param_with_value, CommunicationConfig
+from msserviceprofiler.modelevalstate.config.base_config import FOLDER_LIMIT_SIZE
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
@@ -31,7 +31,7 @@ from msserviceprofiler.modelevalstate.optimizer.utils import get_folder_size
 
 
 class Scheduler:
-    def __init__(self, simulator: Simulator, benchmark: BenchMark, data_storage: DataStorage,
+    def __init__(self, simulator: Simulator, benchmark, data_storage: DataStorage,
                  bak_path: Optional[Path] = None, retry_number: int = 3, wait_start_time=1800):
         self.simulator = simulator
         self.benchmark = benchmark
@@ -44,6 +44,7 @@ class Scheduler:
         self.performance_index = None
         self.error_info = None
         self.run_start_timestamp = None
+        self.del_log = None
 
     def set_back_up_path(self):
         if self.bak_path:

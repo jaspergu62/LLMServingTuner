@@ -22,34 +22,29 @@ from typing import Any, Tuple, Optional, Union
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.config import MindieConfig, VllmConfig, OptimizerConfigField
-from msserviceprofiler.modelevalstate.config.constant import simulate_flag, SIMULATE
+from msserviceprofiler.modelevalstate.config.base_config import simulate_flag, SIMULATE
 from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand, VllmCommand
 from msserviceprofiler.modelevalstate.optimizer.custom_process import CustomProcess
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file
 from msserviceprofiler.msguard.security import open_s
 
 
-class Simulator:
-    from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand
-
+class Simulator(CustomProcess):
     def __init__(self, mindie_config: MindieConfig, bak_path: Optional[Path] = None,
                  print_log: bool = False):
         super().__init__(bak_path=bak_path, print_log=print_log, process_name=mindie_config.process_name)
         self.mindie_config = mindie_config
-        logger.debug(f"config path {self.mindie_config.config_path}", )
+        logger.debug(f"config path {self.mindie_config.config_path!r}", )
         if not self.mindie_config.config_path.exists():
             raise FileNotFoundError(self.mindie_config.config_path)
         with open_s(self.mindie_config.config_path, "r") as f:
             data = json.load(f)
         self.default_config = data
-        logger.debug(f"config bak path {self.mindie_config.config_bak_path}", )
+        logger.debug(f"config bak path {self.mindie_config.config_bak_path!r}", )
         if self.mindie_config.config_bak_path.exists():
             self.mindie_config.config_bak_path.unlink()
         with open_s(self.mindie_config.config_bak_path, 'w') as fout:
             json.dump(self.default_config, fout, indent=4)
-        self.command = MindieCommand(self.mindie_config.command).command
-
-    def update_command(self):
         self.command = MindieCommand(self.mindie_config.command).command
 
     @staticmethod
@@ -59,17 +54,6 @@ class Simulator:
             return True
         except ValueError:
             return False
-    
-    def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
-        # 根据params 修改配置文件
-        # 启动mindie仿真
-        self.update_command()
-        self.update_config(run_params)
-        super().before_run(run_params)
-        subprocess.run(["pkill", "-9", "mindie"], env=os.environ, stdout=self.run_log_fp,
-                       stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
-        subprocess.run(["npu-smi", "info"], env=os.environ, stdout=self.run_log_fp,
-                       stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
         
     @staticmethod
     def set_config_for_dict(origin_config, cur_key, next_key, next_level, value):
@@ -131,6 +115,20 @@ class Simulator:
             Simulator.set_config_for_list(origin_config, _cur_key, _next_key, next_level, value)
         else:
             raise ValueError(f"Not Support type {type(origin_config)}")
+
+    def update_command(self):
+        self.command = MindieCommand(self.mindie_config.command).command
+    
+    def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
+        # 根据params 修改配置文件
+        # 启动mindie仿真
+        self.update_command()
+        self.update_config(run_params)
+        super().before_run(run_params)
+        subprocess.run(["pkill", "-9", "mindie"], env=os.environ, stdout=self.run_log_fp,
+                       stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
+        subprocess.run(["npu-smi", "info"], env=os.environ, stdout=self.run_log_fp,
+                       stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
 
     def backup(self):
         super().backup()

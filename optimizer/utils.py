@@ -53,7 +53,8 @@ def kill_children(children):
             child.send_signal(9)
             child.wait(10)
         except Exception as e:
-            subprocess.run(["kill", "-9", str(child.pid)])
+            logger.error(f"Failed to kill the {child.pid} process. detail: {e}")
+            continue
 
         if child.is_running():
             logger.error(f"Failed to kill the {child.pid} process.")
@@ -124,3 +125,31 @@ def get_folder_size(folder_path: Path) -> int:
             total_size += os.path.getsize(file_path)
 
     return total_size
+
+
+
+
+def get_required_field_from_json(data, key, max_depth=20, current_depth=0):
+    """
+    data: json 形式的多层嵌套对象
+    key: 要获取的字段名，多层之间用.号连接，
+    """
+    if current_depth > max_depth:
+        raise ValueError(f"Recursive depth exceeded maximum allowed depth of {max_depth}")
+    _cur_key = key
+    _next_key = None
+    if "." in key:
+        _index = key.find(".")
+        _cur_key = key[:_index]
+        _next_key = key[_index + 1:]
+    _value = None
+    if isinstance(data, dict):
+        _value = data[_cur_key]
+    elif isinstance(data, list):
+        _value = data[int(_cur_key)]
+    else:
+        raise ValueError(f"Unsupported data type: {data}, please confirm. ")
+    if _next_key:
+        return get_required_field_from_json(_value, _next_key, max_depth, current_depth + 1)
+    else:
+        return _value

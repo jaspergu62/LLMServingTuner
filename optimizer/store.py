@@ -27,8 +27,8 @@ from msserviceprofiler.modelevalstate.config.config import (
     OptimizerConfigField,
     settings
 )
-from modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark
-from modelevalstate.optimizer.simulator import Simulator, VllmSimulator
+from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark
+from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.common import read_csv_s
 
 
