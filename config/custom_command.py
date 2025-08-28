@@ -5,8 +5,36 @@ import shutil
 from loguru import logger
 from pydantic import BaseModel
 from msserviceprofiler.msguard import Rule
- 
- 
+
+
+class AisBenchCommandConfig(BaseModel):
+    models: str = ""
+    datasets: str = ""
+    mode: str = ""
+    num_prompts: str = ""
+    work_dir: str = ""
+
+
+class AisBenchCommand:
+    def __init__(self, aisbench_command_config: AisBenchCommandConfig):
+        self.process = shutil.which("ais_bench")
+        if self.process is None:
+            raise ValueError("Error: The 'ais_bench' executable was not found in the system PATH.")
+        self.aisbench_command_config = aisbench_command_config
+
+    @property
+    def command(self):
+        _cmd = [self.process,
+                "--models", self.aisbench_command_config.models,
+                "--datasets", self.aisbench_command_config.datasets,
+                "--mode", self.aisbench_command_config.mode,
+                "--num-prompts", self.aisbench_command_config.num_prompts,
+                "--work-dir", self.aisbench_command_config.work_dir,
+                "--debug"
+                ]
+        return _cmd
+
+
 class BenchmarkCommandConfig(BaseModel):
     dataset_path: str = ""
     dataset_type: str = "gsm8k"
@@ -56,31 +84,6 @@ class BenchmarkCommand:
         if self.benchmark_command_config.request_count:
             _cmd.extend(["--RequestCount", self.benchmark_command_config.request_count])
         return _cmd
-
-
-
-class AisbenchCommandConfig(BaseModel):
-    models: str = ""
-    datasets: str = ""
-    mode: str = ""
-    num_prompts: str = ""
- 
- 
-class AisbenchCommand:
-    def __init__(self, aisbench_command_config: AisbenchCommandConfig):
-        self.process = shutil.which("ais_bench")
-        if self.process is None:
-            raise ValueError("Error: The 'ais_bench' executable was not found in the system PATH.")
-        self.aisbench_command_config = aisbench_command_config
- 
-    @property
-    def command(self):
-        return [self.process,
-                "--models", self.aisbench_command_config.models,
-                "--datasets", self.aisbench_command_config.datasets,
-                "--mode", self.aisbench_command_config.mode,
-                "--num-prompts", self.aisbench_command_config.num_prompts,
-                "--debug"]
  
  
 class VllmBenchmarkCommandConfig(BaseModel):

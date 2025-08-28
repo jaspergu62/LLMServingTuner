@@ -16,16 +16,15 @@ from pydantic import BaseModel, field_validator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, TomlConfigSettingsSource
 
 import msserviceprofiler.modelevalstate
-from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie
+from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie, ais_bench_exists
 from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, \
-    MindieCommandConfig, VllmCommandConfig
+    MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig
 from msserviceprofiler.msguard.security import open_s
 from .base_config import (
     INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,
     modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy,
     MetricAlgorithm, PerformanceConfig
 )
-
 
 
 class OptimizerConfigField(BaseModel):
@@ -122,7 +121,8 @@ def update_optimizer_value(params_field: Tuple[OptimizerConfigField, ...],
         if v.dtype == "factories":
             _field = simulate_run_info[i]
             _t_op = [_op for _op in simulate_run_info if _op.name == v.dtype_param["target_name"]][0]
-            _field.value = dtype_func.get(v.dtype_param["dtype"], int)(v.dtype_param["product"] / _t_op.value)
+            if _t_op.value != 0:
+                _field.value = dtype_func.get(v.dtype_param["dtype"], int)(v.dtype_param["product"] / _t_op.value)
         if "maxPrefillBatchSize" in v.config_position:
             _field = simulate_run_info[i]
             if _field.value == 0:
@@ -135,6 +135,7 @@ def update_optimizer_value(params_field: Tuple[OptimizerConfigField, ...],
             if "decodeTimeMsPerReq" in _field.config_position:
                 _field.value = 0
 
+
 def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfigField, ...]):
     _simulate_run_info = []
     _support_select_is_false = False
@@ -145,7 +146,11 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
             _simulate_run_info.append(_field)
             continue
         if v.dtype == "int":
-            _field.value = int(params[i])
+            try:
+                _field.value = int(params[i])
+            except (ValueError, TypeError) as e:
+                logger.error(f"Failed convert to int data, data: {params[i]}")
+                _field.value = params[i]
         elif v.dtype == "bool":
             if params[i] > 0.5:
                 _field.value = True
@@ -163,7 +168,11 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
                 _enum_index = np.searchsorted(segment, params[i]) - 1
                 _field.value = v.dtype_param[_enum_index]
         else:
-            _field.value = float(params[i])
+            try:
+                _field.value = float(params[i])
+            except (ValueError, TypeError) as e:
+                logger.error(f"Failed convert to float data, data: {params[i]}")
+                _field.value = params[i]
         i += 1
         _simulate_run_info.append(_field)
     update_optimizer_value(params_field, tuple(_simulate_run_info), _support_select_is_false)
@@ -179,14 +188,14 @@ def reverse_special_field(params_field: Tuple[OptimizerConfigField, ...], params
             continue
         if v.dtype == "ratio":
             for _op in params_field:
-                if _op.name == v.dtype_param:
+                if _op.name == v.dtype_param and _op.value != 0:
                     _t_op = _op
                     _params[i] = float(v.value / _t_op.value)
         if v.name in ["CONCURRENCY", "MAXCONCURRENCY"]:
             if v.value == 0 and v.dtype == "ratio":
                 # CONCURRENCY 字段 是某个对象的百分比时，并且 值为0，说明第一次，设置为0
                 _params[i] = 1
-            elif v.value != 0 and v.dtype == "ratio":
+            elif v.value != 0 and v.dtype == "ratio" and concurrency > 0:
                 _params[i] = v.value / concurrency
             elif v.value != 0:
                 # 原来的方式 int
@@ -197,10 +206,11 @@ def reverse_special_field(params_field: Tuple[OptimizerConfigField, ...], params
         i += 1
     return _params
 
+
 def field_to_param(params_field: Tuple[OptimizerConfigField, ...]):
     concurrency = request_rate = None
     _params = []
-    for i, v in enumerate(params_field):
+    for _, v in enumerate(params_field):
         if v.min == v.max:
             continue
         if v.dtype == "int":
@@ -258,6 +268,7 @@ class PerformanceIndex(BaseModel):
     decoder_batch_size_p90: Optional[float] = None
     decoder_batch_size_p99: Optional[float] = None
 
+
 class BenchMarkConfig(BaseModel):
     process_name: str = "benchmark"
     output_path: Path = Path("benchmark")
@@ -287,8 +298,9 @@ class ProfileConfig(BaseModel):
     @field_validator("profile_input_path", "profile_output_path")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
+
 
 class CommunicationConfig(BaseModel):
     base_path: Path = Path("communication")
@@ -305,7 +317,7 @@ class DataStorageConfig(BaseModel):
     @field_validator("store_dir")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
 
 
@@ -323,19 +335,27 @@ class LatencyModel(BaseModel):
     @field_validator("cache_data", "static_file_dir")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
 
 
 class MindieConfig(BaseModel):
     # 运行mindie时，要修改的mindie config
-    process_name: str = "mindie,mindie-llm,mindieservice_daemon, mindie_llm"
+    process_name: str = "mindie,mindie-llm, mindieservice_daemon, mindie_llm"
     output: Path = Path("mindie")
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     config_path: Path = Path("/usr/local/Ascend/mindie/latest/mindie-service/conf/config.json")
     config_bak_path: Path = Path("/usr/local/Ascend/mindie/latest/mindie-service/conf/config_bak.json")
     command: MindieCommandConfig = MindieCommandConfig()
     target_field: List[OptimizerConfigField] = default_support_field
+
+
+class AisBenchConfig(BaseModel):
+    process_name: str = "ais_bench"
+    output_path: Path = Path("ais_bench")
+    work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
+    command: AisBenchCommandConfig = AisBenchCommandConfig()
+    performance_config: PerformanceConfig = PerformanceConfig()
 
 
 class VllmBenchmarkConfig(BaseModel):
@@ -351,6 +371,7 @@ class VllmConfig(BaseModel):
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: VllmCommandConfig = VllmCommandConfig()
     target_field: List[OptimizerConfigField] = default_support_field
+
 
 class PsoOptions(BaseModel):
     c1: float = 2.0  # 推荐范围 0-4, c1 c2 2, c1 1.6和c2 1.8, c1 1.6 和c2 2
@@ -406,6 +427,7 @@ class Settings(BaseSettings):
                              validate_default=True)
     mindie: MindieConfig = Field(default_factory=lambda data: MindieConfig(output=data["output"].joinpath("mindie")),
                                  validate_default=True)
+    ais_bench: AisBenchConfig = AisBenchConfig()
     benchmark: BenchMarkConfig = BenchMarkConfig()
 
     vllm_benchmark: VllmBenchmarkConfig = VllmBenchmarkConfig()
@@ -430,25 +452,39 @@ class Settings(BaseSettings):
     @field_validator("output", "simulator_output")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
 
     @model_validator(mode="after")
     def partial_update_vllm(self):
         if not is_vllm():
             return self
-        if self.vllm.output == VllmConfig.model_fields["output"].default:
-            self.vllm.output = self.output.joinpath("vllm")
-        if self.vllm_benchmark.output_path == VllmBenchmarkConfig.model_fields["output_path"].default:
-            self.vllm_benchmark.output_path = self.output.joinpath("vllm_benchmark")
+        output = VllmConfig.model_fields["output"].default
+        if self.vllm.output == output:
+            self.vllm.output = self.output.joinpath(output)
+        output = VllmBenchmarkConfig.model_fields["output_path"].default
+        if self.vllm_benchmark.output_path == output:
+            self.vllm_benchmark.output_path = self.output.joinpath(output)
         if self.vllm_benchmark.command.result_dir == VllmBenchmarkCommandConfig.model_fields["result_dir"].default:
             self.vllm_benchmark.command.result_dir = str(self.vllm_benchmark.output_path.joinpath("result"))
-        Path(self.vllm_benchmark.command.result_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.vllm_benchmark.command.result_dir).mkdir(parents=True, exist_ok=True, mode=0o750)
+
         self.vllm_benchmark.command.host = self.vllm.command.host
         self.vllm_benchmark.command.port = self.vllm.command.port
         self.vllm_benchmark.command.model = self.vllm.command.model
         self.vllm_benchmark.command.served_model_name = self.vllm.command.served_model_name
         range_to_enum(self.vllm.target_field)
+        return self
+
+    @model_validator(mode="after")
+    def partial_update_aisbench(self):
+        if not ais_bench_exists():
+            return self
+        output = AisBenchConfig.model_fields["output_path"].default
+        if self.ais_bench.output_path == output:
+            self.ais_bench.output_path = self.output.joinpath(output)
+        if not self.ais_bench.command.work_dir:
+            self.ais_bench.command.work_dir = str(self.ais_bench.output_path)
         return self
 
     @model_validator(mode="after")
@@ -465,27 +501,29 @@ class Settings(BaseSettings):
                 logger.error(f"Failed in load {self.mindie.config_path}. error: {e}")
                 raise e
         # 从mindie config 中获取可能获取的端口信息，模型信息。
-        ipAddress = mindie_config["ServerConfig"]["ipAddress"]
+        ip_address = mindie_config["ServerConfig"]["ipAddress"]
         port = mindie_config["ServerConfig"]["port"]
-        managementIpAddress = mindie_config["ServerConfig"]["managementIpAddress"]
-        managementPort = mindie_config["ServerConfig"]["managementPort"]
+        management_ip_address = mindie_config["ServerConfig"]["managementIpAddress"]
+        management_port = mindie_config["ServerConfig"]["managementPort"]
         model_name = mindie_config["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0]["modelName"]
         model_path = mindie_config["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0]["modelWeightPath"]
-        if self.mindie.output == MindieConfig.model_fields["output"].default:
-            self.mindie.output = self.output.joinpath("mindie")
-        if self.benchmark.output_path == BenchMarkConfig.model_fields["output_path"].default:
-            self.benchmark.output_path = self.output.joinpath("mindie_benchmark")
+        output = MindieConfig.model_fields["output"].default
+        if self.mindie.output == output:
+            self.mindie.output = self.output.joinpath(output)
+        output_path = BenchMarkConfig.model_fields["output_path"].default
+        if self.benchmark.output_path == output_path:
+            self.benchmark.output_path = self.output.joinpath(output_path)
         if not self.benchmark.command.http:
-            self.benchmark.command.http = f"http://{ipAddress}:{port}"
+            self.benchmark.command.http = f"http://{ip_address}:{port}"
         if not self.benchmark.command.management_http:
-            self.benchmark.command.management_http = f"http://{managementIpAddress}:{managementPort}"
+            self.benchmark.command.management_http = f"http://{management_ip_address}:{management_port}"
         if not self.benchmark.command.model_name:
             self.benchmark.command.model_name = model_name
         if not self.benchmark.command.model_path:
             self.benchmark.command.model_path = model_path
         if not self.benchmark.command.save_path:
             self.benchmark.command.save_path = str(self.benchmark.output_path.joinpath("instance"))
-        Path(self.benchmark.command.save_path).mkdir(parents=True, exist_ok=True)
+        Path(self.benchmark.command.save_path).mkdir(parents=True, exist_ok=True, mode=0o750)
         if self.profile.output == ProfileConfig.model_fields["output"].default:
             self.profile = ProfileConfig(output=self.output.joinpath("profile"))
         range_to_enum(self.mindie.target_field)

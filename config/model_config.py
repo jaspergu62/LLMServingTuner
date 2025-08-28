@@ -11,6 +11,7 @@ from msserviceprofiler.modelevalstate.common import get_npu_total_memory
 from msserviceprofiler.modelevalstate.config.config import settings
 from msserviceprofiler.msguard.security import open_s
 
+
 class ModelConfig:
     def __init__(self, config_path: Path):
         if not config_path.exists():
@@ -18,10 +19,10 @@ class ModelConfig:
         try:
             with open_s(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
-        except json.JSONDecodeError:
-            raise ValueError(f"The JSON format of the configuration file '{config_path!r}' is invalid")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"The JSON format of the configuration file '{config_path!r}' is invalid") from e
         except Exception as e:
-            raise IOError(f"An error occurred while reading the configuration file '{config_path!r}': {e} ")
+            raise IOError(f"An error occurred while reading the configuration file '{config_path!r}'") from e
         logger.debug(f"Successfully loaded configuration file: {config_path!r} ")
         self.hidden_size = self._get_required_param(config_data, 'hidden_size')
         self.intermediate_size = self._get_required_param(config_data, 'intermediate_size')
@@ -37,6 +38,21 @@ class ModelConfig:
         self.cache_num = 2
         logger.debug(f"cache_num (K/V cache): {self.cache_num}")
         self.memory_mb = self.calculate_model_weights_size()
+
+    def __repr__(self):
+        return (
+            f"ModelConfig(\n"
+            f"  hidden_size={self.hidden_size},\n"
+            f"  intermediate_size={self.intermediate_size},\n"
+            f"  num_attention_heads={self.num_attention_heads},\n"
+            f"  num_hidden_layers={self.num_hidden_layers},\n"
+            f"  num_key_value_heads={self.num_key_value_heads},\n"
+            f"  kvcache_dtype_byte={self.kvcache_dtype_byte},\n"
+            f"  cache_num={self.cache_num}\n"
+            f"  vocab_size={self.vocab_size}\n"
+            f"  max_position_embeddings={self.max_position_embeddings}\n"
+            f")"
+        )
 
     @staticmethod
     def _get_required_param(config_data: dict, key: str):
@@ -65,7 +81,9 @@ class ModelConfig:
                 return 2
         else:
             logger.warning(
-                "The 'torch_dtype' or 'dtype' was not found in the configuration file. The default value for kvcache_dtype_byte is 2 (bf16/fp16). ")
+                "The 'torch_dtype' or 'dtype' was not found in the configuration file."
+                "The default value for kvcache_dtype_byte is 2 (bf16/fp16)."
+                )
             return 2
 
     def get_one_token_cache(self):
@@ -149,21 +167,6 @@ class ModelConfig:
 
         return memory_mb
 
-    def __repr__(self):
-        return (
-            f"ModelConfig(\n"
-            f"  hidden_size={self.hidden_size},\n"
-            f"  intermediate_size={self.intermediate_size},\n"
-            f"  num_attention_heads={self.num_attention_heads},\n"
-            f"  num_hidden_layers={self.num_hidden_layers},\n"
-            f"  num_key_value_heads={self.num_key_value_heads},\n"
-            f"  kvcache_dtype_byte={self.kvcache_dtype_byte},\n"
-            f"  cache_num={self.cache_num}\n"
-            f"  vocab_size={self.vocab_size}\n"
-            f"  max_position_embeddings={self.max_position_embeddings}\n"
-            f")"
-        )
-
 
 class MindieModelConfig:
     def __init__(self, config_path, avg_input_length: int = 254, max_output_length: int = 256,
@@ -174,21 +177,21 @@ class MindieModelConfig:
         try:
             with open_s(config_path, 'r', encoding='utf-8') as f:
                 self.config_data = json.load(f)
-        except json.JSONDecodeError:
-            raise ValueError(f"The JSON format of the configuration file '{config_path}' is invalid")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"The JSON format of the configuration file '{config_path}' is invalid") from e
         except Exception as e:
-            raise IOError(f"An error occurred while reading the configuration file '{config_path}': {e} ")
+            raise IOError(f"An error occurred while reading the configuration file '{config_path}'") from e
         self.mem_coefficient = settings.mem_coefficient
         self.npu_device_ids = self.config_data["BackendConfig"]["npuDeviceIds"]
         self.cache_block_size = self.config_data["BackendConfig"]["ScheduleConfig"]["cacheBlockSize"]
         self.max_prefill_tokens = self.config_data["BackendConfig"]["ScheduleConfig"]["maxPrefillTokens"]
         self.avg_input_length = avg_input_length
         self.max_input_length = max_input_length
-        self.max_output_length = max_output_length
+        self.max_output_length = self.config_data["BackendConfig"]["ScheduleConfig"]["maxIterTimes"]
         _model_path = Path(self.config_data["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0]["modelWeightPath"])
         self.model_config = ModelConfig(_model_path.joinpath("config.json"))
         self.byte_to_gb = 1024 * 1024 * 1024
-        self.tp_size = self.config_data["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0].get("tp", 1)
+        self.tp_size = max(1, self.config_data["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0].get("tp", 1))
         if npu_total_mem is None and memory_usage_rate is None:
             self.npu_total_mem, self.memory_usage_rate = get_npu_total_memory(self.npu_device_ids[0][0])
         else:
@@ -205,10 +208,10 @@ class MindieModelConfig:
             return mem_for_kv_cache_gb
         npu_total_mem = self.npu_total_mem / 1024
         npu_available_memory = npu_total_mem * (100 - self.memory_usage_rate) / 100
-        # 单卡模型占用显存
+        # 单卡模型占用显存 tp_size最小为1不会为0
         model_weights_gb_per_npu = self.model_config.calculate_model_weights_size() / 1024 / self.tp_size
         activation_gb = self.model_config.get_peak_activations_size(max_prefill_token=self.max_prefill_tokens,
-                                                                    sequence_length=self.max_input_length) / self.byte_to_gb / self.tp_size
+                                    sequence_length=self.max_input_length) / self.byte_to_gb / self.tp_size
         logger.debug(f"activation_gb: {activation_gb}")
         mem_for_kv_cache_gb = (
                 npu_available_memory * self.mem_coefficient - model_weights_gb_per_npu - activation_gb)
@@ -217,10 +220,18 @@ class MindieModelConfig:
     def get_max_batch_size_bound(self):
         one_token_cache = self.model_config.get_one_token_cache()
         one_kv_block_size = self.cache_block_size * one_token_cache
+        if one_kv_block_size == 0:
+            raise ValueError("one_kv_block_size is 0, which would cause division by zero error")
         total_block_num = np.floor(self.mem_for_kv_cache / one_kv_block_size)
         logger.debug(f"total_block_num: {total_block_num}")
+        if self.cache_block_size == 0 or self.avg_input_length == 0 or self.max_output_length == 0:
+            raise ValueError("cache_block_size is 0, which would cause division by zero error")
         min_one_sequence_block_num = self.avg_input_length / self.cache_block_size
         max_one_sequence_block_num = min_one_sequence_block_num + self.max_output_length / self.cache_block_size
-        max_batch_size_lb = np.floor(total_block_num / np.ceil(max_one_sequence_block_num))
-        max_batch_size_ub = np.ceil(total_block_num / np.floor(min_one_sequence_block_num))
+        min_one_sequence_block_num = np.ceil(min_one_sequence_block_num)
+        max_one_sequence_block_num = np.ceil(max_one_sequence_block_num)
+        if min_one_sequence_block_num == 0 or max_one_sequence_block_num == 0:
+            raise ValueError("one_sequence_block_num is 0, which would cause division by zero error")
+        max_batch_size_lb = np.floor(total_block_num / max_one_sequence_block_num)
+        max_batch_size_ub = np.ceil(total_block_num / min_one_sequence_block_num)
         return max_batch_size_lb, max_batch_size_ub

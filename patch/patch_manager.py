@@ -48,9 +48,8 @@ def check_flag(target_file, patch_file):
             diff_flag = True
     return diff_flag
  
- 
-@validate_params({'patch_file': Rule.input_file_read})
-@validate_params({'target_file': Rule.output_path_write})
+
+@validate_params({'target_file': Rule.output_path_write, 'patch_file': Rule.input_file_read})
 def add_patch(target_file, patch_file):
     with open_s(patch_file, "r", encoding="utf-8") as f:
         patch_data = f.readlines()
