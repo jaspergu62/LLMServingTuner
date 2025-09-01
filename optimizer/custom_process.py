@@ -45,9 +45,8 @@ class CustomProcess:
         self.process_name = process_name
 
     @staticmethod
-    def check_env(process_name):
-
-        logger.info("check env")
+    def kill_residual_process(process_name):
+        logger.debug("check env")
         _residual_process = []
         _all_process_name = process_name.split(",")
         for proc in psutil.process_iter(["pid", "name"]):
@@ -63,7 +62,7 @@ class CustomProcess:
                 continue
             _residual_process.append(proc)
         if _residual_process:
-            logger.info("kill residual_process")
+            logger.debug("kill residual_process")
             for _p_name in _all_process_name:
                 try:
                     kill_process(_p_name)
@@ -99,9 +98,9 @@ class CustomProcess:
         # 启动测试
         if self.process_name:
             try:
-                self.check_env(self.process_name)
+                self.kill_residual_process(self.process_name)
             except Exception as e:
-                logger.error(f"Failed to check env. {e}")
+                logger.error(f"Failed to kill residual process. {e}")
         self.before_run(run_params)
         environ = os.environ.copy()
         if CUSTOM_OUTPUT not in environ:
@@ -182,5 +181,6 @@ class CustomProcess:
                     file_lines = f.readlines()
             except (UnicodeError, OSError) as e:
                 logger.error(f"Failed read {self.command} log. error {e}")
-            output = ''.join(file_lines[-number:])
+            number = min(number, len(file_lines))
+            output = '\n'.join(file_lines[-number:])
         return output

@@ -83,11 +83,13 @@ class AisBench(CustomProcess):
             _i = _columns.index(metric_name)
             _res = df.iloc[:, _i][algorithm_index]
             if isinstance(_res, str):
-                if _res.split()[1].strip() == "ms":
-                    return float(_res.split()[0]) / MS_TO_S
-                elif _res.split()[1].strip() == "us":
-                    return float(_res.split()[0]) / US_TO_S
-                return float(_res.split()[0])
+                parts = _res.split()
+                if len(parts) >= 1:
+                    if parts[1].strip() == "ms":
+                        return float(parts[0]) / MS_TO_S
+                    elif parts[1].strip() == "us":
+                        return float(parts[0]) / US_TO_S
+                return float(parts[0])
             return _res
  
     def get_performance_index(self):
@@ -117,18 +119,25 @@ class AisBench(CustomProcess):
             else:
                 json_file = rate_files[0]
                 with open_s(json_file, "r") as f:
-                    data = json.load(f)
-                total_requests = data["Total Requests"]["total"]
-                success_req = data["Success Requests"]["total"]
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError as e:
+                        raise ValueError(f"Failed to parse JSON file {json_file!r}: {e}") from e
+                total_requests = data.get("Total Requests", {}).get("total", 0)
+                success_req = data.get("Success Requests", {}).get("total", 0)
                 if total_requests != 0:
                     success_rate = success_req / total_requests
-                    output_average = data["Output Token Throughput"]["total"]
+                    output_average = data.get("Output Token Throughput", {}).get("total", "0")
                     generate_speed = output_average.split()[0]
                 else:
                     logger.error("total_requests can not be 0; please check")
             throughput = df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0].split()[0]
-        time_to_first_token = float(first_token_time) / MS_TO_S
-        time_per_output_token = float(decode_time) / MS_TO_S
+        try:    
+            time_to_first_token = float(first_token_time) / MS_TO_S
+            time_per_output_token = float(decode_time) / MS_TO_S
+        except Exception as e:
+            logger.warning(f"the first_token_time or decode_time is not number; please check: {e}")
+            time_to_first_token = time_per_output_token = None
         return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
                                 time_per_output_token=time_per_output_token, success_rate=success_rate,
                                 throughput=throughput)
@@ -154,10 +163,14 @@ class AisBench(CustomProcess):
             raise FileNotFoundError("Not Found {api_name}.py")
         concurrency = rate = None
         for k in run_params:
-            if k.name == "CONCURRENCY":
-                concurrency = int(k.value)
-            if k.name == "REQUESTRATE":
-                rate = int(k.value)
+            try:
+                if k.name == "CONCURRENCY":
+                    concurrency = int(k.value)
+                if k.name == "REQUESTRATE":
+                    rate = int(k.value)
+            except ValueError:
+                logger.warning(f"the {k.name} is not number; please check: {k.value}")
+                concurrency = rate = None
         with open_s(api_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         _request_rate_pattern = re.compile(r"(request_rate=)\d{1,10}(?:\.\d{1,10})?,")
@@ -376,7 +389,7 @@ class BenchMark(CustomProcess):
         remove_file(Path(self.benchmark_config.output_path))
 
 
-class ProfilerBenchmark(BenchMark):
+class ProfilerBenchmark(CustomProcess):
     def __init__(self, profile_config: ProfileConfig, benchmark_config: BenchMarkConfig, *args,
                  analyze_tool: AnalyzeTool = AnalyzeTool.default,
                  **kwargs):
@@ -424,13 +437,18 @@ class ProfilerBenchmark(BenchMark):
         remove_file(Path(self.profile_config.profile_output_path))
 
     def get_performance_index(self):
-        logger.info("get_performance_index")
+        logger.debug("get_performance_index")
         try:
             self.profiler_process.run()
-            logger.info("wait profiler")
+            logger.debug("wait profiler")
+            timeout = 1800
+            start_time = time.time()
             while True:
                 if self.profiler_process.check_success():
                     break
+                if time.time() - start_time > timeout:
+                    self.profiler_process.stop()
+                    raise TimeoutError(f"commmand did not finish within {timeout} seconds.")
                 time.sleep(1)
         except Exception as e:
             logger.error(f"Failed in start profiler. command: {self.profiler_cmd} "
@@ -472,7 +490,11 @@ class VllmBenchMark(CustomProcess):
             if not file.name.endswith(".json"):
                 continue
             with open_s(file, mode='r', encoding="utf-8") as f:
-                data = json.load(f)
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    logger.error(f"Failed in parse vllm benchmark result. file: {file}")
+                    continue
 
             performance_index.generate_speed = data.get("output_throughput", 0)
             ttft_metric = self.benchmark_config.performance_config.time_to_first_token.metric

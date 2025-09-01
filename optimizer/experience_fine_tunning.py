@@ -41,6 +41,12 @@ class MindIeFineTune:
         self.ttft_upper_bound = self.ttft_slo * (1 + self.slo_coefficient)
         self.tpot_lower_bound = self.tpot_slo * (1 - self.slo_coefficient)
         self.tpot_upper_bound = self.tpot_slo * (1 + self.slo_coefficient)
+        if self.ttft_penalty == 0 and self.tpot_penalty == 0:
+            raise StopFineTune("No penalties, no need to fine-tune.")
+        ttft_flag = self.ttft_penalty != 0 and self.ttft_slo == 0
+        tpot_flag = self.tpot_penalty != 0 and self.tpot_slo == 0
+        if ttft_flag or tpot_flag:
+            raise ValueError("Penalty is set but SLO is zero.")
 
     @staticmethod
     def update_request_rate(simulate_run_info, signed_factor) -> bool:
@@ -59,12 +65,6 @@ class MindIeFineTune:
 
     def mindie_fine_tune_with_cycle(self, params: np.ndarray, performance_index: PerformanceIndex):
         # 对mindie 参数进行微调
-        if self.ttft_penalty == 0 and self.tpot_penalty == 0:
-            raise StopFineTune("No penalties, no need to fine-tune.")
-        ttft_flag = self.ttft_penalty != 0 and self.ttft_slo == 0
-        tpot_flag = self.tpot_penalty != 0 and self.tpot_slo == 0
-        if ttft_flag or tpot_flag:
-            raise ValueError("Penalty is set but SLO is zero.")
         if performance_index.time_per_output_token is None:
             raise ValueError("Missing performance data for TPOT.")
         if self.ttft_penalty != 0 and performance_index.time_to_first_token is None:
@@ -83,7 +83,7 @@ class MindIeFineTune:
             ttft_over_slo = actual_ttft > self.ttft_upper_bound
             ttft_under_lower_bound = actual_ttft < self.ttft_lower_bound
 
-        # 主流程
+        # 主流程 初始化保证self.tpoy_slo 和 self.ttft_slo不为0
         if ttft_over_slo or tpot_over_slo:
             tpot_diff = (actual_tpot - self.tpot_slo) / self.tpot_slo
             ttft_diff = (actual_ttft - self.ttft_slo) / self.ttft_slo
