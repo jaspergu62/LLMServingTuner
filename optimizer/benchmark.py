@@ -18,6 +18,7 @@ import json
 import os
 import re
 import time
+from math import isnan, isinf
 from pathlib import Path
 from typing import Tuple, Optional
 
@@ -47,6 +48,20 @@ MS_TO_S = 10 ** 3
 US_TO_S = 10 ** 6
 
 
+def parse_result(res):
+    if isinstance(res, str):
+        _res = res.strip().split()
+        if len(_res) > 1:
+            if _res[1].strip().lower() == "ms":
+                return float(_res[0]) / 10 ** 3
+            elif _res[1].strip().lower() == "us":
+                return float(_res[0]) / 10 ** 6
+            else:
+                return float(_res[0])
+        return float(res)
+    return res
+
+
 class AisBench(CustomProcess):
     def __init__(self, benchmark_config: AisBenchConfig, bak_path: Optional[Path] = None, print_log: bool = False):
         super().__init__(bak_path=bak_path, print_log=print_log, process_name=benchmark_config.process_name)
@@ -64,7 +79,7 @@ class AisBench(CustomProcess):
             backup(self.run_log, self.bak_path, self.__class__.__name__)
  
     def get_performance_metric(self, metric_name: str, algorithm: str = "average"):
-        output_path = Path(self.benchmark_config.command.output_path)
+        output_path = Path(self.benchmark_config.output_path)
         result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
         if len(result_files) != 1:
             logger.error("The aisbench result for csv files are not unique; please check")
@@ -77,70 +92,65 @@ class AisBench(CustomProcess):
         algorithm_index = self.mindie_benchmark_perf_columns.index(algorithm)
         for file in result_files:
             df = read_csv_s(file)
-            _columns = [k.lower().strip() for k in df.columns]
-            if metric_name not in _columns:
+            _all_metrics = [k.strip().lower() for k in df["Performance Parameters"].tolist()]
+            if metric_name not in _all_metrics:
                 continue
-            _i = _columns.index(metric_name)
-            _res = df.iloc[:, _i][algorithm_index]
-            if isinstance(_res, str):
-                parts = _res.split()
-                if len(parts) >= 1:
-                    if parts[1].strip() == "ms":
-                        return float(parts[0]) / MS_TO_S
-                    elif parts[1].strip() == "us":
-                        return float(parts[0]) / US_TO_S
-                return float(parts[0])
-            return _res
+            _i = _all_metrics.index(metric_name)
+            _columns = [k.lower().strip() for k in df.columns]
+            _col_index = _columns.index(algorithm)
+            _res = df.iloc[_i, _col_index]
+            if not _res:
+                continue
+            return parse_result(_res)
+        raise ValueError("Not Found value.")
  
     def get_performance_index(self):
-        output_path = Path(self.benchmark_config.command.output_path)
-        first_token_time = None
-        decode_time = None
-        success_rate = None
-        generate_speed = None
-        throughput = None
+        output_path = Path(self.benchmark_config.output_path)
+        performance_index = PerformanceIndex()
         if not output_path.exists():
             logger.error(f"the output of aisbench is not find: {output_path}")
-        result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
-        if len(result_files) != 1:
-            logger.error("The aisbench result for csv files are not unique; please check")
-        else:
-            result_file = result_files[0]
-            df = read_csv_s(result_file, header=0)
+        result_files = glob.glob(f"{output_path}/**/performances/*/*.csv", recursive=True)
+        if len(result_files) < 1:
+            raise ValueError("The aisbench result for csv files are not unique; please check")
+        for result_file in result_files:
+            try:
+                df = read_csv_s(result_file, header=0)
+            except pd.errors.ParserError as e:
+                logger.error(f"{e}, file: {result_file}")
+                continue
             ttft_average = df[df["Performance Parameters"] == "TTFT"]["Average"].values[0]
             first_token_time = ttft_average.split()[0]
             tpot_average = df[df["Performance Parameters"] == "TPOT"]["Average"].values[0]
             decode_time = tpot_average.split()[0]
-            rate_dir = os.path.dirname(result_file)
-            rate_files = glob.glob(f"{rate_dir}/*dataset.json", recursive=True)
-            if len(rate_files) != 1:
-                logger.error("The aisbench result files for json are not unique; please check")
-                success_rate = 0
-            else:
-                json_file = rate_files[0]
-                with open_s(json_file, "r") as f:
-                    try:
-                        data = json.load(f)
-                    except json.JSONDecodeError as e:
-                        raise ValueError(f"Failed to parse JSON file {json_file!r}: {e}") from e
-                total_requests = data.get("Total Requests", {}).get("total", 0)
-                success_req = data.get("Success Requests", {}).get("total", 0)
-                if total_requests != 0:
-                    success_rate = success_req / total_requests
-                    output_average = data.get("Output Token Throughput", {}).get("total", "0")
-                    generate_speed = output_average.split()[0]
-                else:
-                    logger.error("total_requests can not be 0; please check")
-            throughput = df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0].split()[0]
-        try:    
-            time_to_first_token = float(first_token_time) / MS_TO_S
-            time_per_output_token = float(decode_time) / MS_TO_S
-        except Exception as e:
-            logger.warning(f"the first_token_time or decode_time is not number; please check: {e}")
-            time_to_first_token = time_per_output_token = None
-        return PerformanceIndex(generate_speed=generate_speed, time_to_first_token=time_to_first_token,
-                                time_per_output_token=time_per_output_token, success_rate=success_rate,
-                                throughput=throughput)
+            performance_index.time_to_first_token = float(first_token_time) / MS_TO_S
+            performance_index.time_per_output_token = float(decode_time) / MS_TO_S
+            performance_index.throughput = float(
+                df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0].split()[0])
+        rate_files = glob.glob(f"{output_path}/**/performances/*/*dataset.json", recursive=True)
+        for json_file in rate_files:
+            with open_s(json_file, "r") as f:
+                try:
+                    data = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    logger.error(f"{e}, file: {json_file}")
+                    continue
+            total_requests = data.get("Total Requests", {}).get("total", 0)
+            success_req = data.get("Success Requests", {}).get("total", 0)
+            if total_requests != 0:
+                performance_index.success_rate = success_req / total_requests
+                output_average = data["Output Token Throughput"]["total"]
+                performance_index.generate_speed = float(output_average.split()[0])
+        performance_index.ttft_max = self.get_performance_metric("ttft", "max")
+        performance_index.ttft_min = self.get_performance_metric("ttft", "min")
+        performance_index.ttft_p75 = self.get_performance_metric("ttft", "p75")
+        performance_index.ttft_p90 = self.get_performance_metric("ttft", "p90")
+        performance_index.ttft_p99 = self.get_performance_metric("ttft", "p99")
+        performance_index.tpot_max = self.get_performance_metric("tpot", "max")
+        performance_index.tpot_min = self.get_performance_metric("tpot", "min")
+        performance_index.tpot_p75 = self.get_performance_metric("tpot", "p75")
+        performance_index.tpot_p90 = self.get_performance_metric("tpot", "p90")
+        performance_index.tpot_p99 = self.get_performance_metric("tpot", "p99")
+        return performance_index
  
     def prepare(self):
         remove_file(Path(self.benchmark_config.output_path))
@@ -164,10 +174,10 @@ class AisBench(CustomProcess):
         concurrency = rate = None
         for k in run_params:
             try:
-                if k.name == "CONCURRENCY":
+                if k.name == "CONCURRENCY" and k.value:
                     concurrency = int(k.value)
-                if k.name == "REQUESTRATE":
-                    rate = int(k.value)
+                if k.name == "REQUESTRATE" and k.value:
+                    rate = k.value
             except ValueError:
                 logger.warning(f"the {k.name} is not number; please check: {k.value}")
                 concurrency = rate = None
