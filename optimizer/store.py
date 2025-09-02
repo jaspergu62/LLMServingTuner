@@ -13,32 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import csv
-import shlex
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from msserviceprofiler.msguard.security import open_s, sanitize_csv_value
 from msserviceprofiler.modelevalstate.config.config import (
-    BenchMarkConfig,
     DataStorageConfig,
     RUN_TIME,
     PerformanceIndex,
-    OptimizerConfigField
+    OptimizerConfigField,
+    settings
 )
+from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark
+from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.common import read_csv_s
 
 
+LLM_MODEL = "llm_model"
+DATASET_PATH = "dataset_path"
+SIMULATOR = "simulator"
+NUM_PROMPTS = "num_prompts"
+MAX_OUTPUT_LEN = "max_output_len"
+
+
 class DataStorage:
-    def __init__(self, config: DataStorageConfig):
+    def __init__(self, config: DataStorageConfig, simulator: Optional[Simulator | VllmSimulator] = None,
+                 benchmark: Optional[BenchMark | VllmBenchMark] = None, ):
         self.config = config
         if not self.config.store_dir.exists():
             self.config.store_dir.mkdir(parents=True, mode=0o750)
         self.save_file = self.config.store_dir.joinpath(f"data_storage_{RUN_TIME}.csv")
+        self.simulator = simulator
+        self.benchmark = benchmark
 
     @staticmethod
-    def load_history_position(load_dir: Path) -> Optional[List]:
+    def load_history_position(load_dir: Path, filter_field: Optional[Dict] = None) -> Optional[List]:
         if not load_dir.exists():
             raise FileNotFoundError(f"file: {load_dir}")
         if not load_dir.is_dir():
@@ -50,7 +62,43 @@ class DataStorage:
                 history_data.extend(data)
         if not history_data:
             return None
-        return history_data
+        return DataStorage.filter_data(history_data, filter_field)
+
+    @staticmethod
+    def filter_data(datas: List[Dict], filter_field: Optional[Dict] = None):
+        if not filter_field:
+            return datas
+        filter_datas = []
+        for d in datas:
+            flag = False
+            for k, v in filter_field.items():
+                # 不存在的字段 无法进行筛选
+                if k not in d:
+                    continue
+                # 字段存在 但不等于目标字段，则去掉
+                if d[k].strip().lower() != v.strip().lower():
+                    flag = True
+                    break
+            if flag:
+                continue
+            else:
+                filter_datas.append(d)
+        return filter_datas
+
+    def get_run_info(self):
+        _run_info = {}
+        if isinstance(self.benchmark, BenchMark):
+            _run_info[LLM_MODEL] = self.benchmark.benchmark_config.command.model_name
+            _run_info[DATASET_PATH] = self.benchmark.benchmark_config.command.dataset_path
+            _run_info[NUM_PROMPTS] = self.benchmark.benchmark_config.command.request_count
+            _run_info[MAX_OUTPUT_LEN] = self.benchmark.benchmark_config.command.max_output_len
+        elif isinstance(self.benchmark, VllmBenchMark):
+            _run_info[LLM_MODEL] = self.benchmark.benchmark_config.command.model
+            _run_info[DATASET_PATH] = self.benchmark.benchmark_config.command.dataset_path
+            _run_info[NUM_PROMPTS] = self.benchmark.benchmark_config.command.num_prompts
+        if self.simulator:
+            _run_info[SIMULATOR] = type(self.simulator).__name__
+        return _run_info
 
     def save(self, performance_index: PerformanceIndex, params: Tuple[OptimizerConfigField], **kwargs):
         logger.info(f"Save result with DataStorage. File path: {self.save_file}")
@@ -65,6 +113,9 @@ class DataStorage:
         for k, v in kwargs.items():
             _column.append(k)
             _value.append(v)
+        for k, v in self.get_run_info().items():
+            _column.append(k)
+            _value.append(v)
         if self.save_file.exists():
             with open_s(self.save_file, "a+") as f:
                 data_writer = csv.writer(f)
@@ -74,3 +125,34 @@ class DataStorage:
                 data_writer = csv.writer(f)
                 data_writer.writerow(_column)
                 data_writer.writerow([sanitize_csv_value(_v) for _v in _value])
+
+    def get_best_result(self):
+        optimizer_result = read_csv_s(self.save_file)
+        optimizer_result = optimizer_result.replace([np.inf, -np.inf], np.nan)
+        if isinstance(self.benchmark, BenchMark) and self.benchmark.benchmark_config.command.request_count:
+            pso_result = optimizer_result[
+                optimizer_result[NUM_PROMPTS] == int(self.benchmark.benchmark_config.command.request_count)]
+        elif isinstance(self.benchmark, VllmBenchMark) and self.benchmark.benchmark_config.command.num_prompts:
+            pso_result = optimizer_result[
+                optimizer_result[NUM_PROMPTS] == int(self.benchmark.benchmark_config.command.num_prompts)]
+        else:
+            pso_result = optimizer_result
+        pso_result = pso_result.dropna(subset="fitness")
+        pso_result = pso_result[pso_result["time_to_first_token"] > 0]
+        pso_result = pso_result[pso_result["time_per_output_token"] > 0]
+        pso_result = pso_result[pso_result["generate_speed"] > 0]
+        pso_result = pso_result.reset_index()
+        _fitness_index = pso_result.nsmallest(self.config.pso_top_k, "fitness").index
+        if settings.ttft_penalty and settings.tpot_penalty:
+            _generate_speed_index = pso_result[
+                (pso_result["time_to_first_token"] <= settings.ttft_slo * (1 + settings.slo_coefficient)) &
+                (pso_result["time_per_output_token"] <= settings.tpot_slo * (1 + settings.slo_coefficient))].nlargest(
+                self.config.pso_top_k, "generate_speed").index
+        elif settings.tpot_penalty:
+            _generate_speed_index = pso_result[
+                pso_result["time_per_output_token"] <= settings.tpot_slo * (1 + settings.slo_coefficient)].nlargest(
+                self.config.pso_top_k, "generate_speed").index
+        else:
+            _generate_speed_index = pso_result.nlargest(self.config.pso_top_k, "generate_speed").index
+        _fine_tune_index = _fitness_index.union(_generate_speed_index)
+        return pso_result.iloc[_fine_tune_index]
