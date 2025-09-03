@@ -328,7 +328,7 @@ class DisaggregationSimulator(CustomProcess):
         payload = {
             "inputs": "Please introduce yourself.",
             "parameters": {
-                "max_new_tokens": 250,
+                "max_new_tokens": 20,
                 "temperature": 0.3,
                 "top_p": 0.3,
                 "top_k": 5,
