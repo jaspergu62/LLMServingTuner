@@ -379,7 +379,7 @@ class PSOOptimizer(PerformanceTuner):
                     int(self.scheduler.benchmark.benchmark_config.command.request_count) > settings.sample_size):
                 _bak_number = self.scheduler.benchmark.benchmark_config.command.request_count
                 self.scheduler.benchmark.benchmark_config.command.request_count = str(settings.sample_size)
-            if (isinstance(self.scheduler.benchmark, VllmBenchMark) and
+            if (isinstance(self.scheduler.benchmark, (VllmBenchMark, AisBench)) and
                     self.scheduler.benchmark.benchmark_config.command.num_prompts and
                     int(self.scheduler.benchmark.benchmark_config.command.num_prompts) > settings.sample_size):
                 _bak_number = self.scheduler.benchmark.benchmark_config.command.num_prompts
@@ -398,7 +398,7 @@ class PSOOptimizer(PerformanceTuner):
         if settings.sample_size and _bak_number:
             if isinstance(self.scheduler.benchmark, BenchMark):
                 self.scheduler.benchmark.benchmark_config.command.request_count = str(_bak_number)
-            elif isinstance(self.scheduler.benchmark, VllmBenchMark):
+            elif isinstance(self.scheduler.benchmark, (VllmBenchMark, AisBench)):
                 self.scheduler.benchmark.benchmark_config.command.num_prompts = str(_bak_number)
         _record_fitness, _record_params, _record_res = self.refine_optimization_candidates(best_results)
         best_fitness, best_param, best_performance_index = self.best_params(_record_fitness, _record_params,
