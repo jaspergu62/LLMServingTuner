@@ -40,8 +40,7 @@ MAX_OUTPUT_LEN = "max_output_len"
 
 
 class DataStorage:
-    def __init__(self, config: DataStorageConfig, simulator: Optional[Simulator | VllmSimulator] = None,
-                 benchmark: Optional[BenchMark | VllmBenchMark] = None, ):
+    def __init__(self, config: DataStorageConfig, simulator=None, benchmark=None, ):
         self.config = config
         if not self.config.store_dir.exists():
             self.config.store_dir.mkdir(parents=True, mode=0o750)
