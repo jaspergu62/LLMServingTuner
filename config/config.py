@@ -170,7 +170,7 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
         elif v.dtype == "share":
             for _op in _simulate_run_info:
                 if _op.name == v.dtype_param:
-                    _field.value = int(_op.min + _op.max - _op.value)
+                    _field.value = _op.min + _op.max - _op.value
         else:
             try:
                 _field.value = float(params[i])
@@ -514,6 +514,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def partial_update_mindie(self):
+        range_to_enum(self.mindie.target_field)
         if not is_mindie():
             return self
         if not self.mindie.config_path.exists():
@@ -551,7 +552,6 @@ class Settings(BaseSettings):
         Path(self.benchmark.command.save_path).mkdir(parents=True, exist_ok=True, mode=0o750)
         if self.profile.output == ProfileConfig.model_fields["output"].default:
             self.profile = ProfileConfig(output=self.output.joinpath("profile"))
-        range_to_enum(self.mindie.target_field)
         return self
 
 

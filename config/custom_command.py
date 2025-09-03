@@ -169,7 +169,7 @@ class KubectlCommand():
     @property
     def monitor_command(self):
         kubectl_path = shutil.which("kubectl")
-        cmd = [kubectl_path, "logs", "-f", "-n", "-mindie"]
+        cmd = [kubectl_path, "logs", "-f", "-n", "mindie"]
         return cmd
 
 

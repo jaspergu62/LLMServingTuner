@@ -20,7 +20,7 @@ from typing import Tuple, Optional
 import numpy as np
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.common import get_train_sub_path
+from msserviceprofiler.modelevalstate.common import get_train_sub_path, is_mindie, is_vllm
 from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField, \
     map_param_with_value, CommunicationConfig
 from msserviceprofiler.modelevalstate.config.base_config import FOLDER_LIMIT_SIZE
@@ -61,7 +61,7 @@ class Scheduler:
         for _ in range(self.wait_time):
             time.sleep(1)
             if self.simulator.check_success():
-                logger.info(f"Successfully started the {self.simulator.process.pid} process.")
+                logger.info(f"Successfully started the {self.simulator.process} process.")
                 return
         raise TimeoutError(self.wait_time)
 
@@ -77,9 +77,10 @@ class Scheduler:
     def monitoring_status(self):
         logger.info("monitor status")
         while True:
-            if self.simulator.process.poll() is not None:
-                raise subprocess.SubprocessError(f"Failed in run simulator. "
-                                                 f"return code: {self.simulator.process.returncode}.")
+            if is_mindie() or is_vllm():
+                if self.simulator.process.poll() is not None:
+                    raise subprocess.SubprocessError(f"Failed in run simulator. "
+                                                    f"return code: {self.simulator.process.returncode}.")
             if self.benchmark.check_success():
                 return
             time.sleep(1)

@@ -280,14 +280,14 @@ class DisaggregationSimulator(CustomProcess):
             subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "."], 
                            cwd=self.mindie_config.kubectl_default_path)
             while True:
-                singal = True
+                signal = True
                 proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, 
                                       cwd=self.mindie_config.kubectl_default_path)
                 lines = proc.stdout.splitlines()
                 for line in lines:
                     if line.startswith('mindie'):
-                        singal = False
-                if singal is True:
+                        signal = False
+                if signal is True:
                     break
                 time.sleep(1)
         else:
@@ -347,20 +347,23 @@ class DisaggregationSimulator(CustomProcess):
         self.process = subprocess.run(self.command, env=os.environ, text=True, 
                                       cwd=self.mindie_config.kubectl_default_path)
         logger.info(f"self.log_command: {self.log_command}")
-
-        proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, 
-                              cwd=self.mindie_config.kubectl_default_path)
-        
-        lines = proc.stdout.splitlines()
-        for line in lines:
-            if line.startswith('mindie'):
-                mindie_name = line.split()
+        while True:
+            proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, 
+                                cwd=self.mindie_config.kubectl_default_path)
+            
+            lines = proc.stdout.splitlines()
+            for line in lines:
+                if line.startswith('mindie'):
+                    mindie_name = line.split()
+                    break
+            if mindie_name[3] == 'Running':
                 break
+            time.sleep(1)
         self.monitor_command.append(mindie_name[1])
         logger.info(f"mindie_name: {mindie_name[1]}")
-        logger.info(f"monitor_command: {self.monitor_command}")
         self.log_process = subprocess.Popen(self.monitor_command, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, 
                                         env=os.environ, text=True, cwd=self.mindie_config.kubectl_default_path)
+        logger.info(f"command: {' '.join(self.monitor_command)}, log file: {self.run_log}")
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')
