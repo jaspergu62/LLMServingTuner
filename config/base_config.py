@@ -63,6 +63,8 @@ class DeployPolicy(Enum):
 class PDPolicy(Enum):
     competition = "competition"
     disaggregation = "disaggregation"
+
+    
 class ServiceType(Enum):
     master = "master"
     slave = "slave"

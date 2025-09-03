@@ -19,11 +19,12 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Tuple, Optional, Union
-from loguru import logger
 import shutil
 import tempfile
 import time
-from msserviceprofiler.modelevalstate.config.config import MindieConfig, VllmConfig, OptimizerConfigField
+from loguru import logger
+
+from msserviceprofiler.modelevalstate.config.config import MindieConfig, VllmConfig, OptimizerConfigField, KubectlConfig
 from msserviceprofiler.modelevalstate.config.base_config import simulate_flag, SIMULATE
 from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand, VllmCommand
 from msserviceprofiler.modelevalstate.optimizer.custom_process import CustomProcess
@@ -175,10 +176,11 @@ class Simulator(CustomProcess):
         super().stop(del_log)
 
 
-class DisaggregationSimulator(Simulator):
+class DisaggregationSimulator(CustomProcess):
     from msserviceprofiler.modelevalstate.config.custom_command import KubectlCommand
 
     def __init__(self, mindie_config: KubectlConfig, bak_path: Optional[Path] = None):
+        super().__init__(bak_path=bak_path)
         self.mindie_config = mindie_config
         logger.info(f"config path {self.mindie_config.config_single_path}", )
         if not self.mindie_config.config_single_path.exists():
@@ -210,23 +212,6 @@ class DisaggregationSimulator(Simulator):
             return True
         except ValueError:
             return False
-        
-    def prepare_before_start_server(self):
-        bash_path = shutil.which("bash")
-        if bash_path is not None:
-            subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "."], cwd=self.mindie_config.kubectl_default_path)
-            while True:
-                singal = True
-                proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, cwd=self.mindie_config.kubectl_default_path)
-                lines = proc.stdout.splitlines()
-                for line in lines:
-                    if line.startswith('mindie'):
-                        singal = False
-                if singal == True:
-                    break
-                time.sleep(1)
-        else:
-            logger.error("bash not found in path")
 
     @staticmethod
     def set_config_for_dict(origin_config, cur_key, next_key, next_level, value):
@@ -288,6 +273,25 @@ class DisaggregationSimulator(Simulator):
             DisaggregationSimulator.set_config_for_list(origin_config, _cur_key, _next_key, next_level, value)
         else:
             raise ValueError(f"Not Support type {type(origin_config)}")
+    
+    def prepare_before_start_server(self):
+        bash_path = shutil.which("bash")
+        if bash_path is not None:
+            subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "."], 
+                           cwd=self.mindie_config.kubectl_default_path)
+            while True:
+                singal = True
+                proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, 
+                                      cwd=self.mindie_config.kubectl_default_path)
+                lines = proc.stdout.splitlines()
+                for line in lines:
+                    if line.startswith('mindie'):
+                        singal = False
+                if singal is True:
+                    break
+                time.sleep(1)
+        else:
+            logger.error("bash not found in path")
 
     def backup(self, del_log=True):
         backup(self.mindie_config.config_single_path, self.bak_path, self.__class__.__name__)
@@ -340,10 +344,12 @@ class DisaggregationSimulator(Simulator):
         else:
             cwd = os.getcwd()
         logger.info(f"self.command: {self.command}")
-        self.process = subprocess.run(self.command, env=os.environ, text=True, cwd=self.mindie_config.kubectl_default_path)
+        self.process = subprocess.run(self.command, env=os.environ, text=True, 
+                                      cwd=self.mindie_config.kubectl_default_path)
         logger.info(f"self.log_command: {self.log_command}")
 
-        proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, cwd=self.mindie_config.kubectl_default_path)
+        proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, 
+                              cwd=self.mindie_config.kubectl_default_path)
         
         lines = proc.stdout.splitlines()
         for line in lines:
@@ -380,7 +386,7 @@ class DisaggregationSimulator(Simulator):
         except Exception as e:
             logger.error(f"Failed to stop simulator process. {e}")
 
-            
+
 class VllmSimulator(CustomProcess):
     def __init__(self, vllm_config: VllmConfig, bak_path: Optional[Path] = None,
                  print_log: bool = False):

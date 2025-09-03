@@ -3,9 +3,9 @@
 import os
 import shutil
 from pathlib import Path
+from typing import Optional
 from loguru import logger
 from pydantic import BaseModel, Field
-from typing import Optional
 from msserviceprofiler.msguard import Rule
 
 
@@ -156,20 +156,20 @@ class KubectlCommand():
     
     @property
     def command(self):
-        Kubectl_command_path = self.command_config.kubectl_single_path
-        cmd = ['bash', Kubectl_command_path]
+        kubectl_command_path = self.command_config.kubectl_single_path
+        cmd = ['bash', kubectl_command_path]
         return cmd
 
     @property
     def log_command(self):
-        Kubectl_path = shutil.which("kubectl")
-        cmd = [Kubectl_path, "get", "pods", "-A", "-owide"]
+        kubectl_path = shutil.which("kubectl")
+        cmd = [kubectl_path, "get", "pods", "-A", "-owide"]
         return cmd
 
     @property
     def monitor_command(self):
-        Kubectl_path = shutil.which("kubectl")
-        cmd = [Kubectl_path, "logs", "-f", "-n", "-mindie"]
+        kubectl_path = shutil.which("kubectl")
+        cmd = [kubectl_path, "logs", "-f", "-n", "-mindie"]
         return cmd
 
 
