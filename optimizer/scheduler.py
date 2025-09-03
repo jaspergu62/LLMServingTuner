@@ -160,7 +160,7 @@ class Scheduler:
             time.sleep(1)
             self.performance_index = self.benchmark.get_performance_index()
         except Exception as e:
-            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. eror {e}")
+            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. error {e}")
             self.error_info = e
             self.del_log = False
         return self.performance_index

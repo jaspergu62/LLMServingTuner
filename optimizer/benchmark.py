@@ -160,7 +160,7 @@ class AisBench(CustomProcess):
             if file_path.name == f"{api_name}.py":
                 api_path = file_path
         if not api_path:
-            raise FileNotFoundError("Not Found {api_name}.py")
+            raise FileNotFoundError(f"Not Found {api_name}.py")
         concurrency = rate = None
         for k in run_params:
             try:
