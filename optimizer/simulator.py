@@ -320,9 +320,9 @@ class DisaggregationSimulator(CustomProcess):
         with open_s(self.mindie_config.config_single_pd_path, "w") as fout:
             json.dump(pd_config, fout, indent=4)
 
-    def test_curl(host="127.0.0.1", port=31015):
+    def test_curl(file_path, port=31015):
         import requests
-        url = f"http://{host}:{port}"
+        url = f"http://127.0.0.1:{port}"
 
         # 定义请求体的 JSON 数据
         payload = {
