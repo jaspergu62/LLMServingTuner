@@ -2,8 +2,10 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 import os
 import shutil
+from pathlib import Path
+from typing import Optional
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from msserviceprofiler.msguard import Rule
 
 
@@ -139,7 +141,38 @@ class MindieCommand:
         mindie_command_path: str = os.path.join(mindie_service_path, "bin", "mindieservice_daemon")
         return [mindie_command_path]
  
- 
+
+class KubectlCommandConfig(BaseModel):
+    kubectl_default_path: Path = Path("")
+    kubectl_single_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("deploy.sh").resolve())
+    kubectl_log_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("show_logs.sh").resolve())
+
+
+class KubectlCommand():
+    def __init__(self, command_config: KubectlCommandConfig):
+        self.command_config = command_config
+    
+    @property
+    def command(self):
+        kubectl_command_path = self.command_config.kubectl_single_path
+        cmd = ['bash', kubectl_command_path]
+        return cmd
+
+    @property
+    def log_command(self):
+        kubectl_path = shutil.which("kubectl")
+        cmd = [kubectl_path, "get", "pods", "-A", "-owide"]
+        return cmd
+
+    @property
+    def monitor_command(self):
+        kubectl_path = shutil.which("kubectl")
+        cmd = [kubectl_path, "logs", "-f", "-n", "mindie"]
+        return cmd
+
+
 class VllmCommandConfig(BaseModel):
     host: str = "127.0.0.1"
     port: str = "6379"
