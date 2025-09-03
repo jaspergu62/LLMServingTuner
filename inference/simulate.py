@@ -112,7 +112,7 @@ def signal_handler(file_logger):
     file_logger.close()
 
 
-file_log = FileLogger(Path(settings.benchmark.custom_collect_output_path).joinpath(f"simulate_{os.getpid()}.csv"))
+file_log = FileLogger(Path(settings.simulator_output).joinpath(f"simulate_{os.getpid()}.csv"))
 atexit.register(signal_handler, file_log)
 
 
