@@ -280,14 +280,14 @@ class DisaggregationSimulator(CustomProcess):
             subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "."], 
                            cwd=self.mindie_config.kubectl_default_path)
             while True:
-                signal = True
+                singal = True
                 proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, 
                                       cwd=self.mindie_config.kubectl_default_path)
                 lines = proc.stdout.splitlines()
                 for line in lines:
                     if line.startswith('mindie'):
-                        signal = False
-                if signal is True:
+                        singal = False
+                if singal is True:
                     break
                 time.sleep(1)
         else:
@@ -320,6 +320,41 @@ class DisaggregationSimulator(CustomProcess):
         with open_s(self.mindie_config.config_single_pd_path, "w") as fout:
             json.dump(pd_config, fout, indent=4)
 
+    def test_curl(host="127.0.0.1", port=31015):
+        import requests
+        url = f"http://{host}:{port}"
+
+        # 定义请求体的 JSON 数据
+        payload = {
+            "inputs": "Please introduce yourself.",
+            "parameters": {
+                "max_new_tokens": 250,
+                "temperature": 0.3,
+                "top_p": 0.3,
+                "top_k": 5,
+                "do_sample": True,
+                "repetition_penalty": 1.05,
+                "seed": 128
+            }
+        }
+
+        # 定义请求头（如果需要）
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        try:
+            # 发送 POST 请求
+            response = requests.post(url, json=payload, headers=headers)
+            
+            # 检查响应状态码
+            if response.status_code == 200:
+                return True
+            else:
+                return False
+        except requests.exceptions.RequestException as e:
+            return False
+
     def check_success(self, print_log=False):
         with open_s(self.run_log, "r") as f:
             try:
@@ -332,6 +367,10 @@ class DisaggregationSimulator(CustomProcess):
             if print_log:
                 logger.info(f"simulate out: \n{output}")
             if "MindIE-MS coordinator is ready!!!" in output:
+                while True:
+                    if self.test_curl() is True:
+                        break
+                    time.sleep(1)
                 return True
         return False
 
