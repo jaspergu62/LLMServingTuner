@@ -30,7 +30,7 @@ from msserviceprofiler.modelevalstate.config.config import (
 )
 from msserviceprofiler.modelevalstate.config.base_config import (
     EnginePolicy, DeployPolicy, AnalyzeTool,
-    ServiceType, BenchMarkPolicy
+    ServiceType, BenchMarkPolicy, PDPolicy
 )
 from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
 from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, ProfilerBenchmark, AisBench
@@ -38,7 +38,8 @@ from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import M
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
 from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
 from msserviceprofiler.modelevalstate.optimizer.utils import kill_process, get_required_field_from_json
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, enable_simulate
+from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, enable_simulate, \
+    DisaggregationSimulator
 
 
 MAX_ITER_NUM = 200
@@ -424,8 +425,10 @@ def main(args: argparse.Namespace):
         bak_path = settings.output.joinpath("bak")
         if not bak_path.exists():
             bak_path.mkdir(parents=True, mode=0o750)
-
-    if args.engine == EnginePolicy.mindie.value:
+    if args.pd == PDPolicy.disaggregation.value:
+        target_field = settings.mindie.target_field
+        simulator = DisaggregationSimulator(settings.kubectl, bak_path=bak_path)
+    elif args.engine == EnginePolicy.mindie.value:
         target_field = settings.mindie.target_field
         simulator = Simulator(settings.mindie, bak_path=bak_path)
     elif args.engine == EnginePolicy.vllm.value:
@@ -501,4 +504,7 @@ def arg_parse(subparsers):
     parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value,
                         choices=[k.value for k in list(EnginePolicy)],
                         help="The engine used for model evaluation.")
+    parser.add_argument("--pd", default=PDPolicy.competition.value,
+                        choices=[k.value for k in list(PDPolicy)],
+                        help="whether pd competition or pd disaggregation")
     parser.set_defaults(func=main)

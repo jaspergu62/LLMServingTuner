@@ -18,7 +18,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSett
 import msserviceprofiler.modelevalstate
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie, ais_bench_exists
 from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, \
-    MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig
+    MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
 from msserviceprofiler.msguard.security import open_s
 from .base_config import (
     INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,
@@ -167,6 +167,10 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
             else:
                 _enum_index = np.searchsorted(segment, params[i]) - 1
                 _field.value = v.dtype_param[_enum_index]
+        elif v.dtype == "share":
+            for _op in _simulate_run_info:
+                if _op.name == v.dtype_param:
+                    _field.value = int(_op.min + _op.max - _op.value)
         else:
             try:
                 _field.value = float(params[i])
@@ -350,6 +354,26 @@ class MindieConfig(BaseModel):
     target_field: List[OptimizerConfigField] = default_support_field
 
 
+class KubectlConfig(BaseModel):
+    process_name: str = ""
+    kubectl_default_path: Path = Path("")
+    kubectl_single_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("deploy.sh").resolve())
+    config_single_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("conf/config.json").resolve())
+    config_single_pd_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("conf/ms_controller.json").resolve())
+    config_single_pd_bak_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("conf/ms_controller_bak.json").resolve())
+    config_single_bak_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("conf/config_bak.json").resolve())
+    delete_path: Optional[Path] = Field(
+        default_factory=lambda data: data["kubectl_default_path"].joinpath("delete.sh").resolve())
+    work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
+    command: KubectlCommandConfig = Field(
+        default_factory=lambda data: KubectlCommandConfig(kubectl_default_path=data["kubectl_default_path"]))
+    
+
 class AisBenchConfig(BaseModel):
     process_name: str = "ais_bench"
     output_path: Path = Path("ais_bench")
@@ -420,6 +444,7 @@ class Settings(BaseSettings):
     communication: CommunicationConfig = Field(
         default_factory=lambda data: CommunicationConfig(base_path=data["output"].joinpath("communication")),
         validate_default=True)
+    kubectl: KubectlConfig = KubectlConfig()
     latency_model: LatencyModel = Field(
         default_factory=lambda data: LatencyModel(base_path=data["output"].joinpath("latency_model")),
         validate_default=True)

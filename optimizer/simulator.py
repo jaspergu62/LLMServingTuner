@@ -20,12 +20,14 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any, Tuple, Optional, Union
 from loguru import logger
-
+import shutil
+import tempfile
+import time
 from msserviceprofiler.modelevalstate.config.config import MindieConfig, VllmConfig, OptimizerConfigField
 from msserviceprofiler.modelevalstate.config.base_config import simulate_flag, SIMULATE
 from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand, VllmCommand
 from msserviceprofiler.modelevalstate.optimizer.custom_process import CustomProcess
-from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file
+from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp
 from msserviceprofiler.msguard.security import open_s
 
 
@@ -173,6 +175,212 @@ class Simulator(CustomProcess):
         super().stop(del_log)
 
 
+class DisaggregationSimulator(Simulator):
+    from msserviceprofiler.modelevalstate.config.custom_command import KubectlCommand
+
+    def __init__(self, mindie_config: KubectlConfig, bak_path: Optional[Path] = None):
+        self.mindie_config = mindie_config
+        logger.info(f"config path {self.mindie_config.config_single_path}", )
+        if not self.mindie_config.config_single_path.exists():
+            raise FileNotFoundError(self.mindie_config.config_single_path)
+        with open_s(self.mindie_config.config_single_path, "r") as f:
+            data = json.load(f)
+        with open_s(self.mindie_config.config_single_pd_path, "r") as f:
+            pd_data = json.load(f)
+        self.default_pd_config = pd_data
+        self.default_config = data
+        logger.info(f"config bak path {self.mindie_config.config_single_bak_path}", )
+        if self.mindie_config.config_single_bak_path.exists():
+            self.mindie_config.config_single_bak_path.unlink()
+        with open_s(self.mindie_config.config_single_bak_path, "w") as fout:
+            json.dump(self.default_config, fout, indent=4)
+        self.run_log = None
+        self.mindie_log_offset = 0
+        self.bak_path = bak_path
+        self.mindie_log_fp = None
+        self.process = None
+        self.command = self.KubectlCommand(self.mindie_config.command).command
+        self.log_command = self.KubectlCommand(self.mindie_config.command).log_command
+        self.monitor_command = self.KubectlCommand(self.mindie_config.command).monitor_command
+
+    @staticmethod
+    def is_int(x):
+        try:
+            int(x)
+            return True
+        except ValueError:
+            return False
+        
+    def prepare_before_start_server(self):
+        bash_path = shutil.which("bash")
+        if bash_path is not None:
+            subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "."], cwd=self.mindie_config.kubectl_default_path)
+            while True:
+                singal = True
+                proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, cwd=self.mindie_config.kubectl_default_path)
+                lines = proc.stdout.splitlines()
+                for line in lines:
+                    if line.startswith('mindie'):
+                        singal = False
+                if singal == True:
+                    break
+                time.sleep(1)
+        else:
+            logger.error("bash not found in path")
+
+    @staticmethod
+    def set_config_for_dict(origin_config, cur_key, next_key, next_level, value):
+        if cur_key in origin_config:
+            DisaggregationSimulator.set_config(origin_config[cur_key], next_level, value)
+        elif DisaggregationSimulator.is_int(cur_key):
+            raise KeyError(f"data: {origin_config}, key: {cur_key}")
+        elif DisaggregationSimulator.is_int(next_key):
+            origin_config[cur_key] = []
+            DisaggregationSimulator.set_config(origin_config[cur_key], next_level, value)
+        else:
+            origin_config[cur_key] = {}
+            DisaggregationSimulator.set_config(origin_config[cur_key], next_level, value)
+
+    @staticmethod
+    def set_config_for_list(origin_config, cur_key, next_key, next_level, value):
+        if len(origin_config) > int(cur_key):
+            DisaggregationSimulator.set_config(origin_config[int(cur_key)], next_level, value)
+        elif len(origin_config) == int(cur_key) and DisaggregationSimulator.is_int(next_key):
+            origin_config.append([])
+            DisaggregationSimulator.set_config(origin_config[int(cur_key)], next_level, value)
+        elif len(origin_config) == int(cur_key) and not DisaggregationSimulator.is_int(next_key):
+            origin_config.append({})
+            DisaggregationSimulator.set_config(origin_config[int(cur_key)], next_level, value)
+        else:
+            raise IndexError(f"data: {origin_config}, index: {cur_key}")
+
+    @staticmethod
+    def set_config(origin_config, key: str, value: Any):
+        next_level = None
+        try:
+            if "." in key:
+                _f_index = key.index(".")
+                _cur_key, next_level = key[:_f_index], key[_f_index + 1:]
+            else:
+                _cur_key = key
+            if next_level is None:
+                if isinstance(origin_config, dict):
+                    origin_config[_cur_key] = value
+                elif isinstance(origin_config, list):
+                    if len(origin_config) > int(_cur_key):
+                        origin_config[int(_cur_key)] = value
+                    else:
+                        origin_config.append(value)
+                return
+            if "." in next_level:
+                _next_index = next_level.index(".")
+                _next_key = next_level[:_next_index]
+            elif next_level:
+                _next_key = next_level
+            else:
+                _next_key = None
+        except Exception as e:
+            logger.error(f"Unexpected error occurred at {key}")
+            raise e
+        if isinstance(origin_config, dict):
+            DisaggregationSimulator.set_config_for_dict(origin_config, _cur_key, _next_key, next_level, value)
+        elif isinstance(origin_config, list):
+            DisaggregationSimulator.set_config_for_list(origin_config, _cur_key, _next_key, next_level, value)
+        else:
+            raise ValueError(f"Not Support type {type(origin_config)}")
+
+    def backup(self, del_log=True):
+        backup(self.mindie_config.config_single_path, self.bak_path, self.__class__.__name__)
+        if not del_log and self.run_log:
+            backup(self.run_log, self.bak_path, self.__class__.__name__)
+
+    def update_config(self, params: Tuple[OptimizerConfigField]):
+        # 将params值更新到新的config中
+        new_config = deepcopy(self.default_config)
+        pd_config = deepcopy(self.default_pd_config)
+        for p in params:
+            if p.config_position.startswith("default"):
+                DisaggregationSimulator.set_config(pd_config, p.config_position, p.value)
+            if not p.config_position.startswith("BackendConfig"):
+                continue
+            DisaggregationSimulator.set_config(new_config, p.config_position, p.value)
+
+        # 将新的config写入到config文件中
+        logger.debug(f"new config {new_config}")
+        if self.mindie_config.config_single_path.exists():
+            self.mindie_config.config_single_path.unlink()
+        with open_s(self.mindie_config.config_single_path, "w") as fout:
+            json.dump(new_config, fout, indent=4)
+        if self.mindie_config.config_single_pd_path.exists():
+            self.mindie_config.config_single_pd_path.unlink()
+        with open_s(self.mindie_config.config_single_pd_path, "w") as fout:
+            json.dump(pd_config, fout, indent=4)
+
+    def check_success(self, print_log=False):
+        with open_s(self.run_log, "r") as f:
+            try:
+                f.seek(self.mindie_log_offset)
+                output = f.read()
+                self.mindie_log_offset = f.tell()
+            except Exception as e:
+                logger.info(f"Failed in read mindie log. error: {e}")
+        if output:
+            if print_log:
+                logger.info(f"simulate out: \n{output}")
+            if "MindIE-MS coordinator is ready!!!" in output:
+                return True
+        return False
+
+    def start_server(self, run_params: Tuple[OptimizerConfigField]):
+        self.prepare_before_start_server()
+        self.mindie_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_mindie")
+        self.mindie_log_offset = 0
+        if self.mindie_config.work_path:
+            cwd = self.mindie_config.work_path
+        else:
+            cwd = os.getcwd()
+        logger.info(f"self.command: {self.command}")
+        self.process = subprocess.run(self.command, env=os.environ, text=True, cwd=self.mindie_config.kubectl_default_path)
+        logger.info(f"self.log_command: {self.log_command}")
+
+        proc = subprocess.run(self.log_command, stdout=subprocess.PIPE, text=True, cwd=self.mindie_config.kubectl_default_path)
+        
+        lines = proc.stdout.splitlines()
+        for line in lines:
+            if line.startswith('mindie'):
+                mindie_name = line.split()
+                break
+        self.monitor_command.append(mindie_name[1])
+        logger.info(f"mindie_name: {mindie_name[1]}")
+        logger.info(f"monitor_command: {self.monitor_command}")
+        self.log_process = subprocess.Popen(self.monitor_command, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, 
+                                        env=os.environ, text=True, cwd=self.mindie_config.kubectl_default_path)
+
+    def run(self, run_params: Tuple[OptimizerConfigField]):
+        logger.info(f'start run in simulator. run params: {run_params}')
+        # 根据params 修改配置文件
+        self.update_config(run_params)
+        # 启动mindie仿真
+        self.start_server(run_params)
+
+    def stop(self, del_log=True):
+        logger.info("Stop simulator process")
+        if self.bak_path:
+            self.backup()
+        close_file_fp(self.mindie_log_fp)
+        if del_log:
+            remove_file(self.run_log)
+        self.mindie_log_offset = 0
+        try:
+            bash_path = shutil.which("bash")
+            if bash_path is not None:
+                subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "./"])
+            else:
+                logger.error("bash not found in path")
+        except Exception as e:
+            logger.error(f"Failed to stop simulator process. {e}")
+
+            
 class VllmSimulator(CustomProcess):
     def __init__(self, vllm_config: VllmConfig, bak_path: Optional[Path] = None,
                  print_log: bool = False):
