@@ -320,7 +320,7 @@ class DisaggregationSimulator(CustomProcess):
         with open_s(self.mindie_config.config_single_pd_path, "w") as fout:
             json.dump(pd_config, fout, indent=4)
 
-    def test_curl(file_path, port=31015):
+    def test_curl(self, port=31015):
         import requests
         url = f"http://127.0.0.1:{port}"
 
@@ -369,9 +369,8 @@ class DisaggregationSimulator(CustomProcess):
             if "MindIE-MS coordinator is ready!!!" in output:
                 while True:
                     if self.test_curl() is True:
-                        break
+                        return True
                     time.sleep(1)
-                return True
         return False
 
     def start_server(self, run_params: Tuple[OptimizerConfigField]):
