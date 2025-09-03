@@ -245,28 +245,6 @@ class PerformanceIndex(BaseModel):
     time_per_output_token: Optional[float] = None
     success_rate: Optional[float] = None
     throughput: Optional[float] = None
-    ttft_max: Optional[float] = None
-    ttft_min: Optional[float] = None
-    ttft_p75: Optional[float] = None
-    ttft_p90: Optional[float] = None
-    ttft_p99: Optional[float] = None
-    tpot_max: Optional[float] = None
-    tpot_min: Optional[float] = None
-    tpot_p75: Optional[float] = None
-    tpot_p90: Optional[float] = None
-    tpot_p99: Optional[float] = None
-    prefill_batch_size: Optional[float] = None
-    prefill_batch_size_min: Optional[float] = None
-    prefill_batch_size_max: Optional[float] = None
-    prefill_batch_size_p75: Optional[float] = None
-    prefill_batch_size_p90: Optional[float] = None
-    prefill_batch_size_p99: Optional[float] = None
-    decoder_batch_size: Optional[float] = None
-    decoder_batch_size_min: Optional[float] = None
-    decoder_batch_size_max: Optional[float] = None
-    decoder_batch_size_p75: Optional[float] = None
-    decoder_batch_size_p90: Optional[float] = None
-    decoder_batch_size_p99: Optional[float] = None
 
 
 class BenchMarkConfig(BaseModel):

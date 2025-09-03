@@ -140,16 +140,6 @@ class AisBench(CustomProcess):
                 performance_index.success_rate = success_req / total_requests
                 output_average = data["Output Token Throughput"]["total"]
                 performance_index.generate_speed = float(output_average.split()[0])
-        performance_index.ttft_max = self.get_performance_metric("ttft", "max")
-        performance_index.ttft_min = self.get_performance_metric("ttft", "min")
-        performance_index.ttft_p75 = self.get_performance_metric("ttft", "p75")
-        performance_index.ttft_p90 = self.get_performance_metric("ttft", "p90")
-        performance_index.ttft_p99 = self.get_performance_metric("ttft", "p99")
-        performance_index.tpot_max = self.get_performance_metric("tpot", "max")
-        performance_index.tpot_min = self.get_performance_metric("tpot", "min")
-        performance_index.tpot_p75 = self.get_performance_metric("tpot", "p75")
-        performance_index.tpot_p90 = self.get_performance_metric("tpot", "p90")
-        performance_index.tpot_p99 = self.get_performance_metric("tpot", "p99")
         return performance_index
  
     def prepare(self):
@@ -371,28 +361,6 @@ class BenchMark(CustomProcess):
         time_per_output_token = decode_time / MS_TO_S
         performance_index.time_to_first_token = time_to_first_token
         performance_index.time_per_output_token = time_per_output_token
-        performance_index.ttft_max = self.get_performance_metric("FirstTokenTime", "max")
-        performance_index.ttft_min = self.get_performance_metric("FirstTokenTime", "min")
-        performance_index.ttft_p75 = self.get_performance_metric("FirstTokenTime", "p75")
-        performance_index.ttft_p90 = self.get_performance_metric("FirstTokenTime", "p90")
-        performance_index.ttft_p99 = self.get_performance_metric("FirstTokenTime", "p99")
-        performance_index.tpot_max = self.get_performance_metric("DecodeTime", "max")
-        performance_index.tpot_min = self.get_performance_metric("DecodeTime", "min")
-        performance_index.tpot_p75 = self.get_performance_metric("DecodeTime", "p75")
-        performance_index.tpot_p90 = self.get_performance_metric("DecodeTime", "p90")
-        performance_index.tpot_p99 = self.get_performance_metric("DecodeTime", "p99")
-        performance_index.prefill_batch_size = self.get_performance_metric("PrefillBatchsize", "average")
-        performance_index.prefill_batch_size_min = self.get_performance_metric("PrefillBatchsize", "min")
-        performance_index.prefill_batch_size_max = self.get_performance_metric("PrefillBatchsize", "max")
-        performance_index.prefill_batch_size_p75 = self.get_performance_metric("PrefillBatchsize", "p75")
-        performance_index.prefill_batch_size_p90 = self.get_performance_metric("PrefillBatchsize", "p90")
-        performance_index.prefill_batch_size_p99 = self.get_performance_metric("PrefillBatchsize", "p99")
-        performance_index.decoder_batch_size = self.get_performance_metric("DecoderBatchsize", "average")
-        performance_index.decoder_batch_size_min = self.get_performance_metric("DecoderBatchsize", "min")
-        performance_index.decoder_batch_size_max = self.get_performance_metric("DecoderBatchsize", "max")
-        performance_index.decoder_batch_size_p75 = self.get_performance_metric("DecoderBatchsize", "p75")
-        performance_index.decoder_batch_size_p90 = self.get_performance_metric("DecoderBatchsize", "p90")
-        performance_index.decoder_batch_size_p99 = self.get_performance_metric("DecoderBatchsize", "p99")
         return performance_index
 
     def prepare(self):
@@ -517,18 +485,6 @@ class VllmBenchMark(CustomProcess):
             if num_prompts > 0:
                 performance_index.success_rate = completed / num_prompts
             performance_index.throughput = float(data.get("request_throughput", 3.0))
-            if "p75_ttft_ms" in data:
-                performance_index.ttft_p75 = float(data.get("p75_ttft_ms")) / MS_TO_S
-            if "p90_ttft_ms" in data:
-                performance_index.ttft_p90 = float(data.get("p90_ttft_ms")) / MS_TO_S
-            if "p99_ttft_ms" in data:
-                performance_index.ttft_p99 = float(data.get("p99_ttft_ms")) / MS_TO_S
-            if "p75_tpot_ms" in data:
-                performance_index.tpot_p75 = float(data.get("p75_tpot_ms")) / MS_TO_S
-            if "p90_tpot_ms" in data:
-                performance_index.tpot_p90 = float(data.get("p90_tpot_ms")) / MS_TO_S
-            if "p99_tpot_ms" in data:
-                performance_index.tpot_p99 = float(data.get("p99_tpot_ms")) / MS_TO_S
         return performance_index
 
 
