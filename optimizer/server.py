@@ -20,6 +20,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from msserviceprofiler.modelevalstate.common import is_mindie
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
 from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value, CommunicationConfig
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
@@ -43,8 +44,12 @@ class Scheduler:
  
     def start(self, params):
         d = ast.literal_eval(params)
-        self.simulator = Simulator(settings.simulator)
-        _simulate_run_info = map_param_with_value(d, settings.target_field)
+        if is_mindie():
+            self.simulator = Simulator(settings.mindie)
+            _simulate_run_info = map_param_with_value(d, settings.mindie.target_field)
+        else:
+            self.simulator = Simulator(settings.vllm)
+            _simulate_run_info = map_param_with_value(d, settings.vllm.target_field)
         logger.info(f"simulate run info {_simulate_run_info}")
         self.simulator.run(tuple(_simulate_run_info))
         _result = f"{self.cmd.history[-1]}:done"
