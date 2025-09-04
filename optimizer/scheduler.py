@@ -129,12 +129,8 @@ class Scheduler:
         self.benchmark.stop(del_log)
 
     def save_result(self, **kwargs):
-        duration = None
-        if self.run_start_timestamp:
-            duration = time.time() - self.run_start_timestamp
         self.data_storage.save(self.performance_index, tuple(self.simulate_run_info),
-                               error=self.error_info, bakcup=self.current_back_path, duration=duration,
-                               **kwargs)
+                               error=self.error_info, bakcup=self.current_back_path, **kwargs)
         if self.bak_path:
             self.backup()
         self.stop_target_server()
