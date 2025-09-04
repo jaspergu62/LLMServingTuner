@@ -1,6 +1,6 @@
 # -------------------------寻优相关参数配置------------------------------------------------
 n_particles = 5 
-iters = 30 
+iters = 10 
 ttft_penalty = 1 
 tpot_penalty = 0 
 success_rate_penalty = 5.0 
@@ -93,6 +93,7 @@ config_position = "env"
 min = 1
 max = 1001
 dtype = "int"
+value = 100
 [[mindie.target_field]]
 name = "REQUESTRATE" # 支持范围0-10000
 config_position = "env"
