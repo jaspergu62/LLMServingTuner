@@ -170,7 +170,7 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
         elif v.dtype == "share":
             for _op in _simulate_run_info:
                 if _op.name == v.dtype_param:
-                    _field.value = _op.min + _op.max - _op.value
+                    _field.value = int(_op.min + _op.max - _op.value)
         else:
             try:
                 _field.value = float(params[i])
