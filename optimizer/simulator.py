@@ -345,7 +345,7 @@ class DisaggregationSimulator(CustomProcess):
 
         try:
             # 发送 POST 请求
-            response = requests.post(url, json=payload, headers=headers)
+            response = requests.post(url, json=payload, headers=headers, timeout=10)
             
             # 检查响应状态码
             if response.status_code == 200:
@@ -397,11 +397,13 @@ class DisaggregationSimulator(CustomProcess):
             if mindie_name[3] == 'Running':
                 break
             time.sleep(1)
-        self.monitor_command.append(mindie_name[1])
+        kubectl_monitor_command = self.KubectlCommand(self.mindie_config.command).monitor_command
+        kubectl_monitor_command.append(mindie_name[1])
         logger.info(f"mindie_name: {mindie_name[1]}")
-        self.log_process = subprocess.Popen(self.monitor_command, stdout=self.mindie_log_fp, stderr=subprocess.STDOUT, 
-                                        env=os.environ, text=True, cwd=self.mindie_config.kubectl_default_path)
-        logger.info(f"command: {' '.join(self.monitor_command)}, log file: {self.run_log}")
+        self.log_process = subprocess.Popen(kubectl_monitor_command, stdout=self.mindie_log_fp, 
+                                            stderr=subprocess.STDOUT, env=os.environ, text=True, 
+                                            cwd=self.mindie_config.kubectl_default_path)
+        logger.info(f"command: {' '.join(kubectl_monitor_command)}, log file: {self.run_log}")
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
         logger.info(f'start run in simulator. run params: {run_params}')
