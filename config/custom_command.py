@@ -44,8 +44,8 @@ class BenchmarkCommandConfig(BaseModel):
     model_path: str = ""
     test_type: str = "client"
     max_output_len: str = ""
-    http: str = "http://127.0.0.1:1025"
-    management_http: str = "http://127.0.0.1:1026"
+    http: str = ""
+    management_http: str = ""
     warmup_size: str = "1"
     tokenizer: str = "True"
     save_path: str = ""
@@ -91,8 +91,8 @@ class BenchmarkCommand:
 class VllmBenchmarkCommandConfig(BaseModel):
     serving: str = ""
     backend: str = "vllm"
-    host: str = "127.0.0.1"
-    port: str = "6379"
+    host: str = ""
+    port: str = ""
     model: str = ""
     served_model_name: str = ""
     dataset_name: str = ""
@@ -174,8 +174,8 @@ class KubectlCommand():
 
 
 class VllmCommandConfig(BaseModel):
-    host: str = "127.0.0.1"
-    port: str = "6379"
+    host: str = ""
+    port: str = ""
     model: str = ""
     served_model_name: str = ""
     others: str = ""
