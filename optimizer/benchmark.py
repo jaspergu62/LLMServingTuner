@@ -124,8 +124,6 @@ class AisBench(CustomProcess):
             decode_time = tpot_average.split()[0]
             performance_index.time_to_first_token = float(first_token_time) / MS_TO_S
             performance_index.time_per_output_token = float(decode_time) / MS_TO_S
-            performance_index.throughput = float(
-                df[df["Performance Parameters"] == "OutputTokenThroughput"]["Average"].values[0].split()[0])
         rate_files = glob.glob(f"{output_path}/**/performances/*/*dataset.json", recursive=True)
         for json_file in rate_files:
             with open_s(json_file, "r") as f:
@@ -138,8 +136,12 @@ class AisBench(CustomProcess):
             success_req = data.get("Success Requests", {}).get("total", 0)
             if total_requests != 0:
                 performance_index.success_rate = success_req / total_requests
-                output_average = data["Output Token Throughput"]["total"]
-                performance_index.generate_speed = float(output_average.split()[0])
+                output_average = data.get("Output Token Throughput", {}).get("total", "-1")
+                if output_average != "-1":
+                    performance_index.generate_speed = float(output_average.split()[0])
+                throughput_average = data.get("Request Throughput", {}).get("total", "-1")
+                if throughput_average != "-1":
+                    performance_index.throughput = float(throughput_average.split()[0])
         return performance_index
  
     def prepare(self):
