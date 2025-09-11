@@ -271,7 +271,7 @@ class PSOOptimizer(PerformanceTuner):
                                   (p.time_to_first_token - _ttft_threshold) / _ttft_threshold) 
                                   for p in performance_index_list]
             # ttft 和 tpot 都满足条件
-            _performance_lt_slo_index = [i for i, v in enumerate(_performance_diff) if v < (0, 0)]
+            _performance_lt_slo_index = [i for i, v in enumerate(_performance_diff) if all([kv < 0 for kv in v])]
             if _performance_lt_slo_index:
                 _best_index = 0
                 _max = 0
@@ -369,7 +369,7 @@ class PSOOptimizer(PerformanceTuner):
         for _field in self.target_field:
             # 将并发 和 req rate 设置为固定值，不进行pso寻优
             if _field.name in ["CONCURRENCY", "MAXCONCURRENCY"] and _field.min != _field.max:
-                _field.value = _field.min = _field.max = 1000
+                _field.value = _field.min = _field.max = 200
             elif _field.name == "REQUESTRATE" and _field.min != _field.max:
                 _field.min = _field.max = 50
                 _field.value = None
