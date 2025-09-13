@@ -83,7 +83,7 @@ class FileHanlder:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
-                logger.warning("Failed to open %r, error: %r" % (file, err))
+                logger.warning("Failed to open %r, error: %r" % (hardware_path, err))
                 data = {}
         if not data:
             raise AssertionError("Data is None")
@@ -101,7 +101,7 @@ class FileHanlder:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
-                logger.warning("Failed to open %r, error: %r" % (file, err))
+                logger.warning("Failed to open %r, error: %r" % (env_path, err))
                 data = {}
         if not data:
             raise AssertionError("Data is None")
@@ -113,7 +113,7 @@ class FileHanlder:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
-                logger.warning("Failed to open %r, error: %r" % (file, err))
+                logger.warning("Failed to open %r, error: %r" % (mindie_config_path, err))
                 data = {}
         if not data:
             raise AssertionError("Data is None")
@@ -133,7 +133,7 @@ class FileHanlder:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
-                logger.warning("Failed to open %r, error: %r" % (file, err))
+                logger.warning("Failed to open %r, error: %r" % (config_path, err))
                 data = {}
         if not data:
             raise AssertionError("Data is None")
