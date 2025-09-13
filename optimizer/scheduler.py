@@ -181,7 +181,9 @@ class Scheduler:
             self.performance_index = self.benchmark.get_performance_index()
             for _field in self.simulate_run_info:
                 if _field.name == "REQUESTRATE":
-                    _field.min = _field.max = _field.value = int(self.performance_index.throughput) + 1
+                    if _field.value != _field.max == _field.min:
+                        _field.value = self.performance_index.throughput * 1.05
+                    _field.min = _field.max = _field.value = self.performance_index.throughput * 1.05
             self.benchmark.update_command()
             try:
                 self.benchmark.prepare()

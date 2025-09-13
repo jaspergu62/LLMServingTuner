@@ -369,7 +369,7 @@ class PSOOptimizer(PerformanceTuner):
         for _field in self.target_field:
             # 将并发 和 req rate 设置为固定值，不进行pso寻优
             if _field.name in ["CONCURRENCY", "MAXCONCURRENCY"] and _field.min != _field.max:
-                _field.value = _field.min = _field.max = 200
+                _field.value = _field.min = _field.max = 500
             elif _field.name == "REQUESTRATE" and _field.min != _field.max:
                 _field.min = _field.max = 50
                 _field.value = None
