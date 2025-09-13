@@ -175,18 +175,18 @@ class AisBench(CustomProcess):
                 concurrency = rate = None
         with open_s(api_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
-        _request_rate_pattern = re.compile(r"(request_rate=)\d{1,10}(?:\.\d{1,10})?,")
-        _batch_size_pattern = re.compile(r"(batch_size=)\d{1,10}(?:\.\d{1,10})?,")
+        _request_rate_pattern = re.compile(r"(request_rate\s*=\s*)\d{1,10}(?:\.\d{1,10})?\s*,")
+        _batch_size_pattern = re.compile(r"(batch_size\s*=\s*)\d{1,10}(?:\.\d{1,10})?\s*,")
         # 修改 request_rate 和 batch_size
         for i, line in enumerate(lines):
             if 'request_rate=' in line:
                 _res = _request_rate_pattern.search(lines[i])
                 if _res and rate:
-                    lines[i] = lines[i].replace(_res.group(), f"request_rate={rate},")
+                    lines[i] = lines[i].replace(_res.group(), f"request_rate = {rate},")
             if 'batch_size' in line:
                 _res = _batch_size_pattern.search(lines[i])
                 if _res and concurrency:
-                    lines[i] = lines[i].replace(_res.group(), f"batch_size={concurrency},")
+                    lines[i] = lines[i].replace(_res.group(), f"batch_size = {concurrency},")
  
         # 将修改后的内容写回文件
         with open_s(api_path, 'w', encoding='utf-8') as f:

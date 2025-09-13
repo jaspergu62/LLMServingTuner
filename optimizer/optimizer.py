@@ -313,8 +313,8 @@ class PSOOptimizer(PerformanceTuner):
         max_batch_size_lb, max_batch_size_ub = mc.get_max_batch_size_bound()
         scale_max_batch_size_ub = int(max_batch_size_ub * settings.scaling_coefficient)
         if max_batch_size_lb >= max_batch_size_ub or max_batch_size_lb <= 0 or max_batch_size_ub <= 0:
-            logger.error(f"Theoretical derivation scope failure.max_batch_size_lb{max_batch_size_lb}, "
-                         f"max_batch_size_ub {max_batch_size_ub} ")
+            logger.warning(f"Theoretical derivation scope failure.max_batch_size_lb {max_batch_size_lb}, "
+                         f"max_batch_size_ub {max_batch_size_ub}, please check env")
             return
         logger.debug(f"max_batch_size_lb {max_batch_size_lb}, max_batch_size_ub {max_batch_size_ub}. "
                      f"scale_max_batch_size_ub {scale_max_batch_size_ub}")
