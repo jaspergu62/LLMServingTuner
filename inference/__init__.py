@@ -1,4 +1,4 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # Copyright (c) 2025-2025 Huawei Technologies Co., Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,5 +16,7 @@ import os
 import sys
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
+# 检查是否已经在sys.path中，避免重复添加
+if current_dir not in sys.path:
+    sys.path.append(current_dir)
 
