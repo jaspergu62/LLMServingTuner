@@ -1,6 +1,6 @@
 # -------------------------寻优相关参数配置------------------------------------------------
-n_particles = 5 
-iters = 10 
+n_particles = 10 
+iters = 5 
 ttft_penalty = 1 
 tpot_penalty = 0 
 success_rate_penalty = 5.0 
@@ -73,20 +73,6 @@ min = 0
 max = 1
 dtype = "ratio"
 dtype_param = "max_batch_size"
-[[mindie.target_field]]
-name = "default_p_rate"
-config_position = "default_p_rate"
-min = 1
-max = 3
-dtype = "int"
-value = 1
-[[mindie.target_field]]
-name = "default_d_rate"
-config_position = "default_d_rate"
-min = 1
-max = 3
-dtype = "share"
-dtype_param = "default_p_rate"
 [[mindie.target_field]]
 name = "CONCURRENCY"  # 支持范围0-1000
 config_position = "env"
