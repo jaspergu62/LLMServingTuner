@@ -24,7 +24,7 @@ import shutil
 import tempfile
 import time
 from loguru import logger
-
+import yaml
 from msserviceprofiler.modelevalstate.config.config import MindieConfig, VllmConfig, OptimizerConfigField, KubectlConfig
 from msserviceprofiler.modelevalstate.config.base_config import simulate_flag, SIMULATE
 from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand, VllmCommand
@@ -390,9 +390,24 @@ class DisaggregationSimulator(CustomProcess):
         with open_s(self.mindie_config.config_single_pd_path, "w") as fout:
             json.dump(pd_config, fout, indent=4)
 
-    def test_curl(self, port=31015):
+    def test_curl(self):
         import requests
-        url = f"http://127.0.0.1:{port}"
+        curl_port = None
+        yaml_dir = self.mindie_config.kubectl_single_path.parent
+        yaml_path = os.path.join(yaml_dir, "deployment/mindie_service_single_container.yaml")
+        with open_s(yaml_path, 'r') as file:
+            all_documents = yaml.safe_load_all(file)
+            for doc in all_documents:
+                # 检查文档中是否存在 spec.ports 部分
+                if 'spec' in doc and 'ports' in doc['spec']:
+                    ports = doc['spec']['ports']
+                    for port in ports:
+                        if 'nodePort' in port:
+                            curl_port = port['nodePort']
+        if curl_port:
+            url = f"http://127.0.0.1:{curl_port}"
+        else:
+            raise("cannot find port from mindie_service_single_container.yaml, please check")
 
         # 定义请求体的 JSON 数据
         payload = {
