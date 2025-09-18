@@ -26,14 +26,8 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.config import (
-    AnalyzeTool, BenchMarkConfig, ProfileConfig, VllmBenchmarkConfig,
-    AisBenchConfig, settings, PerformanceIndex, OptimizerConfigField
-)
-from msserviceprofiler.modelevalstate.config.base_config import VLLM_CUSTOM_OUTPUT, MINDIE_BENCHMARK_PERF_COLUMNS
-from msserviceprofiler.modelevalstate.config.custom_command import (
-    BenchmarkCommand, VllmBenchmarkCommand, AisBenchCommand
-)
+from msserviceprofiler.modelevalstate.config.base_config import VLLM_CUSTOM_OUTPUT, MINDIE_BENCHMARK_PERF_COLUMNS, \
+    AnalyzeTool
 from msserviceprofiler.modelevalstate.optimizer.analyze_profiler import analyze as analyze_profiler
 from msserviceprofiler.modelevalstate.optimizer.custom_process import CustomProcess
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file
@@ -63,7 +57,7 @@ def parse_result(res):
 
 
 class AisBench(CustomProcess):
-    def __init__(self, benchmark_config: AisBenchConfig, bak_path: Optional[Path] = None, print_log: bool = False):
+    def __init__(self, benchmark_config, bak_path: Optional[Path] = None, print_log: bool = False):
         super().__init__(bak_path=bak_path, print_log=print_log, process_name=benchmark_config.process_name)
         self.benchmark_config = benchmark_config
         self.work_path = self.benchmark_config.work_path
@@ -71,6 +65,7 @@ class AisBench(CustomProcess):
         self.mindie_benchmark_perf_columns = [k.lower().strip() for k in MINDIE_BENCHMARK_PERF_COLUMNS]
  
     def update_command(self):
+        from msserviceprofiler.modelevalstate.config.custom_command import AisBenchCommand
         self.command = AisBenchCommand(self.benchmark_config.command).command
  
     def backup(self, del_log=True):
@@ -105,6 +100,7 @@ class AisBench(CustomProcess):
         raise ValueError("Not Found value.")
  
     def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
         output_path = Path(self.benchmark_config.output_path)
         performance_index = PerformanceIndex()
         if not output_path.exists():
@@ -147,7 +143,7 @@ class AisBench(CustomProcess):
     def prepare(self):
         remove_file(Path(self.benchmark_config.output_path))
  
-    def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
+    def before_run(self, run_params=None):
         self.update_command()
         super().before_run(run_params)
         module = importlib.import_module("ais_bench")
@@ -194,8 +190,9 @@ class AisBench(CustomProcess):
 
 
 class BenchMark(CustomProcess):
-    def __init__(self, benchmark_config: BenchMarkConfig, throughput_type: str = "common",
+    def __init__(self, benchmark_config, throughput_type: str = "common",
                  bak_path: Optional[Path] = None, print_log: bool = False):
+        from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
         super().__init__(bak_path=bak_path, print_log=print_log, process_name=benchmark_config.process_name)
         self.benchmark_config = benchmark_config
         self.throughput_type = throughput_type
@@ -205,9 +202,10 @@ class BenchMark(CustomProcess):
         self.command = BenchmarkCommand(self.benchmark_config.command).command
 
     def update_command(self):
+        from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommand
         self.command = BenchmarkCommand(self.benchmark_config.command).command
 
-    def before_run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
+    def before_run(self, run_params=None):
         self.update_command()
         super().before_run(run_params)
 
@@ -345,6 +343,7 @@ class BenchMark(CustomProcess):
 
 
     def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
         output_path = Path(self.benchmark_config.command.save_path)
         first_token_time = None
         perf_generate_token_speed = None
@@ -370,7 +369,7 @@ class BenchMark(CustomProcess):
 
 
 class ProfilerBenchmark(CustomProcess):
-    def __init__(self, profile_config: ProfileConfig, benchmark_config: BenchMarkConfig, *args,
+    def __init__(self, profile_config, benchmark_config, *args,
                  analyze_tool: AnalyzeTool = AnalyzeTool.default,
                  **kwargs):
         super().__init__(benchmark_config, *args, **kwargs)
@@ -383,6 +382,7 @@ class ProfilerBenchmark(CustomProcess):
                                               work_path=self.work_path, print_log=self.print_log)
 
     def extra_performance_index(self, *args, **kwargs):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
         logger.info("extra_performance_index")
         analyze_tool = _analyze_mapping.get(self.analyze_tool)
         if analyze_tool is None:
@@ -417,6 +417,7 @@ class ProfilerBenchmark(CustomProcess):
         remove_file(Path(self.profile_config.profile_output_path))
 
     def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import settings
         logger.debug("get_performance_index")
         try:
             self.profiler_process.run()
@@ -447,7 +448,8 @@ class ProfilerBenchmark(CustomProcess):
 
 
 class VllmBenchMark(CustomProcess):
-    def __init__(self, benchmark_config: VllmBenchmarkConfig, bak_path: Optional[Path] = None, print_log: bool = False):
+    def __init__(self, benchmark_config, bak_path: Optional[Path] = None, print_log: bool = False):
+        from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
         super().__init__(bak_path=bak_path, print_log=print_log, process_name=benchmark_config.process_name)
         self.benchmark_config = benchmark_config
         self.command = VllmBenchmarkCommand(self.benchmark_config.command).command
@@ -457,12 +459,14 @@ class VllmBenchMark(CustomProcess):
         super().backup()
 
     def update_command(self):
+        from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommand
         self.command = VllmBenchmarkCommand(self.benchmark_config.command).command
 
     def prepare(self):
         remove_file(Path(self.benchmark_config.output_path))
 
     def get_performance_index(self):
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
         output_path = Path(self.benchmark_config.command.result_dir)
         performance_index = PerformanceIndex()
         for file in walk_s(output_path):
@@ -490,7 +494,7 @@ class VllmBenchMark(CustomProcess):
         return performance_index
 
 
-    def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
+    def before_run(self, run_params=None):
         self.update_command()
         super().before_run(run_params)
         Path(self.benchmark_config.command.result_dir).mkdir(parents=True, exist_ok=True, mode=0o750)

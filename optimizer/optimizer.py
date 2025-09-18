@@ -24,37 +24,23 @@ import pandas as pd
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie
-from msserviceprofiler.modelevalstate.config.config import (
-    MindieConfig, settings, map_param_with_value, field_to_param,
-    default_support_field, PsoOptions, PerformanceIndex
-)
 from msserviceprofiler.modelevalstate.config.base_config import (
     EnginePolicy, DeployPolicy, AnalyzeTool,
     ServiceType, BenchMarkPolicy, PDPolicy
 )
-from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
-from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, ProfilerBenchmark, AisBench
-from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import MindIeFineTune, StopFineTune
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
-from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
 from msserviceprofiler.modelevalstate.optimizer.utils import kill_process, get_required_field_from_json
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, enable_simulate, \
-    DisaggregationSimulator
 
 
 MAX_ITER_NUM = 200
 
 
-@atexit.register
-def clearing_residual_process():
-    kill_process(MindieConfig().process_name)
-
-
 class PSOOptimizer(PerformanceTuner):
-    def __init__(self, scheduler: Scheduler, n_particles: int = 10, iters=100, pso_options: PsoOptions = None,
+    def __init__(self, scheduler, n_particles: int = 10, iters=100, pso_options=None,
                  target_field: Optional[Tuple] = None, load_history_data: Optional[List] = None,
                  load_breakpoint: bool = False, pso_init_kwargs: Optional[Dict] = None,
-                 mindie_fine_tune: MindIeFineTune = None, max_fine_tune: int = 10, **kwargs):
+                 mindie_fine_tune=None, max_fine_tune: int = 10, **kwargs):
+        from msserviceprofiler.modelevalstate.config.config import PsoOptions, default_support_field
         super().__init__(**kwargs)
         self.scheduler = scheduler
         self.n_particles = min(n_particles, MAX_ITER_NUM)
@@ -104,6 +90,7 @@ class PSOOptimizer(PerformanceTuner):
         return _target_field
 
     def computer_fitness(self) -> Tuple:
+        from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, field_to_param
         all_position = []
         all_cost = []
         _min_bound, _max_bound = self.constructing_bounds()
@@ -175,6 +162,9 @@ class PSOOptimizer(PerformanceTuner):
         return d
 
     def refine_optimization_candidates(self, best_results: pd.DataFrame):
+        from msserviceprofiler.modelevalstate.config.config import field_to_param
+        from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
+        from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import StopFineTune
         # 分别精调每组参数
         _record_params = [self.default_run_param]
         _record_res = [self.default_res]
@@ -225,6 +215,7 @@ class PSOOptimizer(PerformanceTuner):
         return _record_fitness, _record_params, _record_res
 
     def best_params(self, fitnese_list, params_list, performance_index_list):
+        from msserviceprofiler.modelevalstate.config.config import settings
         # 分析最佳参数
         if not performance_index_list or not fitnese_list or not params_list:
             logger.error(f"Input is empty."
@@ -290,6 +281,8 @@ class PSOOptimizer(PerformanceTuner):
         return fitnese_list[0], params_list[0], performance_index_list[0]
 
     def mindie_prepare(self, mc):
+        from msserviceprofiler.modelevalstate.config.config import settings
+        from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark
         if mc is None:
             return
         if not settings.theory_guided_enable:
@@ -333,6 +326,8 @@ class PSOOptimizer(PerformanceTuner):
         logger.debug(f"target_field: {self.target_field}")
 
     def prepare(self):
+        from msserviceprofiler.modelevalstate.config.config import settings, field_to_param
+        from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
         # 运行默认参数服务，获取理论推导需要的指标
         mc = None
         if is_mindie() and settings.theory_guided_enable:
@@ -360,7 +355,10 @@ class PSOOptimizer(PerformanceTuner):
             self.mindie_prepare(mc)
 
     def run(self):
+        from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value
         from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
+        from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, AisBench
+        from msserviceprofiler.modelevalstate.optimizer.simulator import enable_simulate
         self.prepare()
         # 备份原target field, 调整新的target field用来寻优
         _bak_target_field = self.target_field
@@ -416,6 +414,14 @@ class PSOOptimizer(PerformanceTuner):
 def main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
     from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+    from msserviceprofiler.modelevalstate.config.config import settings, MindieConfig
+    from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, \
+        ProfilerBenchmark, AisBench
+    from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import MindIeFineTune
+    from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
+    from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, \
+        DisaggregationSimulator
+    
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
@@ -468,23 +474,28 @@ def main(args: argparse.Namespace):
                                       ttft_slo=settings.ttft_slo,
                                       tpot_slo=settings.tpot_slo,
                                       slo_coefficient=settings.slo_coefficient)
-    pso = PSOOptimizer(scheduler,
-                       n_particles=settings.n_particles,
-                       iters=settings.iters,
-                       target_field=target_field,
-                       ttft_penalty=settings.ttft_penalty,
-                       tpot_penalty=settings.tpot_penalty,
-                       success_rate_penalty=settings.success_rate_penalty,
-                       ttft_slo=settings.ttft_slo,
-                       tpot_slo=settings.tpot_slo,
-                       success_rate_slo=settings.success_rate_slo,
-                       generate_speed_target=settings.generate_speed_target,
-                       load_history_data=_load_history_data,
-                       load_breakpoint=args.load_breakpoint,
-                       mindie_fine_tune=mindie_fine_tune,
-                       max_fine_tune=settings.max_fine_tune,
-                       pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter})
-    pso.run()
+    try:
+        pso = PSOOptimizer(scheduler,
+                        n_particles=settings.n_particles,
+                        iters=settings.iters,
+                        target_field=target_field,
+                        ttft_penalty=settings.ttft_penalty,
+                        tpot_penalty=settings.tpot_penalty,
+                        success_rate_penalty=settings.success_rate_penalty,
+                        ttft_slo=settings.ttft_slo,
+                        tpot_slo=settings.tpot_slo,
+                        success_rate_slo=settings.success_rate_slo,
+                        generate_speed_target=settings.generate_speed_target,
+                        load_history_data=_load_history_data,
+                        load_breakpoint=args.load_breakpoint,
+                        mindie_fine_tune=mindie_fine_tune,
+                        max_fine_tune=settings.max_fine_tune,
+                        pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter})
+        pso.run()
+    except Exception as e:
+        logger.error(f"Failed to run optimizer. Please check. error: {e}")
+    finally:
+        kill_process(MindieConfig().process_name)
 
 
 def arg_parse(subparsers):
