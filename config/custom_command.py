@@ -99,6 +99,7 @@ class VllmBenchmarkCommandConfig(BaseModel):
     dataset_path: str = ""
     num_prompts: str = ""
     result_dir: str = ""
+    others: str = ""
 
  
  
@@ -111,7 +112,7 @@ class VllmBenchmarkCommand:
         if not Rule.input_file_read.is_satisfied_by(self.benchmark_command_config.dataset_path):
             logger.error("the file of dataset_path is not safe, please check")
             return None
-        return ["python", self.benchmark_command_config.serving,
+        cmd = ["python", self.benchmark_command_config.serving,
                 "--backend", self.benchmark_command_config.backend,
                 "--host", self.benchmark_command_config.host,
                 "--port", self.benchmark_command_config.port,
@@ -124,6 +125,9 @@ class VllmBenchmarkCommand:
                 "--request-rate", "$REQUESTRATE",
                 "--result-dir", "$MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT",
                 "--save-result"]
+        if self.benchmark_command_config.others:
+            cmd.extend(self.benchmark_command_config.others.split())
+        return cmd
  
  
 class MindieCommandConfig(BaseModel):
