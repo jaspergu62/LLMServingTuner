@@ -412,8 +412,8 @@ class Settings(BaseSettings):
         default_factory=lambda data: data["output"].joinpath("simulator").resolve())
     pso_options: PsoOptions = PsoOptions()
     pso_strategy: PsoStrategy = PsoStrategy()
-    n_particles: int = 5
-    iters: int = 10
+    n_particles: int = Field(default=5, gt=0, lt=1000)
+    iters: int = Field(default=10, gt=0, lt=1000)
     ftol: float = -np.inf
     ftol_iter: int = 1
     ttft_penalty: float = 3.0  # 惩罚系数
