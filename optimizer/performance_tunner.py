@@ -14,8 +14,6 @@
 # limitations under the License.
 from math import exp, inf
 
-from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
-
 
 class PerformanceTuner:
     def __init__(self,
@@ -43,7 +41,7 @@ class PerformanceTuner:
         self.tpot_penalty = tpot_penalty
         self.success_rate_penalty = success_rate_penalty
 
-    def minimum_algorithm(self, performance_index: PerformanceIndex) -> float:
+    def minimum_algorithm(self, performance_index) -> float:
         """
         最小化适应度值（成本）
         """

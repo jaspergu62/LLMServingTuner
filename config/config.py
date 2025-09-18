@@ -21,10 +21,21 @@ from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkComm
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
 from msserviceprofiler.msguard.security import open_s
 from .base_config import (
-    INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,
+    INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,	
     modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy,
-    MetricAlgorithm, PerformanceConfig
 )
+
+
+class MetricAlgorithm(BaseModel):
+    metric: str = "FirstTokenTime"
+    algorithm: str = "average"
+
+
+class PerformanceConfig(BaseModel):
+    time_to_first_token: MetricAlgorithm = MetricAlgorithm(metric="FirstTokenTime",
+                                                           algorithm="average")
+    time_per_output_token: MetricAlgorithm = MetricAlgorithm(metric="DecodeTime",
+                                                             algorithm="average")
 
 
 class OptimizerConfigField(BaseModel):
@@ -323,7 +334,7 @@ class LatencyModel(BaseModel):
 
 class MindieConfig(BaseModel):
     # 运行mindie时，要修改的mindie config
-    process_name: str = "mindie,mindie-llm, mindieservice_daemon, mindie_llm"
+    process_name: str = "mindie, mindie-llm, mindieservice_daemon, mindie_llm"
     output: Path = Path("mindie")
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     config_path: Path = Path("/usr/local/Ascend/mindie/latest/mindie-service/conf/config.json")

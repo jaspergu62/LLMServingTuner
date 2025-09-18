@@ -4,7 +4,6 @@ import os
 import time
 from enum import Enum
 from pathlib import Path
-from pydantic import BaseModel
 
 import msserviceprofiler.modelevalstate
 
@@ -68,15 +67,3 @@ class PDPolicy(Enum):
 class ServiceType(Enum):
     master = "master"
     slave = "slave"
-
-
-class MetricAlgorithm(BaseModel):
-    metric: str = "FirstTokenTime"
-    algorithm: str = "average"
-
-
-class PerformanceConfig(BaseModel):
-    time_to_first_token: MetricAlgorithm = MetricAlgorithm(metric="FirstTokenTime",
-                                                           algorithm="average")
-    time_per_output_token: MetricAlgorithm = MetricAlgorithm(metric="DecodeTime",
-                                                             algorithm="average")
