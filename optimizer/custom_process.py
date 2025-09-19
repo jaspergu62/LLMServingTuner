@@ -43,6 +43,7 @@ class CustomProcess:
         self.process = None
         self.print_log = print_log
         self.process_name = process_name
+        self.env = os.environ.copy()
 
     @staticmethod
     def kill_residual_process(process_name):
@@ -82,7 +83,7 @@ class CustomProcess:
         for k in run_params:
             if k.config_position == "env":
                 # env 类型的数据，设置环境变量和更新命令中包含的变量,设置时全部为大写
-                os.environ[k.name.upper().strip()] = str(k.value)
+                self.env[k.name.upper().strip()] = str(k.value)
                 _var_name = f"${k.name.upper().strip()}"
                 if _var_name not in self.command:
                     continue
@@ -102,15 +103,14 @@ class CustomProcess:
             except Exception as e:
                 logger.error(f"Failed to kill residual process. {e}")
         self.before_run(run_params)
-        environ = os.environ.copy()
-        if CUSTOM_OUTPUT not in environ:
+        if CUSTOM_OUTPUT not in self.env:
             # 设置输出目录
-            environ[CUSTOM_OUTPUT] = str(settings.output)
+            self.env[CUSTOM_OUTPUT] = str(settings.output)
         # 设置读取的json文件
-        if MODEL_EVAL_STATE_CONFIG_PATH not in environ:
-            environ[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
+        if MODEL_EVAL_STATE_CONFIG_PATH not in self.env:
+            self.env[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
         try:
-            self.process = subprocess.Popen(self.command, env=environ, stdout=self.run_log_fp,
+            self.process = subprocess.Popen(self.command, env=self.env, stdout=self.run_log_fp,
                                             stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
         except OSError as e:
             logger.error(f"Failed to run {self.command}. error {e}")

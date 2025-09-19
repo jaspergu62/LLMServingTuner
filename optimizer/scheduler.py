@@ -184,6 +184,7 @@ class Scheduler:
                     if _field.value != _field.max == _field.min:
                         _field.value = self.performance_index.throughput * 1.05
                     _field.min = _field.max = _field.value = self.performance_index.throughput * 1.05
+            logger.info("second run param info {}", {v.name: v.value for v in self.simulate_run_info})
             self.benchmark.update_command()
             try:
                 self.benchmark.prepare()

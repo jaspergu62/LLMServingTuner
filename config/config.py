@@ -7,6 +7,7 @@ import os
 import time
 from copy import deepcopy
 from enum import Enum
+from math import isinf
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Optional, Union
 
@@ -154,13 +155,18 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
     for v in params_field:
         _field = deepcopy(v)
         if _field.min == _field.max:
+            if _field.value and not isinf(_field.value):
+                try:
+                    _field.value = dtype_func.get(v.dtype, int)(_field.value)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed in func {params[i]} for {v}, error: {e}")
             _simulate_run_info.append(_field)
             continue
         if v.dtype == "int":
             try:
                 _field.value = int(params[i])
             except (ValueError, TypeError) as e:
-                logger.error(f"Failed convert to int data, data: {params[i]}")
+                logger.warning(f"Failed convert to int data, data: {params[i]}")
                 _field.value = params[i]
         elif v.dtype == "bool":
             if params[i] > 0.5:
@@ -186,7 +192,7 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
             try:
                 _field.value = float(params[i])
             except (ValueError, TypeError) as e:
-                logger.error(f"Failed convert to float data, data: {params[i]}")
+                logger.warning(f"Failed convert to float data, data: {params[i]}")
                 _field.value = params[i]
         i += 1
         _simulate_run_info.append(_field)
@@ -229,7 +235,11 @@ def field_to_param(params_field: Tuple[OptimizerConfigField, ...]):
         if v.min == v.max:
             continue
         if v.dtype == "int":
-            _params.append(v.value)
+            try:
+                _params.append(int(v.value))
+            except Exception as e:
+                logger.warning(f"Failed in field to param, error: {e}")
+                _params.append(v.value)
         elif v.dtype == "bool":
             if v.value:
                 _params.append(1)
