@@ -173,9 +173,9 @@ class Simulator(CustomProcess):
         self.update_command()
         self.update_config(run_params)
         super().before_run(run_params)
-        subprocess.run(["pkill", "-9", "mindie"], env=os.environ, stdout=self.run_log_fp,
+        subprocess.run(["pkill", "-9", "mindie"], env=self.env, stdout=self.run_log_fp,
                        stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
-        subprocess.run(["npu-smi", "info"], env=os.environ, stdout=self.run_log_fp,
+        subprocess.run(["npu-smi", "info"], env=self.env, stdout=self.run_log_fp,
                        stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
 
     def backup(self):
@@ -467,7 +467,7 @@ class DisaggregationSimulator(CustomProcess):
         else:
             cwd = os.getcwd()
         logger.info(f"self.command: {self.command}")
-        self.process = subprocess.run(self.command, env=os.environ, text=True, 
+        self.process = subprocess.run(self.command, env=self.env, text=True, 
                                       cwd=self.mindie_config.kubectl_default_path)
         logger.info(f"self.log_command: {self.log_command}")
         while True:
@@ -486,7 +486,7 @@ class DisaggregationSimulator(CustomProcess):
         kubectl_monitor_command.append(mindie_name[1])
         logger.info(f"mindie_name: {mindie_name[1]}")
         self.log_process = subprocess.Popen(kubectl_monitor_command, stdout=self.mindie_log_fp, 
-                                            stderr=subprocess.STDOUT, env=os.environ, text=True, 
+                                            stderr=subprocess.STDOUT, env=self.env, text=True, 
                                             cwd=self.mindie_config.kubectl_default_path)
         logger.info(f"command: {' '.join(kubectl_monitor_command)}, log file: {self.run_log}")
 
@@ -532,9 +532,9 @@ class VllmSimulator(CustomProcess):
     def before_run(self, run_params: Optional[Tuple[OptimizerConfigField]] = None):
         self.update_command()
         super().before_run(run_params)
-        subprocess.run(["pkill", "-15", "vllm"], env=os.environ, stdout=self.run_log_fp,
+        subprocess.run(["pkill", "-15", "vllm"], env=self.env, stdout=self.run_log_fp,
                        stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
-        subprocess.run(["npu-smi", "info"], env=os.environ, stdout=self.run_log_fp,
+        subprocess.run(["npu-smi", "info"], env=self.env, stdout=self.run_log_fp,
                        stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
 
     def check_success(self, print_log=False):

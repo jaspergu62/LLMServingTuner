@@ -143,15 +143,15 @@ value = 64
 [[vllm.target_field]]
 name = "CONCURRENCY" 
 config_position = "env"
-min = 10
+min = 1
 max = 1000
 dtype = "int"
 value = 100
 [[vllm.target_field]]
 name = "REQUESTRATE" 
 config_position = "env"
-min = 10
-max = 100000
+min = 1
+max = 1000
 dtype = "float"
 value = 100
 # -------------------------kubectl相关配置------------------------------------------------

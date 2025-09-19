@@ -39,7 +39,7 @@ class PSOOptimizer(PerformanceTuner):
     def __init__(self, scheduler, n_particles: int = 10, iters=100, pso_options=None,
                  target_field: Optional[Tuple] = None, load_history_data: Optional[List] = None,
                  load_breakpoint: bool = False, pso_init_kwargs: Optional[Dict] = None,
-                 mindie_fine_tune=None, max_fine_tune: int = 10, **kwargs):
+                 fine_tune=None, max_fine_tune: int = 10, **kwargs):
         from msserviceprofiler.modelevalstate.config.config import PsoOptions, default_support_field
         super().__init__(**kwargs)
         self.scheduler = scheduler
@@ -59,7 +59,7 @@ class PSOOptimizer(PerformanceTuner):
         self.default_run_param = None
         self.default_res = None
         self.sample_data = None
-        self.mindie_fine_tune = mindie_fine_tune
+        self.fine_tune = fine_tune
         self.max_fine_tune = min(max_fine_tune, MAX_ITER_NUM)
 
     @staticmethod
@@ -185,33 +185,32 @@ class PSOOptimizer(PerformanceTuner):
             _record_params.append(params)
             _record_res.append(_res)
             _record_fitness.append(_fitness)
-            if isinstance(self.scheduler.simulator, Simulator):
-                # 对寻优参数精调
-                for _ in range(self.max_fine_tune):
-                    try:
-                        simulate_run_info = self.mindie_fine_tune.mindie_fine_tune_with_cycle(params, _res)
-                    except ValueError as e:
-                        logger.error("Failed in fine-tuning parameter. error: {e}")
-                        break
-                    except StopFineTune:
-                        # 找到满足约束的最好值
-                        break
-                    params = field_to_param(simulate_run_info)
-                    # 新参数跟之前的参数没变化就提前终止了。
-                    if self.params_in_records(params, _record_params):
-                        break
-                    try:
-                        _res = self.scheduler.run(params, self.target_field)
-                        _fitness = self.minimum_algorithm(_res)
-                    except Exception as e:
-                        logger.error(f"Runtime exception. error: {e}, please check.")
-                        _fitness = inf
-                        self.scheduler.save_result(fitness=_fitness)
-                        break
+            # 对寻优参数精调
+            for _ in range(self.max_fine_tune):
+                try:
+                    simulate_run_info = self.fine_tune.fine_tune_with_concurrency(params, _res)
+                except ValueError as e:
+                    logger.error("Failed in fine-tuning parameter. error: {e}")
+                    break
+                except StopFineTune:
+                    # 找到满足约束的最好值
+                    break
+                params = field_to_param(simulate_run_info)
+                # 新参数跟之前的参数没变化就提前终止了。
+                if self.params_in_records(params, _record_params):
+                    break
+                try:
+                    _res = self.scheduler.run(params, self.target_field)
+                    _fitness = self.minimum_algorithm(_res)
+                except Exception as e:
+                    logger.error(f"Runtime exception. error: {e}, please check.")
+                    _fitness = inf
                     self.scheduler.save_result(fitness=_fitness)
-                    _record_params.append(params)
-                    _record_res.append(_res)
-                    _record_fitness.append(_fitness)
+                    break
+                self.scheduler.save_result(fitness=_fitness)
+                _record_params.append(params)
+                _record_res.append(_res)
+                _record_fitness.append(_fitness)
         return _record_fitness, _record_params, _record_res
 
     def best_params(self, fitnese_list, params_list, performance_index_list):
@@ -348,7 +347,8 @@ class PSOOptimizer(PerformanceTuner):
             raise ValueError(f"Failed to start the default service. "
                              "Please check if the service and the request to start it are correct. error:{e}")
 
-        if isnan(self.default_fitness) or isinf(self.default_fitness):
+        if (self.default_res.generate_speed is None or self.default_res.time_to_first_token is None or
+                self.default_res.time_per_output_token is None):
             raise ValueError(f"Failed to obtain benchmark metric data. metric {self.default_res}"
                              "Please check if the benchmark is running successfully. ")
         if is_mindie():
@@ -367,10 +367,13 @@ class PSOOptimizer(PerformanceTuner):
         for _field in self.target_field:
             # 将并发 和 req rate 设置为固定值，不进行pso寻优
             if _field.name in ["CONCURRENCY", "MAXCONCURRENCY"] and _field.min != _field.max:
-                _field.value = _field.min = _field.max = 500
+                _field.value = _field.min = _field.max
             elif _field.name == "REQUESTRATE" and _field.min != _field.max:
-                _field.min = _field.max = 50
-                _field.value = None
+                if _field.min == _field.max:
+                    _field.min = _field.max
+                else:
+                    _field.value = None
+                    _field.min = _field.max = inf
         # 少量请求替代全量请求
         if settings.sample_size:
             if (isinstance(self.scheduler.benchmark, BenchMark) and
@@ -417,7 +420,7 @@ def main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.config.config import settings, MindieConfig
     from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, \
         ProfilerBenchmark, AisBench
-    from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import MindIeFineTune
+    from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import FineTune
     from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
     from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, \
         DisaggregationSimulator
@@ -468,7 +471,7 @@ def main(args: argparse.Namespace):
     if _load_history:
         _load_history_data = data_storage.load_history_position(settings.data_storage.store_dir,
                                                                 filter_field=data_storage.get_run_info())
-    mindie_fine_tune = MindIeFineTune(ttft_penalty=settings.ttft_penalty,
+    fine_tune = FineTune(ttft_penalty=settings.ttft_penalty,
                                       tpot_penalty=settings.tpot_penalty,
                                       target_field=target_field,
                                       ttft_slo=settings.ttft_slo,
@@ -488,7 +491,7 @@ def main(args: argparse.Namespace):
                         generate_speed_target=settings.generate_speed_target,
                         load_history_data=_load_history_data,
                         load_breakpoint=args.load_breakpoint,
-                        mindie_fine_tune=mindie_fine_tune,
+                        fine_tune=fine_tune,
                         max_fine_tune=settings.max_fine_tune,
                         pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter})
         pso.run()
