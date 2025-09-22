@@ -177,11 +177,15 @@ class AisBench(CustomProcess):
         for i, line in enumerate(lines):
             if 'request_rate' in line:
                 _res = _request_rate_pattern.search(lines[i])
-                if _res and rate:
+                if _res:
+                    if rate is None:
+                        rate = 0
                     lines[i] = lines[i].replace(_res.group(), f"request_rate = {rate},")
             if 'batch_size' in line:
                 _res = _batch_size_pattern.search(lines[i])
-                if _res and concurrency:
+                if _res:
+                    if concurrency is None:
+                        concurrency = 1000
                     lines[i] = lines[i].replace(_res.group(), f"batch_size = {concurrency},")
  
         # 将修改后的内容写回文件
