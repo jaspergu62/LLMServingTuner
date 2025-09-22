@@ -407,7 +407,7 @@ class DisaggregationSimulator(CustomProcess):
         if curl_port:
             url = f"http://127.0.0.1:{curl_port}"
         else:
-            raise("cannot find port from mindie_service_single_container.yaml, please check")
+            raise ("cannot find port from mindie_service_single_container.yaml, please check")
 
         # 定义请求体的 JSON 数据
         payload = {
