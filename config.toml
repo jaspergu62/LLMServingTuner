@@ -102,7 +102,7 @@ request_count = "request_count"
 [ais_bench.command]
 models = "models"
 datasets = "datasets"
-mode = "all"
+mode = "perf"
 num_prompts = "num_prompts"
 
 [vllm_benchmark.command]
