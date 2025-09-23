@@ -485,10 +485,8 @@ class VllmBenchMark(CustomProcess):
                     continue
 
             performance_index.generate_speed = data.get("output_throughput", 0)
-            ttft_metric = self.benchmark_config.performance_config.time_to_first_token.metric
-            performance_index.time_to_first_token = data.get(ttft_metric, 0) / MS_TO_S
-            tpot_metric = self.benchmark_config.performance_config.time_per_output_token.metric
-            performance_index.time_per_output_token = data.get(tpot_metric, 0) / MS_TO_S
+            performance_index.time_to_first_token = data.get("mean_ttft_ms", 0) / MS_TO_S
+            performance_index.time_per_output_token = data.get("mean_tpot_ms", 0) / MS_TO_S
             num_prompts = data.get("num_prompts", 1)
             completed = data.get("completed", 0)
             performance_index.success_rate = 0

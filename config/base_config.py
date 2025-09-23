@@ -26,6 +26,8 @@ VLLM_CUSTOM_OUTPUT = "MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT"
 MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
 MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
 SIMULATE = "simulate"
+REQUESTRATES = ("REQUESTRATE",)
+CONCURRENCYS = ("CONCURRENCY",)
 simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
 simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
 optimizer_env = os.getenv(MODEL_EVAL_STATE_ALL) or os.getenv(MODEL_EVAL_STATE_ALL.lower())
