@@ -26,7 +26,7 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie
 from msserviceprofiler.modelevalstate.config.base_config import (
     EnginePolicy, DeployPolicy, AnalyzeTool,
-    ServiceType, BenchMarkPolicy, PDPolicy
+    ServiceType, BenchMarkPolicy, PDPolicy, REQUESTRATES
 )
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
 from msserviceprofiler.modelevalstate.optimizer.utils import kill_process, get_required_field_from_json
@@ -171,6 +171,9 @@ class PSOOptimizer(PerformanceTuner):
         _record_fitness = [self.default_fitness]
         for _, _pso_info in best_results.iterrows():
             _target_field = self.get_target_field_from_case_data(_pso_info)
+            for _field in _target_field:
+                if _field.name in REQUESTRATES:
+                    _field.value *= 2
             params = field_to_param(_target_field)
             # 先全量运行寻优参数
             try:
@@ -186,9 +189,10 @@ class PSOOptimizer(PerformanceTuner):
             _record_res.append(_res)
             _record_fitness.append(_fitness)
             # 对寻优参数精调
+            self.fine_tune.reset_history()
             for _ in range(self.max_fine_tune):
                 try:
-                    simulate_run_info = self.fine_tune.fine_tune_with_concurrency(params, _res)
+                    simulate_run_info = self.fine_tune.fine_tune_with_concurrency_and_request_rate(params, _res)
                 except ValueError as e:
                     logger.error("Failed in fine-tuning parameter. error: {e}")
                     break
@@ -476,7 +480,8 @@ def main(args: argparse.Namespace):
                                       target_field=target_field,
                                       ttft_slo=settings.ttft_slo,
                                       tpot_slo=settings.tpot_slo,
-                                      slo_coefficient=settings.slo_coefficient)
+                                      slo_coefficient=settings.slo_coefficient,
+                                      step_size=settings.step_size)
     try:
         pso = PSOOptimizer(scheduler,
                         n_particles=settings.n_particles,

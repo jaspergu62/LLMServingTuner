@@ -438,6 +438,7 @@ class Settings(BaseSettings):
     mem_coefficient: float = 0.8
     max_fine_tune: int = 10
     scaling_coefficient: float = 1.3
+    step_size: float = 0.6
     theory_guided_enable: bool = True
     service: str = ServiceType.master.value
     communication: CommunicationConfig = Field(
