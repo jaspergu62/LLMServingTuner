@@ -39,10 +39,10 @@ class FineTune:
         self.fine_tune_target = ["REQUESTRATE"]
         self.fine_tune_type = cycle(self.fine_tune_target)
         self.step_size = step_size
-        self.ttft_lower_bound = self.ttft_slo
-        self.ttft_upper_bound = self.ttft_slo * (1 + self.slo_coefficient)
-        self.tpot_lower_bound = self.tpot_slo
-        self.tpot_upper_bound = self.tpot_slo * (1 + self.slo_coefficient)
+        self.ttft_lower_bound = self.ttft_slo * (1 - self.slo_coefficient)
+        self.ttft_upper_bound = self.ttft_slo
+        self.tpot_lower_bound = self.tpot_slo * (1 - self.slo_coefficient)
+        self.tpot_upper_bound = self.tpot_slo
         if self.ttft_penalty == 0 and self.tpot_penalty == 0:
             raise StopFineTune("No penalties, no need to fine-tune.")
         ttft_flag = self.ttft_penalty != 0 and self.ttft_slo == 0
