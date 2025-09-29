@@ -63,7 +63,7 @@ class FineTune:
             return False
         for _field in simulate_run_info:
             if _field.name.upper().strip() in field_names:
-                if _field.min == _field.max:
+                if _field.constant is not None or _field.min == _field.max:
                     return False
                 original_value = _field.value
                 if last:
@@ -194,7 +194,7 @@ class FineTune:
             # 更新request rate 上下限
             for _field in simulate_run_info:
                 if _field.name in REQUESTRATES:
-                    if _concurrency_flag:
+                    if _concurrency_flag and self.last_value.get(CONCURRENCYS)[-1] < _field.max:
                         _field.max = self.last_value.get(CONCURRENCYS)[-1]
             # 检查ttft是否满足，调整request rate
             was_updated_r = self.handle_request_rate(simulate_run_info, performance_index)
