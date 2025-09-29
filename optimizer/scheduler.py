@@ -16,14 +16,14 @@ import subprocess
 import time
 from pathlib import Path
 from typing import Tuple, Optional
-
+from math import isclose
 import numpy as np
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path, is_mindie, is_vllm
 from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField, \
     map_param_with_value, CommunicationConfig
-from msserviceprofiler.modelevalstate.config.base_config import FOLDER_LIMIT_SIZE
+from msserviceprofiler.modelevalstate.config.base_config import FOLDER_LIMIT_SIZE, REQUESTRATES
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
@@ -180,10 +180,9 @@ class Scheduler:
             time.sleep(1)
             self.performance_index = self.benchmark.get_performance_index()
             for _field in self.simulate_run_info:
-                if _field.name == "REQUESTRATE":
-                    if _field.value != _field.max == _field.min:
-                        _field.value = self.performance_index.throughput * 1.05
-                    _field.min = _field.max = _field.value = self.performance_index.throughput * 1.05
+                if _field.name in REQUESTRATES:
+                    if not isclose(_field.min, _field.max):
+                        _field.value = _field.find_available_value(self.performance_index.throughput * 1.05)
             logger.info("second run param info {}", {v.name: v.value for v in self.simulate_run_info})
             self.benchmark.update_command()
             try:
@@ -202,7 +201,7 @@ class Scheduler:
             time.sleep(1)
             self.performance_index = self.benchmark.get_performance_index()
         except Exception as e:
-            logger.error(f"Failed running. bak path: {self.simulator.bak_path}")
+            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. error {e}")
             self.error_info = e
             self.del_log = False
         return self.performance_index

@@ -16,7 +16,7 @@ import argparse
 import atexit
 import os
 from copy import deepcopy
-from math import inf, isinf, isnan
+from math import inf, isinf, isnan, isclose
 from typing import Dict, List, Tuple, Optional
 
 import numpy as np
@@ -26,7 +26,7 @@ from loguru import logger
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie
 from msserviceprofiler.modelevalstate.config.base_config import (
     EnginePolicy, DeployPolicy, AnalyzeTool,
-    ServiceType, BenchMarkPolicy, PDPolicy, REQUESTRATES
+    ServiceType, BenchMarkPolicy, PDPolicy, REQUESTRATES, CONCURRENCYS
 )
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
 from msserviceprofiler.modelevalstate.optimizer.utils import kill_process, get_required_field_from_json
@@ -147,7 +147,9 @@ class PSOOptimizer(PerformanceTuner):
         _min = []
         _max = []
         for _field in self.target_field:
-            if _field.min < _field.max:
+            if _field.constant is not None or isclose(_field.min, _field.max, rel_tol=1e-5):
+                continue
+            else:
                 _min.append(_field.min)
                 _max.append(_field.max)
         return (tuple(_min), tuple(_max))
@@ -155,7 +157,7 @@ class PSOOptimizer(PerformanceTuner):
     def dimensions(self):
         d = 0
         for _field in self.target_field:
-            if _field.min == _field.max:
+            if _field.constant is not None or isclose(_field.min, _field.max, rel_tol=1e-5):
                 continue
             else:
                 d += 1
@@ -173,7 +175,7 @@ class PSOOptimizer(PerformanceTuner):
             _target_field = self.get_target_field_from_case_data(_pso_info)
             for _field in _target_field:
                 if _field.name in REQUESTRATES:
-                    _field.value *= 2
+                    _field.value = _field.find_available_value(_field.value * 2)
             params = field_to_param(_target_field)
             # 先全量运行寻优参数
             try:
@@ -331,6 +333,7 @@ class PSOOptimizer(PerformanceTuner):
     def prepare(self):
         from msserviceprofiler.modelevalstate.config.config import settings, field_to_param
         from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
+        from msserviceprofiler.modelevalstate.optimizer.benchmark import AisBench
         # 运行默认参数服务，获取理论推导需要的指标
         mc = None
         if is_mindie() and settings.theory_guided_enable:
@@ -357,6 +360,17 @@ class PSOOptimizer(PerformanceTuner):
                              "Please check if the benchmark is running successfully. ")
         if is_mindie():
             self.mindie_prepare(mc)
+        if isinstance(self.scheduler.benchmark, AisBench):
+            #由于aisbench在过高的concurrency下可能会卡死，所以需要根据benchmark结果来设置concurrency的范围
+            _concurrency = self.scheduler.benchmark.get_best_concurrency()
+            for _field in self.target_field:
+                if _field.name in CONCURRENCYS and _field.min != _field.max:
+                    if _field.min < _concurrency < _field.max:
+                        _field.value = _field.max = _concurrency
+                    elif _concurrency < _field.min:
+                        _field.value = _field.max = _field.min
+                    else:
+                        _field.value = _field.max
 
     def run(self):
         from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value
@@ -370,14 +384,10 @@ class PSOOptimizer(PerformanceTuner):
         self.target_field = deepcopy(self.target_field)
         for _field in self.target_field:
             # 将并发 和 req rate 设置为固定值，不进行pso寻优
-            if _field.name in ["CONCURRENCY", "MAXCONCURRENCY"] and _field.min != _field.max:
-                _field.value = _field.min = _field.max
-            elif _field.name == "REQUESTRATE" and _field.min != _field.max:
-                if _field.min == _field.max:
-                    _field.min = _field.max
-                else:
-                    _field.value = None
-                    _field.min = _field.max = inf
+            if _field.name in CONCURRENCYS and _field.constant is None:
+                _field.constant = _field.value = _field.convert_dtype(_field.max)
+            elif _field.name in REQUESTRATES and _field.constant is None:
+                _field.constant = _field.convert_dtype(_field.max)
         # 少量请求替代全量请求
         if settings.sample_size:
             if (isinstance(self.scheduler.benchmark, BenchMark) and

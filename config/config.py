@@ -7,7 +7,7 @@ import os
 import time
 from copy import deepcopy
 from enum import Enum
-from math import isinf
+from math import isinf, isclose
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Optional, Union
 
@@ -39,6 +39,9 @@ class PerformanceConfig(BaseModel):
                                                              algorithm="average")
 
 
+dtype_func = {"int": int, "float": float}
+
+
 class OptimizerConfigField(BaseModel):
     name: str = "max_batch_size"
     config_position: str = "BackendConfig.ScheduleConfig.maxBatchSize"
@@ -47,9 +50,44 @@ class OptimizerConfigField(BaseModel):
     dtype: str = "float"
     value: Union[int, float, bool] = 0.0
     dtype_param: Any = None
+    constant: Optional[float] = None  # 识别是否是常量
+
+    @model_validator(mode="after")
+    def update_constant(self):
+        if self.min > self.max:
+            raise ValueError(f"min({self.min}) > max({self.max}). please check")
+        # 如果min 等于max 但是 constant 没有设置，自动设置constant 为最大值。
+        if self.constant and not isclose(self.min, self.max):
+            self.min = self.max = self.constant
+        elif self.constant is None and isclose(self.min, self.max, rel_tol=1e-5) and self.dtype in dtype_func.keys():
+            self.constant = dtype_func.get(self.dtype, float)(self.max)
+ 
+        return self
+ 
+    def convert_dtype(self, value):
+        return dtype_func.get(self.dtype, float)(value)
+ 
+    def find_available_value(self, value):
+        _new_value = dtype_func.get(self.dtype, float)(value)
+        if self.dtype == "enum":
+            if value in self.dtype_param:
+                return value
+            else:
+                _index = bisect.bisect_left(self.dtype_param, value)
+                if _index == len(self.dtype_param):
+                    _new_value = self.dtype_param[-1]
+                else:
+                    _new_value = self.dtype_param[_index]
+                return _new_value
+        else:
+            if self.min <= _new_value <= self.max:
+                return _new_value
+            elif _new_value < self.min:
+                return dtype_func.get(self.dtype, float)(self.min)
+            else:
+                return dtype_func.get(self.dtype, float)(self.max)
 
 
-dtype_func = {"int": int, "float": float}
 
 default_support_field = [
     # max batch size 最小值要大于max_prefill_batch_size的最大值。
@@ -154,7 +192,7 @@ def map_param_with_value(params: np.ndarray, params_field: Tuple[OptimizerConfig
     i = 0
     for v in params_field:
         _field = deepcopy(v)
-        if _field.min == _field.max:
+        if _field.constant is not None or isclose(_field.min, _field.max, rel_tol=1e-5):
             if _field.value and not isinf(_field.value):
                 try:
                     _field.value = dtype_func.get(v.dtype, int)(_field.value)
@@ -205,7 +243,8 @@ def reverse_special_field(params_field: Tuple[OptimizerConfigField, ...], params
     _params = params
     i = 0
     for v in params_field:
-        if v.min == v.max:
+        # 常量设置值了 或者最大值和最小值一样 说明这个参数为常量。
+        if v.constant is not None or isclose(v.min, v.max, rel_tol=1e-5):
             continue
         if v.dtype == "ratio":
             for _op in params_field:
@@ -216,9 +255,9 @@ def reverse_special_field(params_field: Tuple[OptimizerConfigField, ...], params
             if v.value == 0 and v.dtype == "ratio":
                 # CONCURRENCY 字段 是某个对象的百分比时，并且 值为0，说明第一次，设置为0
                 _params[i] = 1
-            elif v.value != 0 and v.dtype == "ratio" and concurrency > 0:
+            elif v.value is not None and v.dtype == "ratio" and concurrency > 0:
                 _params[i] = v.value / concurrency
-            elif v.value != 0:
+            elif v.value is not None:
                 # 原来的方式 int
                 _params[i] = v.value
             else:
@@ -232,7 +271,7 @@ def field_to_param(params_field: Tuple[OptimizerConfigField, ...]):
     concurrency = request_rate = None
     _params = []
     for _, v in enumerate(params_field):
-        if v.min == v.max:
+        if v.constant is not None or isclose(v.min, v.max, rel_tol=1e-5):
             continue
         if v.dtype == "int":
             try:

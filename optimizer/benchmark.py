@@ -75,7 +75,7 @@ class AisBench(CustomProcess):
  
     def get_performance_metric(self, metric_name: str, algorithm: str = "average"):
         output_path = Path(self.benchmark_config.output_path)
-        result_files = glob.glob(f"{output_path}/**/*.csv", recursive=True)
+        result_files = glob.glob(f"{output_path}/*/performances/*/*.csv", recursive=False)
         if len(result_files) != 1:
             logger.error("The aisbench result for csv files are not unique; please check")
         metric_name = metric_name.lower().strip()
@@ -105,7 +105,7 @@ class AisBench(CustomProcess):
         performance_index = PerformanceIndex()
         if not output_path.exists():
             logger.error(f"the output of aisbench is not find: {output_path}")
-        result_files = glob.glob(f"{output_path}/**/performances/*/*.csv", recursive=True)
+        result_files = glob.glob(f"{output_path}/*/performances/*/*.csv", recursive=False)
         if len(result_files) < 1:
             raise ValueError("The aisbench result for csv files are not unique; please check")
         for result_file in result_files:
@@ -120,7 +120,7 @@ class AisBench(CustomProcess):
             decode_time = tpot_average.split()[0]
             performance_index.time_to_first_token = float(first_token_time) / MS_TO_S
             performance_index.time_per_output_token = float(decode_time) / MS_TO_S
-        rate_files = glob.glob(f"{output_path}/**/performances/*/*dataset.json", recursive=True)
+        rate_files = glob.glob(f"{output_path}/*/performances/*/*dataset.json", recursive=False)
         for json_file in rate_files:
             with open_s(json_file, "r") as f:
                 try:
@@ -191,6 +191,25 @@ class AisBench(CustomProcess):
         # 将修改后的内容写回文件
         with open_s(api_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
+    
+    def get_best_concurrency(self):
+        output_path = Path(self.benchmark_config.output_path)
+        rate_files = glob.glob(f"{output_path}/*/performances/*/*dataset.json", recursive=False)
+        for json_file in rate_files:
+            with open(json_file, "r") as f:
+                try:
+                    data = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    logger.error(f"{e}, file: {json_file}")
+                    continue
+            _concurrency = float(data["Concurrency"]["total"])
+            _max_concurrency = float(data["Max Concurrency"]["total"])
+            if _max_concurrency - _concurrency > 100:
+                best_concurrency = int(min(_concurrency, _max_concurrency) + 100)
+            else:
+                best_concurrency = int(min(_concurrency, _max_concurrency))
+            return best_concurrency
+        raise ValueError(f"Not Found concurrency value. fiels: {rate_files}")
 
 
 class BenchMark(CustomProcess):
