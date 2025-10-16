@@ -107,7 +107,7 @@ class Scheduler:
         _cmd, _ = self.get_cmd_param()
         if not _cmd:
             return False
-        logger.info("cmd {}", _cmd)
+        logger.debug("cmd {}", _cmd)
         if _cmd.strip().lower() == "init":
             _result = f"{self.cmd.history[-1]}:done"
             self.communication.send_command(_result)

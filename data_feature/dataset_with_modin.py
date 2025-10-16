@@ -24,7 +24,7 @@ from msserviceprofiler.modelevalstate.data_feature.dataset_with_swifter import M
 class MyDataSetWithModin(MyDataSetWithSwifter):
 
     def preprocess_dispatch(self, lines_data: Optional[DataFrame] = None):
-        logger.info(f"start construct_data with modin, shape {lines_data.shape}")
+        logger.debug(f"start construct_data with modin, shape {lines_data.shape}")
         try:
             return self.preprocess(pd.DataFrame(lines_data))
         except Exception as e:

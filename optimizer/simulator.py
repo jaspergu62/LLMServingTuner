@@ -202,7 +202,7 @@ class Simulator(CustomProcess):
     def check_success(self, print_log=False):
         output = self.get_log()
         if self.print_log:
-            logger.info(output)
+            logger.debug(output)
         if output and "Daemon start success!" in output:
             return True
         if self.process.poll() is None:
@@ -227,7 +227,7 @@ class DisaggregationSimulator(CustomProcess):
     def __init__(self, mindie_config: KubectlConfig, bak_path: Optional[Path] = None):
         super().__init__(bak_path=bak_path)
         self.mindie_config = mindie_config
-        logger.info(f"config path {self.mindie_config.config_single_path}", )
+        logger.debug(f"config path {self.mindie_config.config_single_path!r}", )
         if not self.mindie_config.config_single_path.exists():
             raise FileNotFoundError(self.mindie_config.config_single_path)
         with open_s(self.mindie_config.config_single_path, "r") as f:
@@ -236,7 +236,7 @@ class DisaggregationSimulator(CustomProcess):
             pd_data = json.load(f)
         self.default_pd_config = pd_data
         self.default_config = data
-        logger.info(f"config bak path {self.mindie_config.config_single_bak_path}", )
+        logger.debug(f"config bak path {self.mindie_config.config_single_bak_path!r}", )
         if self.mindie_config.config_single_bak_path.exists():
             self.mindie_config.config_single_bak_path.unlink()
         with open_s(self.mindie_config.config_single_bak_path, "w") as fout:
@@ -447,10 +447,10 @@ class DisaggregationSimulator(CustomProcess):
                 output = f.read()
                 self.mindie_log_offset = f.tell()
             except Exception as e:
-                logger.info(f"Failed in read mindie log. error: {e}")
+                logger.warning(f"Failed in read mindie log. error: {e}")
         if output:
             if print_log:
-                logger.info(f"simulate out: \n{output}")
+                logger.debug(f"simulate out: \n{output}")
             if "MindIE-MS coordinator is ready!!!" in output:
                 while True:
                     if self.test_curl() is True:
@@ -466,7 +466,7 @@ class DisaggregationSimulator(CustomProcess):
             cwd = self.mindie_config.work_path
         else:
             cwd = os.getcwd()
-        logger.info(f"self.command: {self.command}")
+        logger.info(f"start running the command: {self.command}")
         self.process = subprocess.run(self.command, env=self.env, text=True, 
                                       cwd=self.mindie_config.kubectl_default_path)
         logger.info(f"self.log_command: {self.log_command}")
@@ -484,21 +484,21 @@ class DisaggregationSimulator(CustomProcess):
             time.sleep(1)
         kubectl_monitor_command = self.KubectlCommand(self.mindie_config.command).monitor_command
         kubectl_monitor_command.append(mindie_name[1])
-        logger.info(f"mindie_name: {mindie_name[1]}")
+        logger.debug(f"mindie_name: {mindie_name[1]}")
         self.log_process = subprocess.Popen(kubectl_monitor_command, stdout=self.mindie_log_fp, 
                                             stderr=subprocess.STDOUT, env=self.env, text=True, 
                                             cwd=self.mindie_config.kubectl_default_path)
-        logger.info(f"command: {' '.join(kubectl_monitor_command)}, log file: {self.run_log}")
+        logger.info(f"Start running the command: {' '.join(kubectl_monitor_command)}, log file: {self.run_log}")
 
     def run(self, run_params: Tuple[OptimizerConfigField]):
-        logger.info(f'start run in simulator. run params: {run_params}')
+        logger.info(f'Start running in simulator. params are: {run_params}')
         # 根据params 修改配置文件
         self.update_config(run_params)
         # 启动mindie仿真
         self.start_server(run_params)
 
     def stop(self, del_log=True):
-        logger.info("Stop simulator process")
+        logger.debug("Stop simulator process")
         if self.bak_path:
             self.backup()
         close_file_fp(self.mindie_log_fp)
@@ -540,7 +540,7 @@ class VllmSimulator(CustomProcess):
     def check_success(self, print_log=False):
         output = self.get_log()
         if self.print_log:
-            logger.info(output)
+            logger.debug(output)
         if output and "Application startup complete." in output:
             return True
         if self.process.poll() is None:

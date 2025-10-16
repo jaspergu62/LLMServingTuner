@@ -131,7 +131,7 @@ class PretrainModel:
         logger.info("start train")
         self.dataset.construct_data(lines_data, plt_data=self.plt_data, middle_save_path=middle_save_path)
         rmse = self.model.train(self.dataset, middle_save_path=middle_save_path)
-        logger.info(f"rmse {rmse}")
+        logger.debug(f"rmse {rmse}")
 
         self.rmse.append(rmse)
 
@@ -186,15 +186,15 @@ class PretrainModel:
         return all_up, all_ud
 
     def predict_and_plot_with_speed(self, features: DataFrame, labels: DataFrame, save_path: Optional[Path]):
-        logger.info("predict test data.")
+        logger.debug("predict test data.")
         _predicts = self.model.predict(features.values)
         _origin_data = labels
         r2 = r2_score(labels, _predicts)
         self.r2.append(r2)
-        logger.info(f"r2: {r2}")
+        logger.debug(f"r2: {r2}")
         mape = mean_absolute_percentage_error(labels, _predicts)
         self.mape.append(mape)
-        logger.info(f"mape: {mape}")
+        logger.debug(f"mape: {mape}")
         _predict_df = pd.DataFrame({"batch_stage": self.dataset.load_data["batch_stage"],
                                     "batch_size": self.dataset.load_data["batch_size"],
                                     "predict": _predicts})
@@ -265,7 +265,7 @@ class TrainVersion1:
         line_data = line_data.applymap(replace_none)
         line_data = line_data.dropna()
         train_data, test_data = train_test_split(line_data, test_size=0.1, shuffle=True)
-        logger.info(f"train data shape {train_data.shape}")
+        logger.debug(f"train data shape {train_data.shape}")
         sp.comments = f"input files: {file_paths} \n"
         save_path = sp.step_dir.joinpath("base")
         save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
@@ -274,7 +274,7 @@ class TrainVersion1:
         sp.comments += (f"data shuffle: True, \n train case: {pm.dataset.train_x.shape}, "
                         f"validate case: {pm.dataset.test_x.shape}, predict case: {test_data.shape} \n")
         pm.bak_model()
-        logger.info("test data {test_data.shape}")
+        logger.debug("test data {test_data.shape}")
         save_path = sp.step_dir.joinpath("1")
         save_path.mkdir(parents=True, exist_ok=True, mode=0o750)
         pm.predict(test_data.reset_index(drop=True), save_path)

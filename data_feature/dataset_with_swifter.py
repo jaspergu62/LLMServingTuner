@@ -33,13 +33,13 @@ from msserviceprofiler.modelevalstate.inference.data_format_v1 import (
 from msserviceprofiler.modelevalstate.inference.dataset import TOTAL_OUTPUT_LENGTH, \
     TOTAL_SEQ_LENGTH, TOTAL_PREFILL_TOKEN
 
-logger.info(f'swifter version {getattr(swifter, "__version__")}')
+logger.debug(f'swifter version {getattr(swifter, "__version__")}')
 
 
 class MyDataSetWithSwifter(MyDataSet):
 
     def preprocess_dispatch(self, lines_data: Optional[DataFrame] = None):
-        logger.info(f"start construct_data with swifter, shape {lines_data.shape}")
+        logger.debug(f"start construct_data with swifter, shape {lines_data.shape}")
         try:
             return self.proprocess_with_swifter(lines_data)
         except Exception as e:
@@ -47,7 +47,7 @@ class MyDataSetWithSwifter(MyDataSet):
             return super(MyDataSetWithSwifter, self).preprocess_dispatch(lines_data)
 
     def proprocess_with_swifter(self, lines_data: Optional[DataFrame] = None):
-        logger.info("dataset preprocess.")
+        logger.debug("dataset preprocess.")
         # 数据预处理
         if len(lines_data.columns) < 2:
             logger.error(f"DataFrame for train with swifter 列数不足，实际列数为 {len(lines_data.columns)}")

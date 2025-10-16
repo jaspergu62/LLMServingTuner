@@ -206,7 +206,7 @@ class MyDataSet:
     def construct_data(
         self, lines_data: Optional[DataFrame] = None, plt_data: bool = False, middle_save_path: Optional[Path] = None
     ):
-        logger.info(f"start construct_data, shape {lines_data.shape}")
+        logger.debug(f"start construct_data, shape {lines_data.shape}")
         features, labels = self.preprocess_dispatch(lines_data)
         if self.features.shape[0] != self.labels.shape[0]:
             logger.error(
@@ -220,7 +220,7 @@ class MyDataSet:
             self.train_x, self.test_x, self.train_y, self.test_y = train_test_split(
             features, labels, test_size=self.test_size, shuffle=self.shuffle
         )
-        logger.info("finished preprocess.")
+        logger.debug("finished preprocess.")
         # 检查处理的数据是否有重复的column name
         if len(self.features.columns) != len(self.features.columns.unique()):
             raise ValueError("Duplicate columns exist in the data.")
@@ -228,7 +228,7 @@ class MyDataSet:
             self.plt_data(lines_data, middle_save_path)
 
     def preprocess(self, lines_data: Optional[DataFrame] = None):
-        logger.info("dataset preprocess.")
+        logger.debug("dataset preprocess.")
         # 数据预处理
         if len(lines_data.columns) < 2:
             logger.error(f"DataFrame for train with swifter 列数不足，实际列数为 {len(lines_data.columns)}")
@@ -273,7 +273,7 @@ class MyDataSet:
         return self.features, self.labels
 
     def preprocess_with_list_comprehension(self, lines_data: Optional[DataFrame] = None):
-        logger.info("dataset preprocess with list comprehension")
+        logger.debug("dataset preprocess with list comprehension")
         # 数据预处理
         columns_list = lines_data.columns.tolist()
         field_cache = {col: ast.literal_eval(col) for col in columns_list}
@@ -297,7 +297,7 @@ class MyDataSet:
             ENV_FIELD: self.convert_env_info,
             HARDWARE_FIELD: self.convert_hardware_info,
         }
-        logger.info("finished request batch")
+        logger.debug("finished request batch")
         if len(columns_list) < 3:
             logger.warning(f"columns_list length is less than 3, skip processing")
             return self.features, self.labels
@@ -331,7 +331,7 @@ class MyDataSet:
         self.analysis_origin_request_hist(line_data, middle_save_path)
 
     def analysis_origin_request_hist(self, df: DataFrame, middle_save_path: Optional[Path] = None):
-        logger.info("analysis_origin_request_hist")
+        logger.debug("analysis_origin_request_hist")
         if len(df.columns) < 2:
             logger.warning("Dataframe has less than 2 columns.")
             return 

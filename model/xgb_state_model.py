@@ -54,7 +54,7 @@ class StateXgbModel:
         :param train_type: 训练方式，支持全新训练和增量训练。默认default，全新训练，update 为增量训练，更新原来的模型。
         :return:
         """
-        logger.info("train")
+        logger.debug("train")
         dtrain = xgboost.DMatrix(dataset.train_x, label=dataset.train_y)
         dtest = xgboost.DMatrix(dataset.test_x, label=dataset.test_y)
         if train_type == 'partial_fit':
@@ -81,7 +81,7 @@ class StateXgbModel:
 
 def plot_feature_importance(model, save_path: Optional[Path] = None):
     fig, ax = plt.subplots(figsize=(15, 8))
-    logger.info('weight score %s', model.get_score(importance_type='weight'))
+    logger.debug('weight score %s', model.get_score(importance_type='weight'))
     xgboost.plot_importance(model, ax=ax)
     plt.title('weight score')
     if save_path:
@@ -89,7 +89,7 @@ def plot_feature_importance(model, save_path: Optional[Path] = None):
         plt.close()
     else:
         plt.show()
-    logger.info('gain score %s', model.get_score(importance_type='gain'))
+    logger.debug('gain score %s', model.get_score(importance_type='gain'))
     fig, ax = plt.subplots(figsize=(15, 8))
     xgboost.plot_importance(model, ax=ax, importance_type='gain')
     plt.title('gain score')
@@ -98,7 +98,7 @@ def plot_feature_importance(model, save_path: Optional[Path] = None):
         plt.close()
     else:
         plt.show()
-    logger.info('cover score', model.get_score(importance_type='cover'))
+    logger.debug('cover score', model.get_score(importance_type='cover'))
     fig, ax = plt.subplots(figsize=(15, 8))
     xgboost.plot_importance(model, ax=ax, importance_type='cover')
     plt.title('cover score')

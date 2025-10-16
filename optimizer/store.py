@@ -93,7 +93,7 @@ class DataStorage:
         return _run_info
 
     def save(self, performance_index: PerformanceIndex, params: Tuple[OptimizerConfigField], **kwargs):
-        logger.info(f"Save result with DataStorage. File path: {self.save_file}")
+        logger.info(f"Save result with DataStorage. File path: {self.save_file!r}")
         _column = []
         _value = []
         for k, v in performance_index.model_dump().items():
