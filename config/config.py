@@ -322,7 +322,7 @@ class BenchMarkConfig(BaseModel):
     @classmethod
     def check_dir(cls, path: Path) -> Path:
         if not path.exists():
-            logger.error(f"FileNotFound: {path}")
+            logger.error(f"FileNotFound: {path!r}")
         return path
 
 
@@ -557,13 +557,13 @@ class Settings(BaseSettings):
         if not is_mindie():
             return self
         if not self.mindie.config_path.exists():
-            logger.error(f"File Not Found. file: {self.mindie.config_path}")
+            logger.error(f"File Not Found. file: {self.mindie.config_path!r}")
             return self
         with open_s(self.mindie.config_path, "r") as f:
             try:
                 mindie_config = json.load(f)
             except json.decoder.JSONDecodeError as e:
-                logger.error(f"Failed in load {self.mindie.config_path}. error: {e}")
+                logger.error(f"Failed in load {self.mindie.config_path!r}. error: {e}")
                 raise e
         # 从mindie config 中获取可能获取的端口信息，模型信息。
         ip_address = mindie_config["ServerConfig"]["ipAddress"]

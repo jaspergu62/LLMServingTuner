@@ -115,7 +115,7 @@ class CustomProcess:
         except OSError as e:
             logger.error(f"Failed to run {self.command}. error {e}")
             raise e
-        logger.info(f"command: {' '.join(self.command)}, log file: {self.run_log}")
+        logger.info(f"Start running the command: {' '.join(self.command)}, log file: {self.run_log}")
 
     def get_log(self):
         output = None
@@ -135,7 +135,7 @@ class CustomProcess:
     def check_success(self):
         if self.print_log:
             output = self.get_log()
-            logger.info(output)
+            logger.debug(output)
         if self.process.poll() is None:
             return False
         elif self.process.poll() == 0:
@@ -153,7 +153,7 @@ class CustomProcess:
             return
         _process_state = self.process.poll()
         if _process_state is not None:
-            logger.info(f"The mindie program has exited. exit_code: {_process_state}")
+            logger.info(f"The program has exited. exit_code: {_process_state}")
             return
         try:
             children = psutil.Process(self.process.pid).children(recursive=True)

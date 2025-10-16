@@ -545,12 +545,12 @@ def save_dataframe_to_csv(filtered_df, output, file_name, check_columns=None):
     file_path = str(file_path)
 
     if not _preprocess_dataframe(filtered_df, check_columns):
-        logger.warning(f"DataFrame contains invalid values. Aborting write to {file_name}.")
+        logger.warning(f"DataFrame contains invalid values. Aborting write to {file_name!r}.")
         return
     
     with open_s(file_path, "w") as f:
         filtered_df.to_csv(f, index=False)
-        logger.info(f"Write to {file_name} success.")
+        logger.info(f"Write to {file_name!r} success.")
 
 
 def _preprocess_dataframe(df, check_columns=None):

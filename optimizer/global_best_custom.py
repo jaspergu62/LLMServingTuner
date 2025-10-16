@@ -53,5 +53,5 @@ class CustomGlobalBestPSO(GlobalBestPSO):
         dtype = self.swarm.velocity.dtype
         self.swarm.position = self.swarm.position.astype(dtype)
         self.swarm.position = self.top.compute_position(self.swarm, self.bounds, self.bh)
-        logger.info(f"Best Position {self.swarm.best_pos}, Best Cost {self.swarm.best_cost}")
-        logger.info(f"Init Position {self.swarm.position}")
+        logger.debug(f"Best Position {self.swarm.best_pos}, Best Cost {self.swarm.best_cost}")
+        logger.debug(f"Init Position {self.swarm.position}")

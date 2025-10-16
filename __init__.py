@@ -19,6 +19,6 @@ import sys
 from loguru import logger
 
 # 增加 MODELEVALSTATE_LEVEL设置日志级别，ERROR， INFO DEBUG
-log_level = os.getenv("MODELEVALSTATE_LEVEL", "ERROR").upper()
+log_level = os.getenv("MODELEVALSTATE_LEVEL", "INFO").upper()
 logger.remove()
 logger.add(sys.stderr, level=log_level, enqueue=True)

@@ -406,7 +406,7 @@ class ProfilerBenchmark(CustomProcess):
 
     def extra_performance_index(self, *args, **kwargs):
         from msserviceprofiler.modelevalstate.config.config import PerformanceIndex
-        logger.info("extra_performance_index")
+        logger.debug("extra_performance_index")
         analyze_tool = _analyze_mapping.get(self.analyze_tool)
         if analyze_tool is None:
             raise ValueError(f"Analyze tool not found: {self.analyze_tool}")

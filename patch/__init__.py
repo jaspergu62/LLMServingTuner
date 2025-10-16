@@ -13,9 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-from warnings import warn
-
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_module_version
@@ -44,7 +41,7 @@ try:
     simulate_patch.append(Patch2rc1)
     optimize_patch.append(Patch2rc1)
 except ImportError as e:
-    warn(f"Failed from .patch_manager import Patch2rc1. error: {e}")
+    logger.warning(f"Failed from .patch_manager import Patch2rc1. error: {e}")
 
 try:
     from msserviceprofiler.modelevalstate.patch.patch_vllm import PatchVllm
@@ -52,7 +49,7 @@ try:
     vllm_optimize_patch.append(PatchVllm)
     vllm_simulate_patch.append(PatchVllm)
 except ImportError as e:
-    warn(f"Failed from .patch_vllm import PatchVllm. error: {e}")
+    logger.warning(f"Failed from .patch_vllm import PatchVllm. error: {e}")
 
 
 def enable_patch(target_env):

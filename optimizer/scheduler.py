@@ -57,7 +57,7 @@ class Scheduler:
                 self.benchmark.bak_path = self.current_back_path
 
     def wait_simulate(self):
-        logger.info("wait run simulator")
+        logger.debug("wait run simulator")
         for _ in range(self.wait_time):
             time.sleep(1)
             if self.simulator.check_success():
@@ -75,7 +75,7 @@ class Scheduler:
         self.benchmark.backup()
 
     def monitoring_status(self):
-        logger.info("monitor status")
+        logger.debug("monitor status")
         while True:
             if is_mindie() or is_vllm():
                 if self.simulator.process.poll() is not None:
@@ -145,7 +145,7 @@ class Scheduler:
         params: 是一维数组，其值对应mindie 的相关配置。
         """
         self.run_start_timestamp = time.time()
-        logger.info("Start run in scheduler.")
+        logger.debug("Start run in scheduler.")
         self.set_back_up_path()
         self.simulate_run_info = map_param_with_value(params, params_field)
         logger.info("run param info {}", {v.name: v.value for v in self.simulate_run_info})
@@ -168,7 +168,6 @@ class Scheduler:
         params: 是一维数组，其值对应mindie 的相关配置。
         """
         self.run_start_timestamp = time.time()
-        logger.info("Start run in scheduler.")
         self.set_back_up_path()
         self.simulate_run_info = map_param_with_value(params, params_field)
         logger.info("run param info {}", {v.name: v.value for v in self.simulate_run_info})
@@ -233,7 +232,7 @@ class ScheduleWithMultiMachine(Scheduler):
                 self.communication.clear_command(_cmd)
 
     def monitoring_status(self):
-        logger.info("Start monitoring")
+        logger.debug("Start monitoring")
         while True:
             _cmd = self.cmd.process_poll
             self.communication.send_command(_cmd)

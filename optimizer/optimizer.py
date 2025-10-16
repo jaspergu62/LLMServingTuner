@@ -135,7 +135,7 @@ class PSOOptimizer(PerformanceTuner):
             except Exception as e:
                 logger.error(f"Failed. error: {e}, please check.")
                 _fitness = inf
-            logger.info(f"fitness {_fitness}")
+            logger.debug(f"fitness {_fitness}")
             self.scheduler.save_result(fitness=_fitness)
             generate_speed.append(_fitness)
         return np.array(generate_speed)
@@ -422,7 +422,7 @@ class PSOOptimizer(PerformanceTuner):
         if best_param is None or best_fitness is None or best_performance_index is None:
             return
         _position = {_field.name: _field.value for _field in map_param_with_value(best_param, self.target_field)}
-        logger.info(f"vars: {_position}, performance index: "
+        logger.debug(f"vars: {_position}, performance index: "
                     f"ttft: {best_performance_index.time_to_first_token} \n"
                     f"tpot: {best_performance_index.time_per_output_token} \n"
                     f"generate_speed: {best_performance_index.generate_speed} \n")

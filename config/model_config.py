@@ -15,7 +15,7 @@ from msserviceprofiler.msguard.security import open_s
 class ModelConfig:
     def __init__(self, config_path: Path):
         if not config_path.exists():
-            raise FileNotFoundError(config_path)
+            raise FileNotFoundError(f"Configuration file not found: {config_path!r}")
         try:
             with open_s(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
@@ -173,14 +173,14 @@ class MindieModelConfig:
                  max_input_length: int = 8192, npu_total_mem: Optional[int] = None,
                  memory_usage_rate: Optional[int] = None):
         if not config_path.exists():
-            raise FileNotFoundError(config_path)
+            raise FileNotFoundError(f"Configuration file not found: {config_path!r}")
         try:
             with open_s(config_path, 'r', encoding='utf-8') as f:
                 self.config_data = json.load(f)
         except json.JSONDecodeError as e:
-            raise ValueError(f"The JSON format of the configuration file '{config_path}' is invalid") from e
+            raise ValueError(f"The JSON format of the configuration file '{config_path!r}' is invalid") from e
         except Exception as e:
-            raise IOError(f"An error occurred while reading the configuration file '{config_path}'") from e
+            raise IOError(f"An error occurred while reading the configuration file '{config_path!r}'") from e
         self.mem_coefficient = settings.mem_coefficient
         self.npu_device_ids = self.config_data["BackendConfig"]["npuDeviceIds"]
         self.cache_block_size = self.config_data["BackendConfig"]["ScheduleConfig"]["cacheBlockSize"]
