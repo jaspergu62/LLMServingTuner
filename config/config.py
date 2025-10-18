@@ -20,7 +20,7 @@ import msserviceprofiler.modelevalstate
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie, ais_bench_exists
 from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, \
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
-from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.msguard.security import open_s, mkdir_s
 from .base_config import (
     INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,	
     modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy,
@@ -340,7 +340,7 @@ class ProfileConfig(BaseModel):
     @field_validator("profile_input_path", "profile_output_path")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True, mode=0o750)
+        mkdir_s(path)
         return path
 
 
@@ -374,10 +374,10 @@ class LatencyModel(BaseModel):
     cache_data: Optional[Path] = Field(
         default_factory=lambda data: data["base_path"].joinpath("cache").resolve())
 
-    @field_validator("cache_data", "static_file_dir")
+    @field_validator("base_path", "cache_data", "static_file_dir")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True, mode=0o750)
+        mkdir_s(path)
         return path
 
 
@@ -588,7 +588,7 @@ class Settings(BaseSettings):
             self.benchmark.command.model_path = model_path
         if not self.benchmark.command.save_path:
             self.benchmark.command.save_path = str(self.benchmark.output_path.joinpath("instance"))
-        Path(self.benchmark.command.save_path).mkdir(parents=True, exist_ok=True, mode=0o750)
+        mkdir_s(Path(self.benchmark.command.save_path)) 
         if self.profile.output == ProfileConfig.model_fields["output"].default:
             self.profile = ProfileConfig(output=self.output.joinpath("profile"))
         return self
