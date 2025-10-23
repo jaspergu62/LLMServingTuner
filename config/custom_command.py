@@ -9,11 +9,14 @@ from pydantic import BaseModel, Field
 from msserviceprofiler.msguard import Rule
 
 
+MAX_REQUEST_NUM = 1e6
+
+
 class AisBenchCommandConfig(BaseModel):
     models: str = ""
     datasets: str = ""
     mode: str = ""
-    num_prompts: str = ""
+    num_prompts: int = Field(0, gt=0, le=MAX_REQUEST_NUM)
     work_dir: str = ""
 
 
@@ -30,7 +33,7 @@ class AisBenchCommand:
                 "--models", self.aisbench_command_config.models,
                 "--datasets", self.aisbench_command_config.datasets,
                 "--mode", self.aisbench_command_config.mode,
-                "--num-prompts", self.aisbench_command_config.num_prompts,
+                "--num-prompts", str(self.aisbench_command_config.num_prompts),
                 "--work-dir", self.aisbench_command_config.work_dir,
                 "--debug"
                 ]
@@ -49,8 +52,8 @@ class BenchmarkCommandConfig(BaseModel):
     warmup_size: str = "1"
     tokenizer: str = "True"
     save_path: str = ""
-    request_num: str = ""
-    request_count: str = ""
+    request_num: int = Field(0, gt=0, le=MAX_REQUEST_NUM)
+    request_count: int = Field(0, gt=0, le=MAX_REQUEST_NUM)
 
  
 class BenchmarkCommand:
@@ -82,9 +85,9 @@ class BenchmarkCommand:
                 "--SavePath", self.benchmark_command_config.save_path,
                 ]
         if self.benchmark_command_config.request_num:
-            _cmd.extend(["--RequestNum", self.benchmark_command_config.request_num])
+            _cmd.extend(["--RequestNum", str(self.benchmark_command_config.request_num)])
         if self.benchmark_command_config.request_count:
-            _cmd.extend(["--RequestCount", self.benchmark_command_config.request_count])
+            _cmd.extend(["--RequestCount", str(self.benchmark_command_config.request_count)])
         return _cmd
  
  
@@ -97,7 +100,7 @@ class VllmBenchmarkCommandConfig(BaseModel):
     served_model_name: str = ""
     dataset_name: str = ""
     dataset_path: str = ""
-    num_prompts: str = ""
+    num_prompts: int = Field(0, gt=0, le=MAX_REQUEST_NUM)
     result_dir: str = ""
     others: str = ""
 
@@ -120,10 +123,10 @@ class VllmBenchmarkCommand:
                 "--served-model-name", self.benchmark_command_config.served_model_name,
                 "--dataset-name", self.benchmark_command_config.dataset_name,
                 "--dataset-path", self.benchmark_command_config.dataset_path,
-                "--num-prompts", self.benchmark_command_config.num_prompts,
+                "--num-prompts", str(self.benchmark_command_config.num_prompts),
                 "--max-concurrency", "$CONCURRENCY",
                 "--request-rate", "$REQUESTRATE",
-                "--result-dir", "$MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT",
+                "--result-dir", self.benchmark_command_config.result_dir,
                 "--save-result"]
         if self.benchmark_command_config.others:
             cmd.extend(self.benchmark_command_config.others.split())

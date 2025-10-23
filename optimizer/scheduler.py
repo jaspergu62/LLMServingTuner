@@ -21,8 +21,9 @@ import numpy as np
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_train_sub_path, is_mindie, is_vllm
-from msserviceprofiler.modelevalstate.config.config import PerformanceIndex, OptimizerConfigField, \
-    map_param_with_value, CommunicationConfig
+from msserviceprofiler.modelevalstate.config.base_config import REAL_EVALUATION
+from msserviceprofiler.modelevalstate.config.config import get_settings, PerformanceIndex, OptimizerConfigField, \
+    map_param_with_value, CommunicationConfig, Stage
 from msserviceprofiler.modelevalstate.config.base_config import FOLDER_LIMIT_SIZE, REQUESTRATES
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
@@ -31,7 +32,7 @@ from msserviceprofiler.modelevalstate.optimizer.utils import get_folder_size
 
 
 class Scheduler:
-    def __init__(self, simulator: Simulator, benchmark, data_storage: DataStorage,
+    def __init__(self, simulator, benchmark, data_storage: DataStorage,
                  bak_path: Optional[Path] = None, retry_number: int = 3, wait_start_time=1800):
         self.simulator = simulator
         self.benchmark = benchmark
@@ -44,6 +45,7 @@ class Scheduler:
         self.performance_index = None
         self.error_info = None
         self.run_start_timestamp = None
+        self.first_duration = None
         self.del_log = None
 
     def set_back_up_path(self):
@@ -60,13 +62,17 @@ class Scheduler:
         logger.debug("wait run simulator")
         for _ in range(self.wait_time):
             time.sleep(1)
-            if self.simulator.check_success():
+            if hasattr(self.simulator, "check_success") and self.simulator.check_success():
                 logger.info(f"Successfully started the {self.simulator.process} process.")
+                return
+            if hasattr(self.simulator, "health") and self.simulator.health().stage == Stage.running:
+                logger.info(f"Successfully started the {self.simulator.process.pid} process.")
                 return
         raise TimeoutError(self.wait_time)
 
     def run_simulate(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
-        self.benchmark.prepare()
+        if hasattr(self.benchmark, "prepare"):
+            self.benchmark.prepare()
         self.simulator.run(tuple(self.simulate_run_info))
         self.wait_simulate()
 
@@ -76,14 +82,29 @@ class Scheduler:
 
     def monitoring_status(self):
         logger.debug("monitor status")
-        while True:
-            if is_mindie() or is_vllm():
-                if self.simulator.process.poll() is not None:
-                    raise subprocess.SubprocessError(f"Failed in run simulator. "
-                                                    f"return code: {self.simulator.process.returncode}.")
-            if self.benchmark.check_success():
-                return
+        for _ in range(get_settings().particles_time_out):
+            if hasattr(self.simulator, "check_success"):
+                if is_mindie() or is_vllm():
+                    if self.simulator.process.poll() is not None:
+                        raise subprocess.SubprocessError(f"Failed in run simulator. "
+                                                        f"return code: {self.simulator.process.returncode}.")
+                if self.benchmark.check_success():
+                    return
+            if hasattr(self.simulator, "health"):
+                res = self.simulator.health()
+                if res.stage != Stage.running:
+                    raise subprocess.SubprocessError(f"Failed in run simulator. error: {res.stage} "
+                                                     f"info: {res.info}.")
+                res = self.benchmark.health()
+                if res.stage != Stage.running:
+                    return
+            if self.run_start_timestamp and self.first_duration:
+                _duration = time.time() - self.run_start_timestamp
+                if _duration > 2 * self.first_duration:
+                    raise TimeoutError("The current runtime is more than twice the duration of the first run.")
             time.sleep(1)
+
+        raise TimeoutError(f"{get_settings().particles_time_out}")
 
     def run_target_server(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]):
         """
@@ -95,7 +116,7 @@ class Scheduler:
             try:
                 self.run_simulate(params, params_field)
             except Exception as e:
-                logger.error(f"Failed in simulator Running. error: {e}，\n"
+                logger.error(f"Failed in simulator Running. error: {e}, \n"
                              f"simulator log {self.simulator.run_log}. \n"
                              f"log last info \n{self.simulator.get_last_log()}")
                 self.stop_target_server(False)
@@ -129,11 +150,30 @@ class Scheduler:
         self.benchmark.stop(del_log)
 
     def save_result(self, **kwargs):
+        duration = None
+        if self.run_start_timestamp:
+            duration = time.time() - self.run_start_timestamp
+            if not self.first_duration:
+                self.first_duration = duration
+        real_evaluation = True
+        if REAL_EVALUATION in kwargs:
+            real_evaluation = kwargs.pop(REAL_EVALUATION)
         self.data_storage.save(self.performance_index, tuple(self.simulate_run_info),
-                               error=self.error_info, bakcup=self.current_back_path, **kwargs)
+                               error=self.error_info, backup=self.current_back_path, duration=duration,
+                               real_evaluation=real_evaluation, **kwargs)
         if self.bak_path:
             self.backup()
         self.stop_target_server()
+
+    def update_data_field(self, params_field: Tuple[OptimizerConfigField]):
+        if hasattr(self.simulator, "data_field"):
+            self.simulator.data_field = params_field
+        if hasattr(self.simulator, "update_command"):
+            self.simulator.update_command()
+        if hasattr(self.benchmark, "data_field"):
+            self.benchmark.data_field = params_field
+        if hasattr(self.benchmark, "update_command"):
+            self.benchmark.update_command()
 
     def run(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]) -> PerformanceIndex:
         """
@@ -153,13 +193,17 @@ class Scheduler:
         self.del_log = True
         self.performance_index = PerformanceIndex()
         try:
+            self.update_data_field(self.simulate_run_info)
             self.run_target_server(params, params_field)
             time.sleep(1)
             self.performance_index = self.benchmark.get_performance_index()
         except Exception as e:
-            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. error {e}")
+            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. error {e}"
+                         f"simulator log {self.simulator.run_log}, benchmark log {self.benchmark.run_log}")
             self.error_info = e
             self.del_log = False
+        finally:
+            self.stop_target_server(self.del_log)
         return self.performance_index
 
     def run_with_request_rate(self, params: np.ndarray, params_field: Tuple[OptimizerConfigField]) -> PerformanceIndex:
@@ -175,17 +219,22 @@ class Scheduler:
         self.del_log = True
         self.performance_index = PerformanceIndex()
         try:
+            self.update_data_field(self.simulate_run_info)
             self.run_target_server(params, params_field)
             time.sleep(1)
             self.performance_index = self.benchmark.get_performance_index()
+            self.benchmark.stop()
             for _field in self.simulate_run_info:
                 if _field.name in REQUESTRATES:
                     if not isclose(_field.min, _field.max):
                         _field.value = _field.find_available_value(self.performance_index.throughput * 1.05)
             logger.info("second run param info {}", {v.name: v.value for v in self.simulate_run_info})
+            if hasattr(self.benchmark, "data_field"):
+                self.benchmark.data_field = params_field
             self.benchmark.update_command()
             try:
-                self.benchmark.prepare()
+                if hasattr(self.benchmark, "prepare"):
+                    self.benchmark.prepare()
                 self.benchmark.run(tuple(self.simulate_run_info))
             except Exception as e:
                 logger.error(f"Failed in Benchmark Running. error: {e}, benchmark log {self.benchmark.run_log}")
@@ -193,16 +242,18 @@ class Scheduler:
             try:
                 self.monitoring_status()
             except Exception as e:
-                self.stop_target_server(False)
                 logger.error(f"Failed in monitoring status. error: {e}, simulator log {self.simulator.run_log}, "
                              f"benchmark log {self.benchmark.run_log}")
                 raise e
             time.sleep(1)
             self.performance_index = self.benchmark.get_performance_index()
         except Exception as e:
-            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. error {e}")
+            logger.error(f"Failed running. bak path: {self.simulator.bak_path}. error {e}"
+                         f"simulator log {self.simulator.run_log}, benchmark log {self.benchmark.run_log}")
             self.error_info = e
             self.del_log = False
+        finally:
+            self.stop_target_server(self.del_log)
         return self.performance_index
 
 

@@ -28,7 +28,7 @@ import numpy as np
 import torch
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.config import settings
+from msserviceprofiler.modelevalstate.config.config import get_settings
 from msserviceprofiler.modelevalstate.inference.constant import IS_SLEEP_FLAG, BatchStage
 from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField, RequestField, ConfigPath
 from msserviceprofiler.modelevalstate.inference.dataset import CustomLabelEncoder, preset_category_data, DataProcessor
@@ -47,6 +47,9 @@ class ServiceField:
     fh = None
     data_processor = None
     req_id_and_max_decode_length = None
+
+
+settings = get_settings()
 
 
 ServiceField.config_path = ConfigPath(settings.latency_model.model_path,

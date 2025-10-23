@@ -25,7 +25,7 @@ from msserviceprofiler.modelevalstate.config.config import (
     RUN_TIME,
     PerformanceIndex,
     OptimizerConfigField,
-    settings
+    get_settings
 )
 from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, AisBench
 from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
@@ -86,10 +86,14 @@ class DataStorage:
 
     def get_run_info(self):
         _run_info = {}
+        if self.benchmark is None:
+            return _run_info
         if isinstance(self.benchmark, BenchMark):
             _run_info[NUM_PROMPTS] = self.benchmark.benchmark_config.command.request_count
-        elif isinstance(self.benchmark, (VllmBenchMark, AisBench)):
+        elif isinstance(self.benchmark, (AisBench, VllmBenchMark)):
             _run_info[NUM_PROMPTS] = self.benchmark.benchmark_config.command.num_prompts
+        elif self.benchmark.num_prompts:
+            _run_info[NUM_PROMPTS] = self.benchmark.num_prompts
         return _run_info
 
     def save(self, performance_index: PerformanceIndex, params: Tuple[OptimizerConfigField], **kwargs):
@@ -119,15 +123,20 @@ class DataStorage:
                 data_writer.writerow([sanitize_csv_value(_v) for _v in _value])
 
     def get_best_result(self):
+        settings = get_settings()
         optimizer_result = read_csv_s(self.save_file)
         optimizer_result = optimizer_result.replace([np.inf, -np.inf], np.nan)
         pso_result = optimizer_result
-        if isinstance(self.benchmark, (BenchMark, VllmBenchMark, AisBench)):
-            # 提取公共属性访问
-            command = self.benchmark.benchmark_config.command
-            request_nums = command.request_count if isinstance(self.benchmark, BenchMark) else command.num_prompts
-            if isinstance(request_nums, str) and request_nums.isdigit():
-                pso_result = optimizer_result[optimizer_result[NUM_PROMPTS] == int(request_nums)]
+        if self.benchmark:
+            if isinstance(self.benchmark, (BenchMark, VllmBenchMark, AisBench)):	
+                # 提取公共属性访问	
+                command = self.benchmark.benchmark_config.command	
+                request_nums = command.request_count if isinstance(self.benchmark, BenchMark) else command.num_prompts	
+                pso_result = optimizer_result[optimizer_result[NUM_PROMPTS] == request_nums]
+            elif self.benchmark.num_prompts:
+                pso_result = optimizer_result[
+                    optimizer_result[NUM_PROMPTS] == self.benchmark.num_prompts
+                ]
         pso_result = pso_result.dropna(subset="fitness")
         pso_result = pso_result[pso_result["time_to_first_token"] > 0]
         pso_result = pso_result[pso_result["time_per_output_token"] > 0]

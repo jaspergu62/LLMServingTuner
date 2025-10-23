@@ -39,7 +39,7 @@ from loguru import logger
 from pandas import DataFrame
 from xgboost import DMatrix
 
-from msserviceprofiler.modelevalstate.config.config import settings
+from msserviceprofiler.modelevalstate.config.config import get_settings
 from msserviceprofiler.modelevalstate.inference.data_format_v1 import BatchField, RequestField, ConfigPath
 from msserviceprofiler.modelevalstate.inference.dataset import InputData, DataProcessor, \
     CustomLabelEncoder, preset_category_data
@@ -204,7 +204,7 @@ class XGBStateEvaluate:
             cache = (xgboost.DMatrix(data.drop(_label, axis=1), label),)
             cache_predict = CachePredict(cache_data, data, label_name=_label)
         else:
-            cache_predict = CachePredict(settings.latency_model.cache_data)
+            cache_predict = CachePredict(get_settings().latency_model.cache_data)
         return cache, cache_predict
 
     def predict(self, input_data: InputData) -> Tuple[float, float]:
