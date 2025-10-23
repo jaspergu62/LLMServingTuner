@@ -29,6 +29,7 @@ from msserviceprofiler.modelevalstate.config.base_config import (
     ServiceType, BenchMarkPolicy, PDPolicy, REQUESTRATES,
     simulate_flag, CONCURRENCYS
 )
+from msserviceprofiler.modelevalstate.optimizer.register import benchmarks, simulates
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
 from msserviceprofiler.modelevalstate.optimizer.utils import get_required_field_from_json
 
@@ -289,7 +290,7 @@ class PSOOptimizer(PerformanceTuner):
             return fitnese_list[_best_index], params_list[_best_index], performance_index_list[_best_index]
         # 未知场景，返回第一组作为最佳参数
         return fitnese_list[0], params_list[0], performance_index_list[0]
-
+    
     def mindie_prepare(self, mc):
         from msserviceprofiler.modelevalstate.config.config import get_settings
         from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark
@@ -335,7 +336,7 @@ class PSOOptimizer(PerformanceTuner):
                     _field.max = max_batch_size_ub
                 break
         logger.debug(f"target_field: {self.target_field}")
-
+    
     def prepare(self):
         from msserviceprofiler.modelevalstate.config.config import get_settings, field_to_param
         from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
@@ -379,6 +380,25 @@ class PSOOptimizer(PerformanceTuner):
                     else:
                         _field.value = _field.max
 
+    def prepare_plugin(self):
+        from msserviceprofiler.modelevalstate.config.config import field_to_param
+        # 运行默认参数服务，获取理论推导需要的指标
+        self.default_run_param = field_to_param(self.target_field)
+        self.default_res = self.scheduler.run(self.default_run_param, self.target_field)
+        self.default_fitness = self.minimum_algorithm(self.default_res)
+        self.scheduler.save_result(fitness=self.default_fitness)
+        if self.scheduler.error_info:
+            raise ValueError(f"Failed to start the default service. "
+                             "Please check if the service and the request to start it are correct. error:{e}")
+
+        if (self.default_res.generate_speed is None or self.default_res.time_to_first_token is None or
+                self.default_res.time_per_output_token is None):
+            logger.warning(f"Failed to obtain benchmark metric data. metric {self.default_res}"
+                             "Please check if the benchmark is running successfully. ")
+        
+        self.target_field = [*self.scheduler.simulator.data_field,
+                             *self.scheduler.benchmark.data_field]
+    
     def run(self):
         from msserviceprofiler.modelevalstate.config.config import get_settings, map_param_with_value
         from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
@@ -434,6 +454,44 @@ class PSOOptimizer(PerformanceTuner):
                     f"ttft: {best_performance_index.time_to_first_token} \n"
                     f"tpot: {best_performance_index.time_per_output_token} \n"
                     f"generate_speed: {best_performance_index.generate_speed} \n")
+
+    def run_plugin(self):
+        from msserviceprofiler.modelevalstate.config.config import map_param_with_value
+        from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
+        self.prepare_plugin()
+        # 备份原target field, 调整新的target field用来寻优
+        with adapter_target_field(self), sample(self.scheduler):
+            if self.load_breakpoint:
+                self.load_history_data = self.scheduler.data_storage.load_history_position(
+                    self.scheduler.data_storage.config.store_dir,
+                    filter_field={**self.scheduler.data_storage.get_run_info(), REAL_EVALUATION: True}
+                )
+            if self.load_history_data and self.load_breakpoint:
+                self.history_pos, self.history_cost = self.computer_fitness()
+            optimizer = CustomGlobalBestPSO(n_particles=self.n_particles, dimensions=self.dimensions(),
+                                            options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
+                                            init_pos=self.init_pos, breakpoint_pos=self.history_pos,
+                                            breakpoint_cost=self.history_cost, **self.pso_init_kwargs)
+            with enable_simulate(self.scheduler):
+                try:
+                    cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
+                except ValueError as e:
+                    if "operands could not be broadcast together with shape" in str(e):
+                        logger.warning(f"The first round of operation may have failed; please try again. error: {e}")
+                        cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
+                    else:
+                        raise e
+                best_results = self.scheduler.data_storage.get_best_result()
+            _record_fitness, _record_params, _record_res = self.refine_optimization_candidates(best_results)
+            best_fitness, best_param, best_performance_index = self.best_params(_record_fitness, _record_params,
+                                                                    _record_res)
+            if best_param is None or best_fitness is None or best_performance_index is None:
+                return
+            _position = {_field.name: _field.value for _field in map_param_with_value(best_param, self.target_field)}
+            logger.debug(f"vars: {_position}, performance index: "
+                        f"ttft: {best_performance_index.time_to_first_token} \n"
+                        f"tpot: {best_performance_index.time_per_output_token} \n"
+                        f"generate_speed: {best_performance_index.generate_speed} \n")
             
 
 @contextmanager
@@ -453,6 +511,33 @@ def adapter_target_field(pso_optimizer: PSOOptimizer):
     yield
     # 恢复寻优参数配置
     pso_optimizer.target_field = _bak_target_field
+
+
+@contextmanager
+def sample(scheduler):
+    from msserviceprofiler.modelevalstate.config.config import get_settings
+    from msserviceprofiler.modelevalstate.optimizer.interfaces.benchmark import BenchmarkInterface
+    """
+    采样请求控制。当只跑部分请求时 可以这样处理。
+    Args:
+        scheduler: 调度进行运行器。
+
+    Returns:
+
+    """
+    settings = get_settings()
+    _bak_number = None
+    if settings.sample_size:
+        if (isinstance(scheduler.benchmark, BenchmarkInterface) and
+                scheduler.benchmark.num_prompts and
+                scheduler.benchmark.num_prompts > settings.sample_size):
+            _bak_number = scheduler.benchmark.num_prompts
+            scheduler.benchmark.num_prompts = settings.sample_size
+        yield
+        if _bak_number:
+            scheduler.benchmark.num_prompts = _bak_number
+    else:
+        yield
 
 
 @contextmanager
@@ -553,9 +638,78 @@ def main(args: argparse.Namespace):
         pso.run()
     except Exception as e:
         logger.error(f"Failed to run optimizer. Please check. error: {e}")
+    
+    
+def plugin_main(args: argparse.Namespace):
+    from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
+    from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
+    from msserviceprofiler.modelevalstate.config.config import get_settings
+    from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import FineTune
+    from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler
+    settings = get_settings()
+
+    bak_path = None
+    if args.backup:
+        bak_path = settings.output.joinpath("bak")
+        if not bak_path.exists():
+            bak_path.mkdir(parents=True, mode=0o750)
+    _simu = _bench = None
+    _target_field = []
+    if args.engine:
+        _simu = simulates[args.engine](bak_path=bak_path)
+        _target_field.extend(_simu.data_field)
+    if args.benchmark_policy:
+        _bench = benchmarks[args.benchmark_policy](bak_path=bak_path)
+        _target_field.extend(_bench.data_field)
+    _target_field = tuple(_target_field)
+    if not _simu:
+        raise ValueError("No available simulator object found.")
+    if not _bench:
+        raise ValueError("No available benchmark object found.")
+    if len(_target_field) < 1:
+        raise ValueError("No optimization fields were found. ")
+    # 存储结果，只在主节点存储结果
+    data_storage = DataStorage(settings.data_storage, _simu, _bench)
+    # 初始化调度模块，支持单机和多机
+    scheduler = Scheduler(_simu, _bench, data_storage, bak_path=bak_path)
+    fine_tune = FineTune(ttft_penalty=settings.ttft_penalty,
+                         tpot_penalty=settings.tpot_penalty,
+                         target_field=_target_field,
+                         ttft_slo=settings.ttft_slo,
+                         tpot_slo=settings.tpot_slo,
+                         slo_coefficient=settings.slo_coefficient,
+                         step_size=settings.step_size)
+
+    # set constraints
+    constraint_thresholds = {
+        'ttft': getattr(settings, 'ttft_slo', 1.0) * (1 + getattr(settings, 'slo_coefficient', 0)),
+        'tpot': getattr(settings, 'tpot_slo', 0.05) * (1 + getattr(settings, 'slo_coefficient', 0))
+    }
+    try:
+        pso = PSOOptimizer(scheduler,
+                       n_particles=settings.n_particles,
+                       iters=settings.iters,
+                       target_field=_target_field,
+                       ttft_penalty=settings.ttft_penalty,
+                       tpot_penalty=settings.tpot_penalty,
+                       success_rate_penalty=settings.success_rate_penalty,
+                       ttft_slo=settings.ttft_slo,
+                       tpot_slo=settings.tpot_slo,
+                       success_rate_slo=settings.success_rate_slo,
+                       generate_speed_target=settings.generate_speed_target,
+                       load_breakpoint=args.load_breakpoint,
+                       fine_tune=fine_tune,
+                       max_fine_tune=settings.max_fine_tune,
+                       pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter},
+                       )
+        pso.run_plugin()
+    except Exception as e:	
+        logger.error(f"Failed to run optimizer. Please check. error: {e}")	
 
 
 def arg_parse(subparsers):
+    from msserviceprofiler.modelevalstate.plugins import load_general_plugins
+    plugin = load_general_plugins()
     parser = subparsers.add_parser(
         "optimizer", formatter_class=argparse.ArgumentDefaultsHelpFormatter, help="optimize for performance"
     )
@@ -566,13 +720,20 @@ def arg_parse(subparsers):
                         help="Indicates whether the multi-node running policy is used.")
     parser.add_argument("--backup", default=False, action="store_true",
                         help="Whether to back up data.")
-    parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.ais_bench.value,
-                        choices=[k.value for k in list(BenchMarkPolicy)],
-                        help="Whether to use custom performance indicators.")
-    parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value,
-                        choices=[k.value for k in list(EnginePolicy)],
-                        help="The engine used for model evaluation.")
     parser.add_argument("--pd", default=PDPolicy.competition.value,
                         choices=[k.value for k in list(PDPolicy)],
                         help="whether pd competition or pd disaggregation")
-    parser.set_defaults(func=main)
+    if plugin:
+        parser.add_argument("-b", "--benchmark_policy", default=None, choices=benchmarks.keys(),
+                            help="Whether to use custom performance indicators.")
+        parser.add_argument("-e", "--engine", default=None, choices=simulates.keys(),
+                            help="The engine used for model evaluation.")
+        parser.set_defaults(func=plugin_main)
+    else:
+        parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.ais_bench.value,
+                            choices=[k.value for k in list(BenchMarkPolicy)],
+                            help="Whether to use custom performance indicators.")
+        parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value,
+                            choices=[k.value for k in list(EnginePolicy)],
+                            help="The engine used for model evaluation.")
+        parser.set_defaults(func=main)
