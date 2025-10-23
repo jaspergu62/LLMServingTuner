@@ -8,7 +8,7 @@ import numpy as np
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import get_npu_total_memory
-from msserviceprofiler.modelevalstate.config.config import settings
+from msserviceprofiler.modelevalstate.config.config import get_settings
 from msserviceprofiler.msguard.security import open_s
 
 
@@ -181,7 +181,7 @@ class MindieModelConfig:
             raise ValueError(f"The JSON format of the configuration file '{config_path!r}' is invalid") from e
         except Exception as e:
             raise IOError(f"An error occurred while reading the configuration file '{config_path!r}'") from e
-        self.mem_coefficient = settings.mem_coefficient
+        self.mem_coefficient = get_settings().mem_coefficient
         self.npu_device_ids = self.config_data["BackendConfig"]["npuDeviceIds"]
         self.cache_block_size = self.config_data["BackendConfig"]["ScheduleConfig"]["cacheBlockSize"]
         self.max_prefill_tokens = self.config_data["BackendConfig"]["ScheduleConfig"]["maxPrefillTokens"]

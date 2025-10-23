@@ -553,7 +553,7 @@ class VllmSimulator(CustomProcess):
 
 
 @contextmanager
-def enable_simulate(simulate):
+def enable_simulate_old(simulate):
     if simulate_flag and isinstance(simulate, Simulator):
         origin_data = simulate.default_config
         data = deepcopy(origin_data)

@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
-import atexit
 import os
+from contextlib import contextmanager
 from copy import deepcopy
 from math import inf, isinf, isnan, isclose
 from typing import Dict, List, Tuple, Optional
@@ -25,11 +25,12 @@ from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie
 from msserviceprofiler.modelevalstate.config.base_config import (
-    EnginePolicy, DeployPolicy, AnalyzeTool,
-    ServiceType, BenchMarkPolicy, PDPolicy, REQUESTRATES, CONCURRENCYS
+    EnginePolicy, DeployPolicy, AnalyzeTool, REAL_EVALUATION, 
+    ServiceType, BenchMarkPolicy, PDPolicy, REQUESTRATES,
+    simulate_flag, CONCURRENCYS
 )
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
-from msserviceprofiler.modelevalstate.optimizer.utils import kill_process, get_required_field_from_json
+from msserviceprofiler.modelevalstate.optimizer.utils import get_required_field_from_json
 
 
 MAX_ITER_NUM = 200
@@ -165,7 +166,6 @@ class PSOOptimizer(PerformanceTuner):
 
     def refine_optimization_candidates(self, best_results: pd.DataFrame):
         from msserviceprofiler.modelevalstate.config.config import field_to_param
-        from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
         from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import StopFineTune
         # 分别精调每组参数
         _record_params = [self.default_run_param]
@@ -218,9 +218,20 @@ class PSOOptimizer(PerformanceTuner):
                 _record_res.append(_res)
                 _record_fitness.append(_fitness)
         return _record_fitness, _record_params, _record_res
+    
+    def get_max_generate_speed_index(self, performance_index_list, slo_index):
+        _best_index = 0
+        _max = 0
+        for i, v in enumerate(performance_index_list):
+            if i not in slo_index:
+                continue
+            if v.generate_speed > _max:
+                _max = v.generate_speed
+                _best_index = i
+        return _best_index
 
     def best_params(self, fitnese_list, params_list, performance_index_list):
-        from msserviceprofiler.modelevalstate.config.config import settings
+        from msserviceprofiler.modelevalstate.config.config import get_settings
         # 分析最佳参数
         if not performance_index_list or not fitnese_list or not params_list:
             logger.error(f"Input is empty."
@@ -234,33 +245,34 @@ class PSOOptimizer(PerformanceTuner):
                              f"fitnese_list: {len(fitnese_list)},"
                              f"params_list: {len(params_list)}")
             return None, None, None
+        for _p in performance_index_list:
+            if _p.generate_speed is None:
+                _p.generate_speed = 0
+            if _p.time_to_first_token is None:
+                _p.time_to_first_token = inf
+            if _p.time_per_output_token is None:
+                _p.time_per_output_token = inf
+
         if self.tpot_penalty == 0 and self.ttft_penalty == 0:
             _generate_speed = [p.generate_speed for p in performance_index_list]
             _best_index = _generate_speed.index(max(_generate_speed))
             return fitnese_list[_best_index], params_list[_best_index], performance_index_list[_best_index]
         if self.ttft_penalty == 0 and self.tpot_penalty != 0:
-            _tpot_threshold = self.tpot_slo * (1 + settings.slo_coefficient)
+            _tpot_threshold = self.fine_tune.tpot_upper_bound
             if _tpot_threshold == 0:
                 return fitnese_list[0], params_list[0], performance_index_list[0]
             _tpot_diff = [(p.time_per_output_token - _tpot_threshold) / _tpot_threshold for p in performance_index_list]
             _tpot_lt_slo_index = [i for i, v in enumerate(_tpot_diff) if v < 0]
             # 有满足slo的，从中选吞吐大的
             if _tpot_lt_slo_index:
-                _best_index = 0
-                _max = 0
-                for i, v in enumerate(performance_index_list):
-                    if i not in _tpot_lt_slo_index:
-                        continue
-                    if v.generate_speed > _max:
-                        _max = v.generate_speed
-                        _best_index = i
+                _best_index = self.get_max_generate_speed_index(performance_index_list, _tpot_lt_slo_index)
                 return fitnese_list[_best_index], params_list[_best_index], performance_index_list[_best_index]
             # 没有满足 slo的，选择离slo最近的约束
             _best_index = _tpot_diff.index(min(_tpot_diff))
             return fitnese_list[_best_index], params_list[_best_index], performance_index_list[_best_index]
         if self.ttft_penalty != 0 and self.tpot_penalty != 0:
-            _tpot_threshold = self.tpot_slo * (1 + settings.slo_coefficient)
-            _ttft_threshold = self.ttft_slo * (1 + settings.slo_coefficient)
+            _tpot_threshold = self.fine_tune.tpot_upper_bound
+            _ttft_threshold = self.fine_tune.ttft_upper_bound
             if _tpot_threshold == 0 or _ttft_threshold == 0:
                 return fitnese_list[0], params_list[0], performance_index_list[0]
             _performance_diff = [((p.time_per_output_token - _tpot_threshold) / _tpot_threshold,
@@ -269,14 +281,7 @@ class PSOOptimizer(PerformanceTuner):
             # ttft 和 tpot 都满足条件
             _performance_lt_slo_index = [i for i, v in enumerate(_performance_diff) if all([kv < 0 for kv in v])]
             if _performance_lt_slo_index:
-                _best_index = 0
-                _max = 0
-                for i, v in enumerate(performance_index_list):
-                    if i not in _performance_lt_slo_index:
-                        continue
-                    if v.generate_speed > _max:
-                        _max = v.generate_speed
-                        _best_index = i
+                _best_index = self.get_max_generate_speed_index(performance_index_list, _performance_lt_slo_index)
                 return fitnese_list[_best_index], params_list[_best_index], performance_index_list[_best_index]
             # 没有满足slo的，选择两个差异和最小的最为最佳值。
             _performance_diff_sum = [sum(v) for v in _performance_diff]
@@ -286,8 +291,9 @@ class PSOOptimizer(PerformanceTuner):
         return fitnese_list[0], params_list[0], performance_index_list[0]
 
     def mindie_prepare(self, mc):
-        from msserviceprofiler.modelevalstate.config.config import settings
+        from msserviceprofiler.modelevalstate.config.config import get_settings
         from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark
+        settings = get_settings()
         if mc is None:
             return
         if not settings.theory_guided_enable:
@@ -331,10 +337,11 @@ class PSOOptimizer(PerformanceTuner):
         logger.debug(f"target_field: {self.target_field}")
 
     def prepare(self):
-        from msserviceprofiler.modelevalstate.config.config import settings, field_to_param
+        from msserviceprofiler.modelevalstate.config.config import get_settings, field_to_param
         from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
         from msserviceprofiler.modelevalstate.optimizer.benchmark import AisBench
         # 运行默认参数服务，获取理论推导需要的指标
+        settings = get_settings()
         mc = None
         if is_mindie() and settings.theory_guided_enable:
             mc = MindieModelConfig(self.scheduler.simulator.mindie_config.config_path)
@@ -373,10 +380,10 @@ class PSOOptimizer(PerformanceTuner):
                         _field.value = _field.max
 
     def run(self):
-        from msserviceprofiler.modelevalstate.config.config import settings, map_param_with_value
+        from msserviceprofiler.modelevalstate.config.config import get_settings, map_param_with_value
         from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
         from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, AisBench
-        from msserviceprofiler.modelevalstate.optimizer.simulator import enable_simulate
+        from msserviceprofiler.modelevalstate.optimizer.simulator import enable_simulate_old
         self.prepare()
         # 备份原target field, 调整新的target field用来寻优
         _bak_target_field = self.target_field
@@ -389,6 +396,7 @@ class PSOOptimizer(PerformanceTuner):
             elif _field.name in REQUESTRATES and _field.constant is None:
                 _field.constant = _field.convert_dtype(_field.max)
         # 少量请求替代全量请求
+        settings = get_settings()
         if settings.sample_size:
             if (isinstance(self.scheduler.benchmark, BenchMark) and
                     self.scheduler.benchmark.benchmark_config.command.request_count and
@@ -406,7 +414,7 @@ class PSOOptimizer(PerformanceTuner):
                                         options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
                                         init_pos=self.init_pos, breakpoint_pos=self.history_pos,
                                         breakpoint_cost=self.history_cost, **self.pso_init_kwargs)
-        with enable_simulate(self.scheduler.simulator):
+        with enable_simulate_old(self.scheduler.simulator):
             cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
         best_results = self.scheduler.data_storage.get_best_result()
         # 恢复寻优参数配置
@@ -426,19 +434,52 @@ class PSOOptimizer(PerformanceTuner):
                     f"ttft: {best_performance_index.time_to_first_token} \n"
                     f"tpot: {best_performance_index.time_per_output_token} \n"
                     f"generate_speed: {best_performance_index.generate_speed} \n")
+            
+
+@contextmanager
+def adapter_target_field(pso_optimizer: PSOOptimizer):
+    _bak_target_field = pso_optimizer.target_field
+    target_field = deepcopy(pso_optimizer.target_field)
+    for _field in target_field:
+        # 将并发 和 req rate 设置为固定值，不进行pso寻优
+        if _field.name in CONCURRENCYS and _field.constant is None:
+            _field.constant = _field.value = _field.convert_dtype(_field.max)
+        elif _field.name in REQUESTRATES and _field.constant is None:
+            _field.constant = _field.convert_dtype(_field.max)
+            _field.value = None
+        elif _field.constant and _field.constant != _field.value:
+            _field.value = _field.constant
+    pso_optimizer.target_field = target_field
+    yield
+    # 恢复寻优参数配置
+    pso_optimizer.target_field = _bak_target_field
+
+
+@contextmanager
+def enable_simulate(scheduler):
+    """
+    进入启动仿真模型
+    Args: scheduler: 调度进行运行器
+    Returns
+    """
+    if simulate_flag:
+        with scheduler.simulator.enable_simulation_model as flag:
+            yield flag
+    else:
+        yield False
 
 
 def main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
     from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-    from msserviceprofiler.modelevalstate.config.config import settings, MindieConfig
+    from msserviceprofiler.modelevalstate.config.config import get_settings, MindieConfig
     from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, \
         ProfilerBenchmark, AisBench
     from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import FineTune
     from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
     from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, \
         DisaggregationSimulator
-    
+    settings = get_settings()
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
@@ -512,8 +553,6 @@ def main(args: argparse.Namespace):
         pso.run()
     except Exception as e:
         logger.error(f"Failed to run optimizer. Please check. error: {e}")
-    finally:
-        kill_process(MindieConfig().process_name)
 
 
 def arg_parse(subparsers):

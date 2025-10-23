@@ -5,8 +5,10 @@ import bisect
 import json
 import os
 import time
+from collections.abc import Callable
 from copy import deepcopy
 from enum import Enum
+from inspect import isfunction
 from math import isinf, isclose
 from pathlib import Path
 from typing import Any, List, Tuple, Type, Optional, Union
@@ -40,6 +42,18 @@ class PerformanceConfig(BaseModel):
 
 
 dtype_func = {"int": int, "float": float}
+
+
+class Stage(Enum):
+    start = "start"
+    running = "running"
+    error = "error"
+    stop = "stop"
+
+
+class ProcessState(BaseModel):
+    stage: Stage = Stage.start
+    info: str = ""
 
 
 class OptimizerConfigField(BaseModel):
@@ -317,6 +331,7 @@ class BenchMarkConfig(BaseModel):
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: BenchmarkCommandConfig = BenchmarkCommandConfig()
     performance_config: PerformanceConfig = PerformanceConfig()
+    target_field: List[OptimizerConfigField] = Field(default_factory=list)
 
     @field_validator("work_path")
     @classmethod
@@ -418,6 +433,7 @@ class AisBenchConfig(BaseModel):
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: AisBenchCommandConfig = AisBenchCommandConfig()
     performance_config: PerformanceConfig = PerformanceConfig()
+    target_field: List[OptimizerConfigField] = Field(default_factory=list)
 
 
 class VllmBenchmarkConfig(BaseModel):
@@ -425,6 +441,7 @@ class VllmBenchmarkConfig(BaseModel):
     process_name: str = ""
     command: VllmBenchmarkCommandConfig = VllmBenchmarkCommandConfig()
     performance_config: PerformanceConfig = PerformanceConfig()
+    target_field: List[OptimizerConfigField] = Field(default_factory=list)
 
 
 class VllmConfig(BaseModel):
@@ -432,7 +449,7 @@ class VllmConfig(BaseModel):
     process_name: str = "vllm"
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: VllmCommandConfig = VllmCommandConfig()
-    target_field: List[OptimizerConfigField] = default_support_field
+    target_field: List[OptimizerConfigField] = Field(default_factory=list)
 
 
 class PsoOptions(BaseModel):
@@ -449,6 +466,9 @@ class PsoStrategy(BaseModel):
 
 
 class Settings(BaseSettings):
+    """
+    设置类的定义，通过读取配置文件初始化配置
+    """
     model_config = SettingsConfigDict(
         toml_file=[INSTALL_PATH.joinpath("model_eval_state.toml"), Path("~/model_eval_state.toml").expanduser(),
                    RUN_PATH.joinpath("model_eval_state.toml"),
@@ -461,6 +481,7 @@ class Settings(BaseSettings):
         default_factory=lambda data: data["output"].joinpath("simulator").resolve())
     pso_options: PsoOptions = PsoOptions()
     pso_strategy: PsoStrategy = PsoStrategy()
+    particles_time_out: int = 1 * 60 * 60
     n_particles: int = Field(default=5, gt=0, lt=1000)
     iters: int = Field(default=10, gt=0, lt=1000)
     ftol: float = -np.inf
@@ -537,7 +558,10 @@ class Settings(BaseSettings):
         self.vllm_benchmark.command.port = self.vllm.command.port
         self.vllm_benchmark.command.model = self.vllm.command.model
         self.vllm_benchmark.command.served_model_name = self.vllm.command.served_model_name
-        range_to_enum(self.vllm.target_field)
+        if self.vllm.target_field:
+            range_to_enum(self.vllm.target_field)
+        if self.vllm_benchmark.target_field:
+            range_to_enum(self.vllm_benchmark.target_field)
         return self
 
     @model_validator(mode="after")
@@ -549,6 +573,8 @@ class Settings(BaseSettings):
             self.ais_bench.output_path = self.output.joinpath(output)
         if not self.ais_bench.command.work_dir:
             self.ais_bench.command.work_dir = str(self.ais_bench.output_path)
+        if self.ais_bench.target_field:
+            range_to_enum(self.ais_bench)
         return self
 
     @model_validator(mode="after")
@@ -594,5 +620,28 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()
-logger.debug(f"expect load config file: {settings.model_config['toml_file']}")
+custom_settings_func: Optional[Callable] = None
+
+settings = None
+
+
+def get_settings() -> Settings:
+    """
+    获取 settings 对象
+    Return: Settings()实例
+    """
+    global settings
+    if not settings:
+        if custom_settings_func and isfunction(custom_settings_func):
+            settings = custom_settings_func()
+        else:
+            settings = Settings()
+    return settings
+
+
+def register_settings(func: Optional[Callable] = None) -> None:
+    """
+    注册自定义settings  可提供函数生成或提供新的settings
+    """
+    global custom_settings_func
+    custom_settings_func = func

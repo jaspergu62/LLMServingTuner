@@ -16,15 +16,16 @@ import os
 import subprocess
 import tempfile
 import time
+from math import isnan, isinf
 from pathlib import Path
 from typing import Tuple, Optional, List
 
 import psutil
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.config.config import CUSTOM_OUTPUT, settings, MODEL_EVAL_STATE_CONFIG_PATH, \
+from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, MODEL_EVAL_STATE_CONFIG_PATH, \
     modelevalstate_config_path
-from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField
+from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField, get_settings, ProcessState, Stage
 from msserviceprofiler.modelevalstate.optimizer.utils import close_file_fp, remove_file, kill_children, \
     backup, kill_process
 from msserviceprofiler.msguard.security import open_s
@@ -44,9 +45,13 @@ class CustomProcess:
         self.print_log = print_log
         self.process_name = process_name
         self.env = os.environ.copy()
+        self.command = None
 
     @staticmethod
     def kill_residual_process(process_name):
+        """
+        检查环境，查看是否有残留任务  清理残留任务
+        """
         logger.debug("check env")
         _residual_process = []
         _all_process_name = process_name.split(",")
@@ -73,6 +78,7 @@ class CustomProcess:
 
 
     def backup(self):
+        # 备份操作，默认备份日志
         backup(self.run_log, self.bak_path, self.__class__.__name__)
 
     def before_run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
@@ -88,14 +94,22 @@ class CustomProcess:
                 if _var_name not in self.command:
                     continue
                 _i = self.command.index(_var_name)
-                if k.value:
+                value_flag = isnan(k.value) or isinf(k.value)
+                if k.value is None or value_flag or not str(k).strip():
+                    self.command.pop(_i)
+                    if _i > 0:
+                        self.command.pop(_i - 1)
+                else:
                     self.command[_i] = str(k.value)
-                    continue
-                self.command.pop(_i)
-                if _i > 0:
-                    self.command.pop(_i - 1)
+        if CUSTOM_OUTPUT not in self.env:
+            # 设置输出目录
+            self.env[CUSTOM_OUTPUT] = str(get_settings().output)
+        # 设置读取的json文件
+        if MODEL_EVAL_STATE_CONFIG_PATH not in self.env:
+            self.env[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
+                
 
-    def run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
+    def run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None, **kwargs):
         # 启动测试
         if self.process_name:
             try:
@@ -103,15 +117,22 @@ class CustomProcess:
             except Exception as e:
                 logger.error(f"Failed to kill residual process. {e}")
         self.before_run(run_params)
-        if CUSTOM_OUTPUT not in self.env:
-            # 设置输出目录
-            self.env[CUSTOM_OUTPUT] = str(settings.output)
-        # 设置读取的json文件
-        if MODEL_EVAL_STATE_CONFIG_PATH not in self.env:
-            self.env[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
+        for i, v in enumerate(self.command):
+            if not v.strip():
+                continue
+            if '-' or '--' not in v:
+                continue
+            if v in self.command[:i]:
+                logger.warning("{} field appears multiple times in the command. please confirm.", v)
+        for k, v in self.env.items():
+            if isinstance(k, str) and isinstance(v, str):
+                continue
+            else:
+                logger.error(f"Possible Problem with Environment Variable Type. "
+                             f"env: {k}={v}, k type: {type(k)}, v type: {type(v)}")
         try:
             self.process = subprocess.Popen(self.command, env=self.env, stdout=self.run_log_fp,
-                                            stderr=subprocess.STDOUT, text=True, cwd=self.work_path)
+                                            stderr=subprocess.STDOUT, cwd=self.work_path)
         except OSError as e:
             logger.error(f"Failed to run {self.command}. error {e}")
             raise e
