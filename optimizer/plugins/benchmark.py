@@ -41,27 +41,6 @@ class VllmBenchMark(BenchmarkInterface):
         self.command = VllmBenchmarkCommand(self.config.command).command
 
     @property
-    def data_field(self) -> Optional[Tuple[OptimizerConfigField, ...]]:
-        """
-        获取data field 属性
-        Returns:  Optional[Tuple[OptimizerConfigField]]
-
-        """
-        return self.config.target_field
-
-    @data_field.setter
-    def data_field(self, value: Optional[Tuple[OptimizerConfigField]] = None) -> None:
-        """
-        提供新的数据，更新替换data field属性。
-        Args:
-            value:
-
-        Returns:
-
-        """
-        self.config.target_field = value
-
-    @property
     def num_prompts(self) -> int:
         """
         获取服务的进程名属性

@@ -20,10 +20,10 @@ from typing import Tuple, Optional
 import requests
 
 from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField, ProcessState, Stage
-from msserviceprofiler.modelevalstate.optimizer.interfaces.custom_process import CustomProcess
+from msserviceprofiler.modelevalstate.optimizer.interfaces.custom_process import BaseDataField, CustomProcess
 
 
-class SimulatorInterface(CustomProcess, ABC):
+class SimulatorInterface(CustomProcess, BaseDataField, ABC):
     """
     操作服务框架。用于操作服务相关功能。
     """
@@ -33,29 +33,6 @@ class SimulatorInterface(CustomProcess, ABC):
     def base_url(self) -> str:
         """
         获取服务的base url 属性
-        Returns:
-
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def data_field(self) -> Optional[Tuple[OptimizerConfigField]]:
-        """
-        获取data field 属性
-        Returns:  Optional[Tuple[OptimizerConfigField]]
-
-        """
-        pass
-
-    @data_field.setter
-    @abstractmethod
-    def data_field(self, value: Optional[Tuple[OptimizerConfigField]] = None) -> None:
-        """
-        提供新的数据，更新替换data field属性。
-        Args:
-            value:
-
         Returns:
 
         """
