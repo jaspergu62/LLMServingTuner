@@ -19,7 +19,7 @@ import tempfile
 import time
 from math import isnan, isinf
 from pathlib import Path
-from typing import Tuple, Optional, List
+from typing import Any, Tuple, Optional, List
 
 import psutil
 from loguru import logger
@@ -216,3 +216,35 @@ class CustomProcess:
             number = min(number, len(file_lines))
             output = '\n'.join(file_lines[-number:])
         return output
+
+
+class BaseDataField:
+    def __init__(self, config: Optional[Any] = None):
+        if config:
+            self.config = config
+        else:
+            settings = get_settings()
+            self.config = settings.ais_bench
+ 
+    @property
+    def data_field(self) -> Tuple[OptimizerConfigField, ...]:
+        """
+        获取data field 属性
+        """
+        if hasattr(self.config, "target_field") and self.config.target_field:
+            return tuple(self.config.target_field)
+        return ()
+ 
+    @data_field.setter
+    def data_field(self, value: Tuple[OptimizerConfigField] = ()) -> None:
+        """
+        提供新的数据，更新替换data field属性。
+        """
+        _default_name = []
+        if hasattr(self.config, "target_field") and self.config.target_field:
+            _default_name = [_f.name for _f in self.config.target_field]
+        for _field in value:
+            if _field.name not in _default_name:
+                continue
+            _index = _default_name.index(_field.name)
+            self.config.target_field[_index] = _field

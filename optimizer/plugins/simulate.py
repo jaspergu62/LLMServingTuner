@@ -43,27 +43,6 @@ class VllmSimulator(SimulatorInterface):
         """
         return f"http://127.0.0.1:{self.config.command.port}/health"
 
-    @property
-    def data_field(self) -> Optional[Tuple[OptimizerConfigField, ...]]:
-        """
-        获取data field 属性
-        Returns:  Optional[Tuple[OptimizerConfigField]]
-
-        """
-        return tuple(self.config.target_field)
-
-    @data_field.setter
-    def data_field(self, value: Optional[Tuple[OptimizerConfigField]] = None) -> None:
-        """
-        提供新的数据，更新替换data field属性。
-        Args:
-            value:
-
-        Returns:
-
-        """
-        self.config.target_field = value
-
     def stop(self, del_log: bool = True):
         """
         运行时，其他的准备工作。
