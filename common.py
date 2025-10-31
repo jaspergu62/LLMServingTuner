@@ -156,6 +156,9 @@ def ais_bench_exists():
 
 
 def get_npu_total_memory(device_id: int = 0):
+    if not isinstance(device_id, int):
+        if not device_id.isdigit():
+            raise ValueError(f"device_id {device_id} is not a digit.")
     cmd = ["npu-smi", "info", "-t", "usages", "-i", str(device_id)]
     memory_key_word = _KEY_WORD + " Capacity(MB)"
     usage_rate_key_word = _KEY_WORD + " Usage Rate(%)"
