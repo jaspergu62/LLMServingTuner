@@ -164,6 +164,9 @@ class KubectlCommand():
     @property
     def command(self):
         kubectl_command_path = self.command_config.kubectl_single_path
+        if not Rule.input_file_read.is_satisfied_by(kubectl_command_path):
+            logger.error("the file of kubectl_single_path is not safe, please check")
+            return None
         cmd = ['bash', kubectl_command_path]
         return cmd
 

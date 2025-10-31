@@ -31,6 +31,7 @@ from msserviceprofiler.modelevalstate.config.custom_command import MindieCommand
 from msserviceprofiler.modelevalstate.optimizer.custom_process import CustomProcess
 from msserviceprofiler.modelevalstate.optimizer.utils import backup, remove_file, close_file_fp
 from msserviceprofiler.msguard.security import open_s
+from msserviceprofiler.msguard import Rule
 
 
 @dataclass
@@ -347,6 +348,8 @@ class DisaggregationSimulator(CustomProcess):
     def prepare_before_start_server(self):
         bash_path = shutil.which("bash")
         if bash_path is not None:
+            if not Rule.input_file_read.is_satisfied_by(self.mindie_config.delete_path):
+                raise PermissionError("the file of delete_path is not safe, please check")
             subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "."], 
                            cwd=self.mindie_config.kubectl_default_path)
             while True:
@@ -507,6 +510,8 @@ class DisaggregationSimulator(CustomProcess):
         self.mindie_log_offset = 0
         try:
             bash_path = shutil.which("bash")
+            if not Rule.input_file_read.is_satisfied_by(self.mindie_config.delete_path):
+                raise PermissionError("the file of delete_path is not safe, please check")
             if bash_path is not None:
                 subprocess.run([bash_path, self.mindie_config.delete_path, "mindie", "./"])
             else:
