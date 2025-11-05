@@ -7,7 +7,7 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Tuple
 import shutil
 import pandas as pd
 from loguru import logger
@@ -155,23 +155,42 @@ def ais_bench_exists():
     return True
 
 
-def get_npu_total_memory(device_id: int = 0):
-    if not isinstance(device_id, int):
-        if not device_id.isdigit():
-            raise ValueError(f"device_id {device_id} is not a digit.")
-    cmd = ["npu-smi", "info", "-t", "usages", "-i", str(device_id)]
-    memory_key_word = _KEY_WORD + " Capacity(MB)"
-    usage_rate_key_word = _KEY_WORD + " Usage Rate(%)"
+def get_npu_total_memory(device_id: int = 0) -> Tuple[int, int]:
+    _npu_smi_path = shutil.which("npu-smi")
+    if not _npu_smi_path:
+        raise ValueError("Not Found npu-smi command path. ")
+    _id_map_cmd = ["npu-smi", "info", "-m"]
+    cmd = ["npu-smi", "info", "-t", "usages"]
     try:
-        output = subprocess.check_output(cmd)
-        output = output.decode("utf-8")
-        total_memory_line = [line for line in output.splitlines() if memory_key_word in line][0]
+        _map_out = subprocess.check_output(_id_map_cmd).decode("utf-8")
+        _npu_id = _chip_id = 0
+        for _line in _map_out.split("\n"):
+            if not _line.strip():
+                continue
+            _result = _line.split()
+            _npu_id, _chip_id, _chip_logic_id, *_chip_other = _result
+            if _chip_logic_id.strip() == str(device_id):
+                break
+        if not _npu_id.isdigit():
+            raise ValueError(f"_npu_id {_npu_id} is not a digit.")
+        if not _chip_id.isdigit():
+            raise ValueError(f"_chip_id {_chip_id} is not a digit.")
+        cmd.extend(["-i", _npu_id, "-c", _chip_id])
+        output = subprocess.check_output(cmd).decode("utf-8")
+        memory_key_word = _KEY_WORD + " Capacity(MB)"	
+        usage_rate_key_word = _KEY_WORD + " Usage Rate(%)"
+        try:
+            total_memory_line = [line for line in output.splitlines() if memory_key_word in line][0]
+            memory_usage_rate = [line for line in output.splitlines() if usage_rate_key_word in line][0]
+        except IndexError: 
+            total_memory_line = [line for line in output.splitlines() if "DDR Capacity(MB)" in line][0]
+            memory_usage_rate = [line for line in output.splitlines() if "DDR Hugepages Usage Rate(%)" in line][0]
         total_memory_line = total_memory_line.split(":")[1].strip()
-        memory_usage_rate = [line for line in output.splitlines() if usage_rate_key_word in line][0]
         memory_usage_rate = memory_usage_rate.split(":")[1].strip()
-        memory_line, usage_rate = int(total_memory_line), int(memory_usage_rate)
-        logger.debug(f"cmd: {cmd}, result: {memory_line}, {usage_rate}")
-        return memory_line, usage_rate
+ 
+        logger.debug(f"cmd: {cmd}, result: {int(total_memory_line), int(memory_usage_rate)}")
+        return int(total_memory_line), int(memory_usage_rate)
     except Exception as e:
-        raise ValueError(f"Failed to retrieve total video memory. Please check if the video memory query command {cmd} "
-                     f"matches the current parsing code. ") from e
+        logger.error(f"Failed to retrieve total video memory. Please check if the video memory query command {cmd} "
+                     f"matches the current parsing code. ")
+        raise e
