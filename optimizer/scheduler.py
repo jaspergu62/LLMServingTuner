@@ -159,7 +159,7 @@ class Scheduler:
         if REAL_EVALUATION in kwargs:
             real_evaluation = kwargs.pop(REAL_EVALUATION)
         self.data_storage.save(self.performance_index, tuple(self.simulate_run_info),
-                               error=self.error_info, backup=self.current_back_path, duration=duration,
+                               error=self.error_info, backup=self.current_back_path,
                                real_evaluation=real_evaluation, **kwargs)
         if self.bak_path:
             self.backup()

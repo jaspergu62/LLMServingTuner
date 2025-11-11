@@ -27,6 +27,7 @@ from loguru import logger
 from msserviceprofiler.msguard.security import open_s
 from msserviceprofiler.msguard import Rule
 from msserviceprofiler.modelevalstate.common import read_csv_s
+from msserviceprofiler.modelevalstate.optimizer.utils import is_root
 
 
 def fetch_rids_from_db(db_path):
@@ -476,7 +477,12 @@ def arg_parse(subparsers):
 
 def main(args):
     from msserviceprofiler.modelevalstate.train.pretrain import pretrain
-
+    if is_root():
+        logger.warning(
+            "Security Warning: Do not run this tool as root. "
+            "Running with elevated privileges may compromise system security. "
+            "Use a regular user account."
+        )
     input_path = args.input
     output_path = args.output
     model_type = args.type

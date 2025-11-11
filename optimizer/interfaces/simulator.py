@@ -75,7 +75,7 @@ class SimulatorInterface(CustomProcess, BaseDataField, ABC):
 
         """
         process_res = super().health()
-        if process_res.stage == Stage.error or process_res.stage == Stage.stop:
+        if process_res.stage == Stage.error:
             return process_res
         try:
             res = requests.get(self.base_url, timeout=10)

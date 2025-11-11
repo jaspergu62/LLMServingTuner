@@ -31,7 +31,7 @@ from msserviceprofiler.modelevalstate.config.base_config import (
 )
 from msserviceprofiler.modelevalstate.optimizer.register import benchmarks, simulates
 from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
-from msserviceprofiler.modelevalstate.optimizer.utils import get_required_field_from_json
+from msserviceprofiler.modelevalstate.optimizer.utils import get_required_field_from_json, is_root
 
 
 MAX_ITER_NUM = 200
@@ -482,16 +482,16 @@ class PSOOptimizer(PerformanceTuner):
                     else:
                         raise e
                 best_results = self.scheduler.data_storage.get_best_result()
-            _record_fitness, _record_params, _record_res = self.refine_optimization_candidates(best_results)
-            best_fitness, best_param, best_performance_index = self.best_params(_record_fitness, _record_params,
-                                                                    _record_res)
-            if best_param is None or best_fitness is None or best_performance_index is None:
-                return
-            _position = {_field.name: _field.value for _field in map_param_with_value(best_param, self.target_field)}
-            logger.debug(f"vars: {_position}, performance index: "
-                        f"ttft: {best_performance_index.time_to_first_token} \n"
-                        f"tpot: {best_performance_index.time_per_output_token} \n"
-                        f"generate_speed: {best_performance_index.generate_speed} \n")
+        _record_fitness, _record_params, _record_res = self.refine_optimization_candidates(best_results)
+        best_fitness, best_param, best_performance_index = self.best_params(_record_fitness, _record_params,
+                                                                _record_res)
+        if best_param is None or best_fitness is None or best_performance_index is None:
+            return
+        _position = {_field.name: _field.value for _field in map_param_with_value(best_param, self.target_field)}
+        logger.debug(f"vars: {_position}, performance index: "
+                    f"ttft: {best_performance_index.time_to_first_token} \n"
+                    f"tpot: {best_performance_index.time_per_output_token} \n"
+                    f"generate_speed: {best_performance_index.generate_speed} \n")
             
 
 @contextmanager
@@ -565,6 +565,12 @@ def main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, \
         DisaggregationSimulator
     settings = get_settings()
+    if is_root():
+        logger.warning(
+            "Security Warning: Do not run this tool as root. "
+            "Running with elevated privileges may compromise system security. "
+            "Use a regular user account."
+        )   
     if settings.service == ServiceType.slave.value:
         slave_server()
         return
@@ -649,7 +655,12 @@ def plugin_main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.optimizer.register import register_ori_functions
     register_ori_functions()
     settings = get_settings()
-
+    if is_root():
+        logger.warning(
+            "Security Warning: Do not run this tool as root. "
+            "Running with elevated privileges may compromise system security. "
+            "Use a regular user account."
+        )   
     bak_path = None
     if args.backup:
         bak_path = settings.output.joinpath("bak")
