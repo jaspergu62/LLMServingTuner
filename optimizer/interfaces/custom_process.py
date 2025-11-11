@@ -100,8 +100,8 @@ class CustomProcess:
                 if _var_name not in self.command:
                     continue
                 _i = self.command.index(_var_name)
-                value_flag = isnan(k.value) or isinf(k.value)
-                if k.value is None or value_flag or not str(k).strip():
+                value_flag = k.value is None or isnan(k.value) or isinf(k.value)
+                if value_flag or not str(k).strip():
                     self.command.pop(_i)
                     if _i > 0:
                         self.command.pop(_i - 1)

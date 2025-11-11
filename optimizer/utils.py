@@ -152,3 +152,7 @@ def get_required_field_from_json(data, key, max_depth=20, current_depth=0):
         return get_required_field_from_json(_value, _next_key, max_depth, current_depth + 1)
     else:
         return _value
+    
+
+def is_root():
+    return os.name != 'nt' and os.getuid() == 0
