@@ -12,10 +12,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from msserviceprofiler.modelevalstate.optimizer.plugins.benchmark import VllmBenchMark
-from msserviceprofiler.modelevalstate.optimizer.plugins.simulate import VllmSimulator
-from msserviceprofiler.modelevalstate.optimizer.register import register_simulator, register_benchmarks
-
-register_benchmarks("vllm_benchmark", VllmBenchMark)
-register_simulator("vllm", VllmSimulator)

@@ -646,6 +646,8 @@ def plugin_main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.config.config import get_settings
     from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import FineTune
     from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler
+    from msserviceprofiler.modelevalstate.optimizer.register import register_ori_functions
+    register_ori_functions()
     settings = get_settings()
 
     bak_path = None
@@ -710,6 +712,8 @@ def plugin_main(args: argparse.Namespace):
 def arg_parse(subparsers):
     from msserviceprofiler.modelevalstate.plugins import load_general_plugins
     plugin = load_general_plugins()
+    sims = ["vllm"]
+    benches = ["vllm_benchmark"]
     parser = subparsers.add_parser(
         "optimizer", formatter_class=argparse.ArgumentDefaultsHelpFormatter, help="optimize for performance"
     )
@@ -724,9 +728,10 @@ def arg_parse(subparsers):
                         choices=[k.value for k in list(PDPolicy)],
                         help="whether pd competition or pd disaggregation")
     if plugin:
-        parser.add_argument("-b", "--benchmark_policy", default=None, choices=benchmarks.keys(),
+        parser.add_argument("-b", "--benchmark_policy", default=None, 
+                            choices=list(benchmarks.keys()) + benches,
                             help="Whether to use custom performance indicators.")
-        parser.add_argument("-e", "--engine", default=None, choices=simulates.keys(),
+        parser.add_argument("-e", "--engine", default=None, choices=list(simulates.keys()) + sims,
                             help="The engine used for model evaluation.")
         parser.set_defaults(func=plugin_main)
     else:
