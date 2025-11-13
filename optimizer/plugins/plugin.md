@@ -209,9 +209,13 @@ class msserviceprofiler.modelevalstate.optimizer.simulator.SimulatorInterface()
 ```
 注册实现：msserviceprofiler.modelevalstate.optimizer.register.register_simulator
 ### 插件pyproject.toml
-入口设置为msserviceprofiler.modelevalstate.plugins
+入口设置为modelevalstate.plugins
 例如：
 ```
-[project.entry-points.'msserviceprofiler.modelevalstate.plugins']
+[project.entry-points.'modelevalstate.plugins']
 vllm_inference_optimization="vllm_inference_optimization:register"
+```
+使用插件模式前需要先在插件目录中（确保当前路径下包含pyproject.toml）对插件进行安装：
+```
+pip install -e .
 ```
