@@ -41,8 +41,10 @@ class NPUModelRunnerCustom(NPUModelRunner):
             raise ValueError("num_steps > 1 is not supported in ModelRunner")
  
         if self.lora_config:
-            assert model_input.lora_requests is not None
-            assert model_input.lora_mapping is not None
+            if model_input.lora_requests is None:
+                raise ValueError("lora_requests cannot be None when lora_config is set")
+            if model_input.lora_mapping is None:
+                raise ValueError("lora_mapping cannot be None when lora_config is set")
             self.set_active_loras(model_input.lora_requests,
                                   model_input.lora_mapping)
         if simulate_flag:
@@ -51,7 +53,8 @@ class NPUModelRunnerCustom(NPUModelRunner):
                 SimulateVllm.generate_features(model_input)
         self.attn_state.begin_forward(model_input)
  
-        assert model_input.attn_metadata is not None
+        if model_input.attn_metadata is None:
+            raise ValueError("attn_metadata cannot be None")
         # TODO(zzzzwwjj): Do we need to do it every time?
         if self.enable_graph_mode:
             torch._dynamo.mark_static(model_input.input_tokens)
@@ -186,7 +189,8 @@ class NPUModelRunnerCustom(NPUModelRunner):
                 sampling_metadata=model_input.sampling_metadata,
             )
         else:
-            assert self.sampler is not None
+            if self.sampler is None:
+                raise ValueError("sampler cannot be None")
             output = self.sampler(
                 logits=logits,
                 sampling_metadata=model_input.sampling_metadata,
@@ -210,7 +214,8 @@ class NPUModelRunnerCustom(NPUModelRunner):
  
         if self.return_hidden_states:
             # we only need to pass hidden states of most recent token
-            assert model_input.sampling_metadata is not None
+            if model_input.sampling_metadata is None:
+                raise ValueError("sampling_metadata cannot be None")
             indices = model_input.sampling_metadata.selected_token_indices
             if model_input.is_prompt:
                 hidden_states = hidden_or_intermediate_states.index_select(
