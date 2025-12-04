@@ -293,7 +293,6 @@ class PSOOptimizer(PerformanceTuner):
     
     def mindie_prepare(self, mc):
         from msserviceprofiler.modelevalstate.config.config import get_settings
-        from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark
         settings = get_settings()
         if mc is None:
             return
@@ -301,11 +300,7 @@ class PSOOptimizer(PerformanceTuner):
             return
         mc.avg_input_length = self.scheduler.benchmark.get_performance_metric("InputTokens")
         mc.max_input_length = self.scheduler.benchmark.get_performance_metric("InputTokens", algorithm="max")
-        if isinstance(self.scheduler.benchmark, BenchMark):
-            mc.max_output_length = min(int(self.scheduler.benchmark.benchmark_config.command.max_output_len),
-                                       mc.max_output_length)
-        else:
-            mc.max_output_length = self.scheduler.benchmark.get_performance_metric("OutputTokens", algorithm="max")
+        mc.max_output_length = self.scheduler.benchmark.get_performance_metric("OutputTokens", algorithm="max")
         logger.debug(f"avg_input_length: {mc.avg_input_length}, max_input_length: {mc.max_input_length},"
                      f"max_output_length: {mc.max_output_length}")
         max_batch_size_lb, max_batch_size_ub = mc.get_max_batch_size_bound()
@@ -337,56 +332,47 @@ class PSOOptimizer(PerformanceTuner):
                 break
         logger.debug(f"target_field: {self.target_field}")
     
-    def prepare(self):
+    def prepare_plugin(self):
         from msserviceprofiler.modelevalstate.config.config import get_settings, field_to_param
         from msserviceprofiler.modelevalstate.config.model_config import MindieModelConfig
-        from msserviceprofiler.modelevalstate.optimizer.benchmark import AisBench
+        from msserviceprofiler.modelevalstate.optimizer.plugins.benchmark import AisBench
+        from msserviceprofiler.modelevalstate.optimizer.plugins.simulate import Simulator, DisaggregationSimulator
         # 运行默认参数服务，获取理论推导需要的指标
-        settings = get_settings()
-        mc = None
-        if is_mindie() and settings.theory_guided_enable:
-            mc = MindieModelConfig(self.scheduler.simulator.mindie_config.config_path)
-        for _, _field in enumerate(self.target_field):
-            if _field.config_position.startswith("BackendConfig"):
-                _field.value = get_required_field_from_json(self.scheduler.simulator.default_config,
-                                                            _field.config_position)
-            elif _field.config_position == "env":
-                _field.value = os.getenv(_field.name, _field.value)
-        self.default_run_param = field_to_param(self.target_field)
-        self.default_res = self.scheduler.run(self.default_run_param, self.target_field)
-        if self.default_res.generate_speed:
-            self.gen_speed_target = 10 * self.default_res.generate_speed
-        self.default_fitness = self.minimum_algorithm(self.default_res)
-        self.scheduler.save_result(fitness=self.default_fitness)
-        if self.scheduler.error_info:
-            raise ValueError(f"Failed to start the default service. "
-                             "Please check if the service and the request to start it are correct. error:{e}")
-
-        if (self.default_res.generate_speed is None or self.default_res.time_to_first_token is None or
-                self.default_res.time_per_output_token is None):
-            raise ValueError(f"Failed to obtain benchmark metric data. metric {self.default_res}"
-                             "Please check if the benchmark is running successfully. ")
-        if is_mindie():
-            self.mindie_prepare(mc)
-        if isinstance(self.scheduler.benchmark, AisBench):
-            #由于aisbench在过高的concurrency下可能会卡死，所以需要根据benchmark结果来设置concurrency的范围
-            _concurrency = self.scheduler.benchmark.get_best_concurrency()
-            for _field in self.target_field:
-                if _field.name in CONCURRENCYS and _field.min != _field.max:
-                    if _field.min < _concurrency < _field.max:
-                        _field.value = _field.max = _concurrency
-                    elif _concurrency < _field.min:
-                        _field.value = _field.max = _field.min
-                    else:
-                        _field.value = _field.max
-
-    def prepare_plugin(self):
-        from msserviceprofiler.modelevalstate.config.config import field_to_param
-        # 运行默认参数服务，获取理论推导需要的指标
+        if isinstance(self.scheduler.simulator, (Simulator, DisaggregationSimulator)):
+            settings = get_settings()
+            mc = None
+            if is_mindie() and settings.theory_guided_enable:
+                mc = MindieModelConfig(self.scheduler.simulator.config.config_path)
+            for _, _field in enumerate(self.target_field):
+                if _field.config_position.startswith("BackendConfig"):
+                    _field.value = get_required_field_from_json(self.scheduler.simulator.default_config,
+                                                                _field.config_position)
+                elif _field.config_position == "env":
+                    _field.value = os.getenv(_field.name, _field.value)
+            self.default_run_param = field_to_param(self.target_field)
+            self.default_res = self.scheduler.run(self.default_run_param, self.target_field)
+            if self.default_res.generate_speed:
+                self.gen_speed_target = 10 * self.default_res.generate_speed
+            self.default_fitness = self.minimum_algorithm(self.default_res)
+            self.scheduler.save_result(fitness=self.default_fitness)
+            if is_mindie():
+                self.mindie_prepare(mc)
+            if isinstance(self.scheduler.benchmark, AisBench):
+                #由于aisbench在过高的concurrency下可能会卡死，所以需要根据benchmark结果来设置concurrency的范围
+                _concurrency = self.scheduler.benchmark.get_best_concurrency()
+                for _field in self.target_field:
+                    if _field.name in CONCURRENCYS and _field.min != _field.max:
+                        if _field.min < _concurrency < _field.max:
+                            _field.value = _field.max = _concurrency
+                        elif _concurrency < _field.min:
+                            _field.value = _field.max = _field.min
+                        else:
+                            _field.value = _field.max
         self.default_run_param = field_to_param(self.target_field)
         self.default_res = self.scheduler.run(self.default_run_param, self.target_field)
         self.default_fitness = self.minimum_algorithm(self.default_res)
         self.scheduler.save_result(fitness=self.default_fitness)
+        
         if self.scheduler.error_info:
             raise ValueError(f"Failed to start the default service. "
                              "Please check if the service and the request to start it are correct. error:{e}")
@@ -398,62 +384,6 @@ class PSOOptimizer(PerformanceTuner):
         
         self.target_field = [*self.scheduler.simulator.data_field,
                              *self.scheduler.benchmark.data_field]
-    
-    def run(self):
-        from msserviceprofiler.modelevalstate.config.config import get_settings, map_param_with_value
-        from msserviceprofiler.modelevalstate.optimizer.global_best_custom import CustomGlobalBestPSO
-        from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, AisBench
-        from msserviceprofiler.modelevalstate.optimizer.simulator import enable_simulate_old
-        self.prepare()
-        # 备份原target field, 调整新的target field用来寻优
-        _bak_target_field = self.target_field
-        _bak_number = None
-        self.target_field = deepcopy(self.target_field)
-        for _field in self.target_field:
-            # 将并发 和 req rate 设置为固定值，不进行pso寻优
-            if _field.name in CONCURRENCYS and _field.constant is None:
-                _field.constant = _field.value = _field.convert_dtype(_field.max)
-            elif _field.name in REQUESTRATES and _field.constant is None:
-                _field.constant = _field.convert_dtype(_field.max)
-        # 少量请求替代全量请求
-        settings = get_settings()
-        if settings.sample_size:
-            if (isinstance(self.scheduler.benchmark, BenchMark) and
-                    self.scheduler.benchmark.benchmark_config.command.request_count and
-                    int(self.scheduler.benchmark.benchmark_config.command.request_count) > settings.sample_size):
-                _bak_number = self.scheduler.benchmark.benchmark_config.command.request_count
-                self.scheduler.benchmark.benchmark_config.command.request_count = str(settings.sample_size)
-            if (isinstance(self.scheduler.benchmark, (VllmBenchMark, AisBench)) and
-                    self.scheduler.benchmark.benchmark_config.command.num_prompts and
-                    int(self.scheduler.benchmark.benchmark_config.command.num_prompts) > settings.sample_size):
-                _bak_number = self.scheduler.benchmark.benchmark_config.command.num_prompts
-                self.scheduler.benchmark.benchmark_config.command.num_prompts = str(settings.sample_size)
-        if self.load_history_data and self.load_breakpoint:
-            self.history_pos, self.history_cost = self.computer_fitness()
-        optimizer = CustomGlobalBestPSO(n_particles=self.n_particles, dimensions=self.dimensions(),
-                                        options=self.pso_options.model_dump(), bounds=self.constructing_bounds(),
-                                        init_pos=self.init_pos, breakpoint_pos=self.history_pos,
-                                        breakpoint_cost=self.history_cost, **self.pso_init_kwargs)
-        with enable_simulate_old(self.scheduler.simulator):
-            cost, joint_vars = optimizer.optimize(self.op_func, iters=self.iters)
-        best_results = self.scheduler.data_storage.get_best_result()
-        # 恢复寻优参数配置
-        self.target_field = _bak_target_field
-        if settings.sample_size and _bak_number:
-            if isinstance(self.scheduler.benchmark, BenchMark):
-                self.scheduler.benchmark.benchmark_config.command.request_count = str(_bak_number)
-            elif isinstance(self.scheduler.benchmark, (VllmBenchMark, AisBench)):
-                self.scheduler.benchmark.benchmark_config.command.num_prompts = str(_bak_number)
-        _record_fitness, _record_params, _record_res = self.refine_optimization_candidates(best_results)
-        best_fitness, best_param, best_performance_index = self.best_params(_record_fitness, _record_params,
-                                                                 _record_res)
-        if best_param is None or best_fitness is None or best_performance_index is None:
-            return
-        _position = {_field.name: _field.value for _field in map_param_with_value(best_param, self.target_field)}
-        logger.debug(f"vars: {_position}, performance index: "
-                    f"ttft: {best_performance_index.time_to_first_token} \n"
-                    f"tpot: {best_performance_index.time_per_output_token} \n"
-                    f"generate_speed: {best_performance_index.generate_speed} \n")
 
     def run_plugin(self):
         from msserviceprofiler.modelevalstate.config.config import map_param_with_value
@@ -552,98 +482,6 @@ def enable_simulate(scheduler):
             yield flag
     else:
         yield False
-
-
-def main(args: argparse.Namespace):
-    from msserviceprofiler.modelevalstate.optimizer.server import main as slave_server
-    from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
-    from msserviceprofiler.modelevalstate.config.config import get_settings, MindieConfig
-    from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, \
-        ProfilerBenchmark, AisBench
-    from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import FineTune
-    from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler, ScheduleWithMultiMachine
-    from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator, \
-        DisaggregationSimulator
-    settings = get_settings()
-    if is_root():
-        logger.warning(
-            "Security Warning: Do not run this tool as root. "
-            "Running with elevated privileges may compromise system security. "
-            "Use a regular user account."
-        )   
-    if settings.service == ServiceType.slave.value:
-        slave_server()
-        return
-
-    bak_path = None
-    if args.backup:
-        bak_path = settings.output.joinpath("bak")
-        if not bak_path.exists():
-            bak_path.mkdir(parents=True, mode=0o750)
-    if args.pd == PDPolicy.disaggregation.value:
-        target_field = settings.mindie.target_field
-        simulator = DisaggregationSimulator(settings.kubectl, bak_path=bak_path)
-    elif args.engine == EnginePolicy.mindie.value:
-        target_field = settings.mindie.target_field
-        simulator = Simulator(settings.mindie, bak_path=bak_path)
-    elif args.engine == EnginePolicy.vllm.value:
-        simulator = VllmSimulator(settings.vllm, bak_path=bak_path)
-        target_field = settings.vllm.target_field
-    else:
-        raise ValueError("No supported environment found; currently only mindie and vllm are supported. ")
-    
-    if args.benchmark_policy == BenchMarkPolicy.benchmark.value:
-        benchmark = BenchMark(settings.benchmark, bak_path=bak_path)
-    elif args.benchmark_policy == BenchMarkPolicy.vllm_benchmark.value:
-        benchmark = VllmBenchMark(settings.vllm_benchmark, bak_path=bak_path)
-    elif args.benchmark_policy == BenchMarkPolicy.profiler_benchmark.value:
-        benchmark = ProfilerBenchmark(settings.profile, benchmark_config=settings.benchmark, bak_path=bak_path,
-                                          analyze_tool=AnalyzeTool.profiler)
-    else:
-        benchmark = AisBench(settings.ais_bench, bak_path=bak_path)
-
-    # 存储结果，只在主节点存储结果
-    data_storage = DataStorage(settings.data_storage, simulator, benchmark)
-    # 初始化调度模块，支持单机和多机。
-    if args.deploy_policy == DeployPolicy.multiple.value:
-        scheduler = ScheduleWithMultiMachine(settings.communication, simulator, benchmark, data_storage,
-                                             bak_path=bak_path)
-    else:
-        scheduler = Scheduler(simulator, benchmark, data_storage, bak_path=bak_path)
-    _load_history_data = None
-    _load_history = None
-    if args.load_breakpoint:
-        _load_history = True
-    if _load_history:
-        _load_history_data = data_storage.load_history_position(settings.data_storage.store_dir,
-                                                                filter_field=data_storage.get_run_info())
-    fine_tune = FineTune(ttft_penalty=settings.ttft_penalty,
-                                      tpot_penalty=settings.tpot_penalty,
-                                      target_field=target_field,
-                                      ttft_slo=settings.ttft_slo,
-                                      tpot_slo=settings.tpot_slo,
-                                      slo_coefficient=settings.slo_coefficient,
-                                      step_size=settings.step_size)
-    try:
-        pso = PSOOptimizer(scheduler,
-                        n_particles=settings.n_particles,
-                        iters=settings.iters,
-                        target_field=target_field,
-                        ttft_penalty=settings.ttft_penalty,
-                        tpot_penalty=settings.tpot_penalty,
-                        success_rate_penalty=settings.success_rate_penalty,
-                        ttft_slo=settings.ttft_slo,
-                        tpot_slo=settings.tpot_slo,
-                        success_rate_slo=settings.success_rate_slo,
-                        generate_speed_target=settings.generate_speed_target,
-                        load_history_data=_load_history_data,
-                        load_breakpoint=args.load_breakpoint,
-                        fine_tune=fine_tune,
-                        max_fine_tune=settings.max_fine_tune,
-                        pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter})
-        pso.run()
-    except Exception as e:
-        logger.error(f"Failed to run optimizer. Please check. error: {e}")
     
     
 def plugin_main(args: argparse.Namespace):
@@ -652,6 +490,7 @@ def plugin_main(args: argparse.Namespace):
     from msserviceprofiler.modelevalstate.config.config import get_settings
     from msserviceprofiler.modelevalstate.optimizer.experience_fine_tunning import FineTune
     from msserviceprofiler.modelevalstate.optimizer.scheduler import Scheduler
+    from msserviceprofiler.modelevalstate.optimizer.plugins.simulate import DisaggregationSimulator
     from msserviceprofiler.modelevalstate.optimizer.register import register_ori_functions
     register_ori_functions()
     settings = get_settings()
@@ -669,7 +508,10 @@ def plugin_main(args: argparse.Namespace):
     _simu = _bench = None
     _target_field = []
     if args.engine:
-        _simu = simulates[args.engine](bak_path=bak_path)
+        if args.engine == 'mindie' and args.pd == PDPolicy.disaggregation.value:
+            _simu = DisaggregationSimulator(bak_path=bak_path)
+        else:
+            _simu = simulates[args.engine](bak_path=bak_path)
         _target_field.extend(_simu.data_field)
     if args.benchmark_policy:
         _bench = benchmarks[args.benchmark_policy](bak_path=bak_path)
@@ -692,7 +534,6 @@ def plugin_main(args: argparse.Namespace):
                          tpot_slo=settings.tpot_slo,
                          slo_coefficient=settings.slo_coefficient,
                          step_size=settings.step_size)
-
     # set constraints
     constraint_thresholds = {
         'ttft': getattr(settings, 'ttft_slo', 1.0) * (1 + getattr(settings, 'slo_coefficient', 0)),
@@ -717,14 +558,14 @@ def plugin_main(args: argparse.Namespace):
                        )
         pso.run_plugin()
     except Exception as e:	
-        logger.error(f"Failed to run optimizer. Please check. error: {e}")	
+        logger.error(f"Failed to run optimizer. Please check. error: {e}")
 
 
 def arg_parse(subparsers):
     from msserviceprofiler.modelevalstate.plugins import load_general_plugins
     plugin = load_general_plugins()
-    sims = ["vllm"]
-    benches = ["vllm_benchmark"]
+    sims = ["vllm", "mindie"]
+    benches = ["ais_bench", "vllm_benchmark"]
     parser = subparsers.add_parser(
         "optimizer", formatter_class=argparse.ArgumentDefaultsHelpFormatter, help="optimize for performance"
     )
@@ -738,18 +579,9 @@ def arg_parse(subparsers):
     parser.add_argument("--pd", default=PDPolicy.competition.value,
                         choices=[k.value for k in list(PDPolicy)],
                         help="whether pd competition or pd disaggregation")
-    if plugin:
-        parser.add_argument("-b", "--benchmark_policy", default=None, 
-                            choices=list(benchmarks.keys()) + benches,
-                            help="Whether to use custom performance indicators.")
-        parser.add_argument("-e", "--engine", default=None, choices=list(simulates.keys()) + sims,
-                            help="The engine used for model evaluation.")
-        parser.set_defaults(func=plugin_main)
-    else:
-        parser.add_argument("-b", "--benchmark_policy", default=BenchMarkPolicy.ais_bench.value,
-                            choices=[k.value for k in list(BenchMarkPolicy)],
-                            help="Whether to use custom performance indicators.")
-        parser.add_argument("-e", "--engine", default=EnginePolicy.mindie.value,
-                            choices=[k.value for k in list(EnginePolicy)],
-                            help="The engine used for model evaluation.")
-        parser.set_defaults(func=main)
+    parser.add_argument("-b", "--benchmark_policy", default='ais_bench', choices=list(benchmarks.keys()) + benches,
+                        help="Whether to use custom performance indicators.")
+    parser.add_argument("-e", "--engine", default='mindie', choices=list(simulates.keys()) + sims,
+                        help="The engine used for model evaluation.")
+    parser.set_defaults(func=plugin_main)
+

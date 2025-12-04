@@ -27,8 +27,8 @@ from msserviceprofiler.modelevalstate.config.config import (
     OptimizerConfigField,
     get_settings
 )
-from msserviceprofiler.modelevalstate.optimizer.benchmark import BenchMark, VllmBenchMark, AisBench
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator, VllmSimulator
+from msserviceprofiler.modelevalstate.optimizer.plugins.benchmark import VllmBenchMark, AisBench
+from msserviceprofiler.modelevalstate.optimizer.plugins.simulate import Simulator, VllmSimulator
 from msserviceprofiler.modelevalstate.common import read_csv_s
 
 
@@ -88,10 +88,8 @@ class DataStorage:
         _run_info = {}
         if self.benchmark is None:
             return _run_info
-        if isinstance(self.benchmark, BenchMark):
-            _run_info[NUM_PROMPTS] = self.benchmark.benchmark_config.command.request_count
-        elif isinstance(self.benchmark, (AisBench, VllmBenchMark)):
-            _run_info[NUM_PROMPTS] = self.benchmark.benchmark_config.command.num_prompts
+        if isinstance(self.benchmark, (AisBench, VllmBenchMark)):
+            _run_info[NUM_PROMPTS] = self.benchmark.config.command.num_prompts
         elif self.benchmark.num_prompts:
             _run_info[NUM_PROMPTS] = self.benchmark.num_prompts
         return _run_info
@@ -128,15 +126,10 @@ class DataStorage:
         optimizer_result = optimizer_result.replace([np.inf, -np.inf], np.nan)
         pso_result = optimizer_result
         if self.benchmark:
-            if isinstance(self.benchmark, (BenchMark, VllmBenchMark, AisBench)):	
-                # 提取公共属性访问	
-                command = self.benchmark.benchmark_config.command	
-                request_nums = command.request_count if isinstance(self.benchmark, BenchMark) else command.num_prompts	
-                pso_result = optimizer_result[optimizer_result[NUM_PROMPTS] == request_nums]
-            elif self.benchmark.num_prompts:
-                pso_result = optimizer_result[
-                    optimizer_result[NUM_PROMPTS] == self.benchmark.num_prompts
-                ]
+            # 提取公共属性访问	
+            command = self.benchmark.config.command	
+            request_nums = command.num_prompts	
+            pso_result = optimizer_result[optimizer_result[NUM_PROMPTS] == request_nums]
         pso_result = pso_result.dropna(subset="fitness")
         pso_result = pso_result[pso_result["time_to_first_token"] > 0]
         pso_result = pso_result[pso_result["time_per_output_token"] > 0]

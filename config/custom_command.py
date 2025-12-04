@@ -108,6 +108,9 @@ class VllmBenchmarkCommandConfig(BaseModel):
  
 class VllmBenchmarkCommand:
     def __init__(self, benchmark_command_config: VllmBenchmarkCommandConfig):
+        self.process = shutil.which("vllm")
+        if self.process is None:
+            raise ValueError("Error: The 'vllm' executable was not found in the system PATH.")
         self.benchmark_command_config = benchmark_command_config
  
     @property
@@ -115,7 +118,8 @@ class VllmBenchmarkCommand:
         if not Rule.input_file_read.is_satisfied_by(self.benchmark_command_config.dataset_path):
             logger.error("the file of dataset_path is not safe, please check")
             return None
-        cmd = ["python", self.benchmark_command_config.serving,
+        cmd = [self.process, 
+                "bench", "serve",
                 "--backend", self.benchmark_command_config.backend,
                 "--host", self.benchmark_command_config.host,
                 "--port", self.benchmark_command_config.port,
