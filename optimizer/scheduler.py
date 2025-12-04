@@ -26,7 +26,8 @@ from msserviceprofiler.modelevalstate.config.config import get_settings, Perform
     map_param_with_value, CommunicationConfig, Stage
 from msserviceprofiler.modelevalstate.config.base_config import FOLDER_LIMIT_SIZE, REQUESTRATES
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
+from msserviceprofiler.modelevalstate.optimizer.plugins.simulate import VllmSimulator, Simulator, \
+    DisaggregationSimulator
 from msserviceprofiler.modelevalstate.optimizer.store import DataStorage
 from msserviceprofiler.modelevalstate.optimizer.utils import get_folder_size
 
@@ -66,7 +67,7 @@ class Scheduler:
                 logger.info(f"Successfully started the {self.simulator.process} process.")
                 return
             if hasattr(self.simulator, "health") and self.simulator.health().stage == Stage.running:
-                logger.info(f"Successfully started the {self.simulator.process.pid} process.")
+                logger.info(f"Successfully started the {self.simulator.process} process.")
                 return
         raise TimeoutError(self.wait_time)
 
@@ -91,10 +92,11 @@ class Scheduler:
                 if self.benchmark.check_success():
                     return
             if hasattr(self.simulator, "health"):
-                res = self.simulator.health()
-                if res.stage != Stage.running:
-                    raise subprocess.SubprocessError(f"Failed in run simulator. error: {res.stage} "
-                                                     f"info: {res.info}.")
+                if not isinstance(self.simulator, (DisaggregationSimulator, Simulator)):
+                    res = self.simulator.health()
+                    if res.stage != Stage.running:
+                        raise subprocess.SubprocessError(f"Failed in run simulator. error: {res.stage} "
+                                                        f"info: {res.info}.")
                 res = self.benchmark.health()
                 if res.stage != Stage.running:
                     return
@@ -119,6 +121,7 @@ class Scheduler:
                 logger.error(f"Failed in simulator Running. error: {e}, \n"
                              f"simulator log {self.simulator.run_log}. \n"
                              f"log last info \n{self.simulator.get_last_log()}")
+                logger.exception("what?!")
                 self.stop_target_server(False)
                 continue
             time.sleep(1)
@@ -159,7 +162,7 @@ class Scheduler:
         if REAL_EVALUATION in kwargs:
             real_evaluation = kwargs.pop(REAL_EVALUATION)
         self.data_storage.save(self.performance_index, tuple(self.simulate_run_info),
-                               error=self.error_info, backup=self.current_back_path,
+                               error=self.error_info, backup=self.current_back_path, duration=duration,
                                real_evaluation=real_evaluation, **kwargs)
         if self.bak_path:
             self.backup()

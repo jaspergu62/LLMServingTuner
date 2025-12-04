@@ -30,14 +30,14 @@ from .base_config import (
 
 
 class MetricAlgorithm(BaseModel):
-    metric: str = "FirstTokenTime"
+    metric: str = "TTFT"
     algorithm: str = "average"
 
 
 class PerformanceConfig(BaseModel):
-    time_to_first_token: MetricAlgorithm = MetricAlgorithm(metric="FirstTokenTime",
+    time_to_first_token: MetricAlgorithm = MetricAlgorithm(metric="TTFT",
                                                            algorithm="average")
-    time_per_output_token: MetricAlgorithm = MetricAlgorithm(metric="DecodeTime",
+    time_per_output_token: MetricAlgorithm = MetricAlgorithm(metric="TPOT",
                                                              algorithm="average")
 
 
@@ -425,7 +425,8 @@ class KubectlConfig(BaseModel):
     work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
     command: KubectlCommandConfig = Field(
         default_factory=lambda data: KubectlCommandConfig(kubectl_default_path=data["kubectl_default_path"]))
-    
+    target_field: List[OptimizerConfigField] = Field(default_factory=list)
+
 
 class AisBenchConfig(BaseModel):
     process_name: str = "ais_bench"
@@ -434,6 +435,13 @@ class AisBenchConfig(BaseModel):
     command: AisBenchCommandConfig = AisBenchCommandConfig()
     performance_config: PerformanceConfig = PerformanceConfig()
     target_field: List[OptimizerConfigField] = Field(default_factory=list)
+    model: str = ""
+    path: str = ""
+    host_ip: str = ""
+    host_port: int = 0
+    max_out_len: int = 0
+    best_concurrency_coefficient: int = 3
+    best_concurrency_threshold: int = 200
 
 
 class VllmBenchmarkConfig(BaseModel):
@@ -511,6 +519,8 @@ class Settings(BaseSettings):
     vllm: VllmConfig = Field(default_factory=lambda data: VllmConfig(output=data["output"].joinpath("vllm")),
                              validate_default=True)
     mindie: MindieConfig = Field(default_factory=lambda data: MindieConfig(output=data["output"].joinpath("mindie")),
+                                 validate_default=True)
+    kubectl: KubectlConfig = Field(default_factory=lambda data: KubectlConfig(output=data["output"].joinpath("k8s")),
                                  validate_default=True)
     ais_bench: AisBenchConfig = AisBenchConfig()
     benchmark: BenchMarkConfig = BenchMarkConfig()

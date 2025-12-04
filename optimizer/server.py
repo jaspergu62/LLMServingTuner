@@ -21,7 +21,7 @@ from pathlib import Path
 from loguru import logger
 
 from msserviceprofiler.modelevalstate.common import is_mindie
-from msserviceprofiler.modelevalstate.optimizer.simulator import Simulator
+from msserviceprofiler.modelevalstate.optimizer.plugins.simulate import Simulator
 from msserviceprofiler.modelevalstate.config.config import get_settings, map_param_with_value, CommunicationConfig
 from msserviceprofiler.modelevalstate.optimizer.communication import CommunicationForFile, CustomCommand
 
