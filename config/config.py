@@ -512,7 +512,6 @@ class Settings(BaseSettings):
     communication: CommunicationConfig = Field(
         default_factory=lambda data: CommunicationConfig(base_path=data["output"].joinpath("communication")),
         validate_default=True)
-    kubectl: KubectlConfig = KubectlConfig()
     latency_model: LatencyModel = Field(
         default_factory=lambda data: LatencyModel(base_path=data["output"].joinpath("latency_model")),
         validate_default=True)
@@ -526,7 +525,6 @@ class Settings(BaseSettings):
     benchmark: BenchMarkConfig = BenchMarkConfig()
 
     vllm_benchmark: VllmBenchmarkConfig = VllmBenchmarkConfig()
-    profile: ProfileConfig = ProfileConfig()
 
 
     data_storage: DataStorageConfig = Field(
