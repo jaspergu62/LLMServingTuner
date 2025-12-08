@@ -26,13 +26,14 @@ from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.base_config import CUSTOM_OUTPUT, MODEL_EVAL_STATE_CONFIG_PATH, \
     modelevalstate_config_path
-from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField, get_settings, ProcessState, Stage
 from msserviceprofiler.modelevalstate.optimizer.utils import close_file_fp, remove_file, kill_children, \
     backup, kill_process
 from msserviceprofiler.msguard.security import open_s
 
 
 class CustomProcess:
+    from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField
+    
     def __init__(self, bak_path: Optional[Path] = None, command: Optional[List[str]] = None,
                  work_path: Optional[Path] = None, print_log: bool = False,
                  process_name: str = ""):
@@ -83,6 +84,7 @@ class CustomProcess:
         backup(self.run_log, self.bak_path, self.__class__.__name__)
 
     def before_run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
+        from msserviceprofiler.modelevalstate.config.config import get_settings
         """
         运行命令前的准备工作
         Args:
@@ -160,6 +162,7 @@ class CustomProcess:
         return output
 
     def health(self):
+        from msserviceprofiler.modelevalstate.config.config import ProcessState, Stage
         """
         检查任务是否运行成功
         Returns: 返回bool值，检查程序是否成功启动
@@ -219,7 +222,10 @@ class CustomProcess:
 
 
 class BaseDataField:
+    from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField
+
     def __init__(self, config: Optional[Any] = None):
+        from msserviceprofiler.modelevalstate.config.config import get_settings
         if config:
             self.config = config
         else:

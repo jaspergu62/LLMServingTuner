@@ -16,15 +16,12 @@ from typing import Type
 
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.optimizer.interfaces.benchmark import BenchmarkInterface
-from msserviceprofiler.modelevalstate.optimizer.interfaces.simulator import SimulatorInterface
-
 simulates = {}
 benchmarks = {}
 
 
 def register_simulator(model_arch: str,
-                       model_cls: Type[SimulatorInterface],
+                       model_cls
                        ) -> None:
     """
     Register an external model to be used in modelevalstate.
@@ -33,6 +30,7 @@ def register_simulator(model_arch: str,
 
     - A :class:`SimulatorInterface` class directly referencing the model.
     """
+    from msserviceprofiler.modelevalstate.optimizer.interfaces.simulator import SimulatorInterface
     if not isinstance(model_arch, str):
         msg = f"`model_arch` should be a string, not a {type(model_arch)}"
         raise TypeError(msg)
@@ -50,7 +48,7 @@ def register_simulator(model_arch: str,
 
 
 def register_benchmarks(model_arch: str,
-                        model_cls: Type[BenchmarkInterface],
+                        model_cls
                         ) -> None:
     """
     Register an external model to be used in modelevalstate.
@@ -59,6 +57,7 @@ def register_benchmarks(model_arch: str,
 
     - A :class:`BenchmarkInterface` class directly referencing the model.
     """
+    from msserviceprofiler.modelevalstate.optimizer.interfaces.benchmark import BenchmarkInterface
     if not isinstance(model_arch, str):
         msg = f"`model_arch` should be a string, not a {type(model_arch)}"
         raise TypeError(msg)

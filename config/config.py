@@ -17,8 +17,6 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, TomlConfigSettingsSource
-
-import msserviceprofiler.modelevalstate
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie, ais_bench_exists
 from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, \
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
@@ -341,24 +339,6 @@ class BenchMarkConfig(BaseModel):
         return path
 
 
-class ProfileConfig(BaseModel):
-    output: Path = Path("benchmark")
-    profile_input_path: Path = Field(
-        default_factory=lambda data: data["output"].joinpath("profile_input_path").resolve(),
-        validate_default=True
-    )
-    profile_output_path: Path = Field(
-        default_factory=lambda data: data["output"].joinpath("profile_output_path").resolve(),
-        validate_default=True
-    )
-
-    @field_validator("profile_input_path", "profile_output_path")
-    @classmethod
-    def create_path(cls, path: Path) -> Path:
-        mkdir_s(path)
-        return path
-
-
 class CommunicationConfig(BaseModel):
     base_path: Path = Path("communication")
     cmd_file: Optional[Path] = Field(
@@ -623,8 +603,6 @@ class Settings(BaseSettings):
         if not self.benchmark.command.save_path:
             self.benchmark.command.save_path = str(self.benchmark.output_path.joinpath("instance"))
         mkdir_s(Path(self.benchmark.command.save_path)) 
-        if self.profile.output == ProfileConfig.model_fields["output"].default:
-            self.profile = ProfileConfig(output=self.output.joinpath("profile"))
         return self
 
 
