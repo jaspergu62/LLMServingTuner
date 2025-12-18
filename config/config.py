@@ -567,6 +567,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def partial_update_mindie(self):
+        if self.data_storage.store_dir == DataStorageConfig.model_fields["store_dir"].default:
+            self.data_storage.store_dir = self.output.joinpath("store")
         range_to_enum(self.mindie.target_field)
         if not is_mindie():
             return self
