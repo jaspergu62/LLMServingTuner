@@ -18,7 +18,7 @@ from loguru import logger
 from pydantic import BaseModel, field_validator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, TomlConfigSettingsSource
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie, ais_bench_exists
-from msserviceprofiler.modelevalstate.config.custom_command import BenchmarkCommandConfig, VllmBenchmarkCommandConfig, \
+from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommandConfig, \
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
 from msserviceprofiler.msguard.security import open_s, mkdir_s
 from .base_config import (
@@ -323,22 +323,6 @@ class PerformanceIndex(BaseModel):
     throughput: Optional[float] = None
 
 
-class BenchMarkConfig(BaseModel):
-    process_name: str = "benchmark"
-    output_path: Path = Path("benchmark")
-    work_path: Path = Field(default_factory=lambda: Path(os.getcwd()).resolve())
-    command: BenchmarkCommandConfig = BenchmarkCommandConfig()
-    performance_config: PerformanceConfig = PerformanceConfig()
-    target_field: List[OptimizerConfigField] = Field(default_factory=list)
-
-    @field_validator("work_path")
-    @classmethod
-    def check_dir(cls, path: Path) -> Path:
-        if not path.exists():
-            logger.error(f"FileNotFound: {path!r}")
-        return path
-
-
 class CommunicationConfig(BaseModel):
     base_path: Path = Path("communication")
     cmd_file: Optional[Path] = Field(
@@ -502,7 +486,6 @@ class Settings(BaseSettings):
     kubectl: KubectlConfig = Field(default_factory=lambda data: KubectlConfig(output=data["output"].joinpath("k8s")),
                                  validate_default=True)
     ais_bench: AisBenchConfig = AisBenchConfig()
-    benchmark: BenchMarkConfig = BenchMarkConfig()
 
     vllm_benchmark: VllmBenchmarkConfig = VllmBenchmarkConfig()
 
@@ -581,30 +564,9 @@ class Settings(BaseSettings):
             except json.decoder.JSONDecodeError as e:
                 logger.error(f"Failed in load {self.mindie.config_path!r}. error: {e}")
                 raise e
-        # 从mindie config 中获取可能获取的端口信息，模型信息。
-        ip_address = mindie_config["ServerConfig"]["ipAddress"]
-        port = mindie_config["ServerConfig"]["port"]
-        management_ip_address = mindie_config["ServerConfig"]["managementIpAddress"]
-        management_port = mindie_config["ServerConfig"]["managementPort"]
-        model_name = mindie_config["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0]["modelName"]
-        model_path = mindie_config["BackendConfig"]["ModelDeployConfig"]["ModelConfig"][0]["modelWeightPath"]
         output = MindieConfig.model_fields["output"].default
         if self.mindie.output == output:
             self.mindie.output = self.output.joinpath(output)
-        output_path = BenchMarkConfig.model_fields["output_path"].default
-        if self.benchmark.output_path == output_path:
-            self.benchmark.output_path = self.output.joinpath(output_path)
-        if not self.benchmark.command.http:
-            self.benchmark.command.http = f"http://{ip_address}:{port}"
-        if not self.benchmark.command.management_http:
-            self.benchmark.command.management_http = f"http://{management_ip_address}:{management_port}"
-        if not self.benchmark.command.model_name:
-            self.benchmark.command.model_name = model_name
-        if not self.benchmark.command.model_path:
-            self.benchmark.command.model_path = model_path
-        if not self.benchmark.command.save_path:
-            self.benchmark.command.save_path = str(self.benchmark.output_path.joinpath("instance"))
-        mkdir_s(Path(self.benchmark.command.save_path)) 
         return self
 
 

@@ -38,57 +38,6 @@ class AisBenchCommand:
                 "--debug"
                 ]
         return _cmd
-
-
-class BenchmarkCommandConfig(BaseModel):
-    dataset_path: str = ""
-    dataset_type: str = "gsm8k"
-    model_name: str = ""
-    model_path: str = ""
-    test_type: str = "client"
-    max_output_len: str = ""
-    http: str = ""
-    management_http: str = ""
-    warmup_size: str = "1"
-    tokenizer: str = "True"
-    save_path: str = ""
-    request_num: int = Field(0, gt=0, le=MAX_REQUEST_NUM)
-    request_count: int = Field(0, gt=0, le=MAX_REQUEST_NUM)
-
- 
-class BenchmarkCommand:
-    def __init__(self, benchmark_command_config: BenchmarkCommandConfig):
-        self.process = shutil.which("benchmark")
-        if self.process is None:
-            raise ValueError("Error: The 'benchmark' executable was not found in the system PATH.")
-        self.benchmark_command_config = benchmark_command_config
- 
-    @property
-    def command(self):
-        if not Rule.input_file_read.is_satisfied_by(self.benchmark_command_config.dataset_path):
-            logger.error("the file of dataset_path is not safe, please check")
-            return None
-        
-        _cmd = [self.process,
-                "--DatasetPath", self.benchmark_command_config.dataset_path,
-                "--DatasetType", self.benchmark_command_config.dataset_type,
-                "--ModelName", self.benchmark_command_config.model_name,
-                "--ModelPath", self.benchmark_command_config.model_path,
-                "--TestType", self.benchmark_command_config.test_type,
-                "--MaxOutputLen", self.benchmark_command_config.max_output_len,
-                "--Http", self.benchmark_command_config.http,
-                "--ManagementHttp", self.benchmark_command_config.management_http,
-                "--Concurrency", "$CONCURRENCY",
-                "--RequestRate", "$REQUESTRATE",
-                "--WarmupSize", self.benchmark_command_config.warmup_size,
-                "--Tokenizer", self.benchmark_command_config.tokenizer,
-                "--SavePath", self.benchmark_command_config.save_path,
-                ]
-        if self.benchmark_command_config.request_num:
-            _cmd.extend(["--RequestNum", str(self.benchmark_command_config.request_num)])
-        if self.benchmark_command_config.request_count:
-            _cmd.extend(["--RequestCount", str(self.benchmark_command_config.request_count)])
-        return _cmd
  
  
 class VllmBenchmarkCommandConfig(BaseModel):
