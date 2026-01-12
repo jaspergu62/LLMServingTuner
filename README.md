@@ -463,14 +463,6 @@ pytest tests/test_parallel_*.py --cov=optimizer/parallel --cov-report=html
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-**Developed by**: Huawei Technologies Co., Ltd.
-
-**Contributors**:
-- Core PSO framework: Huawei ModelEvalState Team
-- Parallel PSO feature: Co-developed with Claude Sonnet 4.5
-
 ## 📞 Support
 
 For questions or support:
