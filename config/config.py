@@ -11,20 +11,26 @@ from enum import Enum
 from inspect import isfunction
 from math import isinf, isclose
 from pathlib import Path
-from typing import Any, List, Tuple, Type, Optional, Union
+from typing import Any, ClassVar, List, Set, Tuple, Type, Optional, Union
 
 import numpy as np
 from loguru import logger
 from pydantic import BaseModel, field_validator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSettingsSource, TomlConfigSettingsSource
+import re
+
 from msserviceprofiler.modelevalstate.common import is_vllm, is_mindie, ais_bench_exists
 from msserviceprofiler.modelevalstate.config.custom_command import VllmBenchmarkCommandConfig, \
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
+from msserviceprofiler.modelevalstate.exceptions import ConfigPathError, ConfigValidationError
 from msserviceprofiler.msguard.security import open_s, mkdir_s
 from .base_config import (
-    INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,	
+    INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,
     modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy,
 )
+
+# Valid config_position patterns
+CONFIG_POSITION_PATTERN = re.compile(r'^(env|[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)*)$')
 
 
 class MetricAlgorithm(BaseModel):
@@ -64,16 +70,53 @@ class OptimizerConfigField(BaseModel):
     dtype_param: Any = None
     constant: Optional[float] = None  # 识别是否是常量
 
+    # Valid dtype values
+    VALID_DTYPES: ClassVar[Set[str]] = {"int", "float", "bool", "enum", "ratio", "range", "factories", "env"}
+
+    @field_validator("config_position")
+    @classmethod
+    def validate_config_position(cls, v: str) -> str:
+        """
+        Validate config_position format.
+        Valid formats:
+        - "env" for environment variables
+        - Dotted path like "BackendConfig.ScheduleConfig.maxBatchSize"
+        """
+        if not v:
+            raise ConfigPathError(v, "config_position cannot be empty")
+        if not CONFIG_POSITION_PATTERN.match(v):
+            raise ConfigPathError(
+                v,
+                f"Invalid format. Expected 'env' or dotted path (e.g., 'Section.Key'), got '{v}'"
+            )
+        return v
+
+    @field_validator("dtype")
+    @classmethod
+    def validate_dtype(cls, v: str) -> str:
+        """Validate dtype is one of the supported types."""
+        if v not in cls.VALID_DTYPES:
+            raise ConfigValidationError(
+                "dtype",
+                v,
+                f"Must be one of: {', '.join(sorted(cls.VALID_DTYPES))}"
+            )
+        return v
+
     @model_validator(mode="after")
     def update_constant(self):
         if self.min > self.max:
-            raise ValueError(f"min({self.min}) > max({self.max}). please check")
+            raise ConfigValidationError(
+                "min/max",
+                f"min={self.min}, max={self.max}",
+                f"min ({self.min}) cannot be greater than max ({self.max})"
+            )
         # 如果min 等于max 但是 constant 没有设置，自动设置constant 为最大值。
         if self.constant and not isclose(self.min, self.max):
             self.min = self.max = self.constant
         elif self.constant is None and isclose(self.min, self.max, rel_tol=1e-5) and self.dtype in dtype_func.keys():
             self.constant = dtype_func.get(self.dtype, float)(self.max)
- 
+
         return self
  
     def convert_dtype(self, value):
@@ -118,7 +161,7 @@ default_support_field = [
     OptimizerConfigField(name="max_prefill_token",
                          config_position="BackendConfig.ScheduleConfig.maxPrefillTokens", min=4096, max=409600,
                          dtype="int"),
-    OptimizerConfigField(name="max_queue_deloy_mircroseconds",
+    OptimizerConfigField(name="max_queue_delay_microseconds",
                          config_position="BackendConfig.ScheduleConfig.maxQueueDelayMicroseconds", min=500, max=1000000,
                          dtype="int"),
     OptimizerConfigField(name="prefill_policy_type",
@@ -437,6 +480,66 @@ class PsoStrategy(BaseModel):
     c2: str = "exp_decay"
 
 
+class ParallelNodeConfig(BaseModel):
+    """Configuration for a single node in a parallel service group."""
+    host: str
+    ssh_port: int = 22
+    npu_ids: List[int] = Field(default_factory=lambda: list(range(8)))
+    work_dir: str = "/tmp/modelevalstate"
+    username: Optional[str] = None
+
+
+class ParallelServiceGroupConfig(BaseModel):
+    """Configuration for a service group in parallel mode."""
+    group_id: int
+    nodes: List[ParallelNodeConfig]
+    master_node_index: int = 0
+    start_script: str = "./start_service.sh"
+    stop_script: Optional[str] = None
+    config_path: str = "/tmp/modelevalstate/config.json"
+    health_check_url: str = "http://{host}:8000/health"
+    health_check_timeout: int = 300
+
+
+class ParallelSettings(BaseModel):
+    """
+    Configuration for parallel PSO evaluation.
+
+    Enables evaluating multiple particles simultaneously across
+    multiple service groups, where each group can span multiple nodes.
+
+    Example (config.toml):
+        [parallel]
+        enabled = true
+        evaluation_timeout = 600
+
+        [[parallel.service_groups]]
+        group_id = 0
+        [[parallel.service_groups.nodes]]
+        host = "node0.cluster"
+        [[parallel.service_groups.nodes]]
+        host = "node1.cluster"
+    """
+    enabled: bool = False
+    service_groups: List[ParallelServiceGroupConfig] = Field(default_factory=list)
+    evaluation_timeout: int = 600
+    retry_count: int = 2
+    retry_delay: int = 10
+
+    @property
+    def worker_count(self) -> int:
+        """Number of parallel workers (service groups)."""
+        return len(self.service_groups)
+
+    @property
+    def total_npus(self) -> int:
+        """Total NPUs across all service groups."""
+        return sum(
+            sum(len(node.npu_ids) for node in sg.nodes)
+            for sg in self.service_groups
+        )
+
+
 class Settings(BaseSettings):
     """
     设置类的定义，通过读取配置文件初始化配置
@@ -489,6 +592,8 @@ class Settings(BaseSettings):
 
     vllm_benchmark: VllmBenchmarkConfig = VllmBenchmarkConfig()
 
+    # Parallel PSO configuration
+    parallel: ParallelSettings = ParallelSettings()
 
     data_storage: DataStorageConfig = Field(
         default_factory=lambda data: DataStorageConfig(store_dir=data["output"].joinpath("store")),

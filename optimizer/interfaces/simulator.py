@@ -18,8 +18,10 @@ from contextlib import contextmanager
 from typing import Tuple, Optional
 
 import requests
+from loguru import logger
 
 from msserviceprofiler.modelevalstate.config.config import OptimizerConfigField, ProcessState, Stage
+from msserviceprofiler.modelevalstate.exceptions import SimulatorHealthCheckError
 from msserviceprofiler.modelevalstate.optimizer.interfaces.custom_process import BaseDataField, CustomProcess
 
 
@@ -71,21 +73,28 @@ class SimulatorInterface(CustomProcess, BaseDataField, ABC):
         """
         获取当前服务的状态.
         当前实现为基础的vllm url
-        Returns: None
+        Returns: ProcessState
 
         """
         process_res = super().health()
         if process_res.stage == Stage.error:
+            logger.warning(f"Simulator process health check failed: {process_res.info}")
             return process_res
         try:
+            logger.debug(f"Checking simulator health at {self.base_url}")
             res = requests.get(self.base_url, timeout=10)
         except requests.exceptions.RequestException as e:
-            return ProcessState(stage=Stage.error, info=str(e))
+            error_msg = f"Health check request failed: {e}"
+            logger.error(error_msg)
+            return ProcessState(stage=Stage.error, info=error_msg)
         else:
             if res.status_code == 200:
+                logger.debug("Simulator health check passed")
                 return ProcessState(stage=Stage.running)
             else:
-                return ProcessState(stage=Stage.error, info=f"return code {res.status_code}. text {res.text}")
+                error_msg = f"Health check returned status {res.status_code}: {res.text[:200]}"
+                logger.error(error_msg)
+                return ProcessState(stage=Stage.error, info=error_msg)
 
     @contextmanager
     def enable_simulation_model(self):

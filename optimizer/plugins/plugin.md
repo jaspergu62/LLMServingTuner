@@ -40,7 +40,7 @@ settings = get_settings()
          else:
              settings = get_settings()
              if settings.name != "vllm-inference-optimization":
-                 raise ValueError("Settings is invalidator.")
+                 raise ValueError("Settings is invalid.")
              self.config = settings.vllm
          super().__init__(*args, process_name=self.config.process_name, **kwargs)
  
@@ -64,7 +64,7 @@ class VllmBenchMark(BenchmarkInterface):
         else:
             settings = get_settings()
             if settings.name != "vllm-inference-optimization":
-                raise ValueError("Settings is invalidator.")
+                raise ValueError("Settings is invalid.")
             self.config = settings.vllm_benchmark
         super().__init__(*args, **kwargs)
         self.command = VllmBenchmarkCommand(self.config.command).command

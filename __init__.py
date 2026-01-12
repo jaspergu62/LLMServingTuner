@@ -22,3 +22,44 @@ from loguru import logger
 log_level = os.getenv("MODELEVALSTATE_LEVEL", "INFO").upper()
 logger.remove()
 logger.add(sys.stderr, level=log_level, enqueue=True)
+
+# Export custom exceptions
+from msserviceprofiler.modelevalstate.exceptions import (
+    ModelEvalStateError,
+    ConfigurationError,
+    ConfigPathError,
+    ConfigValidationError,
+    OptimizationError,
+    PSOConvergenceError,
+    FitnessCalculationError,
+    SimulatorError,
+    SimulatorStartError,
+    SimulatorStopError,
+    SimulatorHealthCheckError,
+    BenchmarkError,
+    BenchmarkExecutionError,
+    BenchmarkParseError,
+    CommunicationError,
+    IPCTimeoutError,
+    IPCCommandError,
+)
+
+__all__ = [
+    "ModelEvalStateError",
+    "ConfigurationError",
+    "ConfigPathError",
+    "ConfigValidationError",
+    "OptimizationError",
+    "PSOConvergenceError",
+    "FitnessCalculationError",
+    "SimulatorError",
+    "SimulatorStartError",
+    "SimulatorStopError",
+    "SimulatorHealthCheckError",
+    "BenchmarkError",
+    "BenchmarkExecutionError",
+    "BenchmarkParseError",
+    "CommunicationError",
+    "IPCTimeoutError",
+    "IPCCommandError",
+]

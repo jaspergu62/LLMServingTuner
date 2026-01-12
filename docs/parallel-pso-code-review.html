@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallel PSO 架构设计与代码审查报告</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --info-color: #3b82f6;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --code-bg: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .badge-date { background-color: rgba(255,255,255,0.2); color: white; }
+        .badge-review { background-color: var(--warning-color); color: white; }
+
+        nav.toc {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        nav.toc h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        nav.toc ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 0.5rem;
+        }
+
+        nav.toc a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 0.5rem;
+            display: block;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+
+        nav.toc a:hover {
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+        }
+
+        section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        section h2 {
+            font-size: 1.75rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        section h3 {
+            font-size: 1.25rem;
+            color: var(--text-color);
+            margin: 1.5rem 0 1rem 0;
+        }
+
+        section h4 {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        p { margin-bottom: 1rem; }
+
+        ul, ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        li { margin-bottom: 0.5rem; }
+
+        code {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background-color: var(--bg-color);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .comment { color: #6b7280; }
+        .keyword { color: #f472b6; }
+        .string { color: #a5f3fc; }
+        .number { color: #fbbf24; }
+
+        .architecture-diagram {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .diagram-box {
+            display: inline-block;
+            background: white;
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 0.75rem 1.25rem;
+            margin: 0.5rem;
+            font-weight: 500;
+            min-width: 140px;
+            font-size: 0.9rem;
+        }
+
+        .diagram-box.main { background: var(--primary-color); color: white; }
+        .diagram-box.pool { background: var(--success-color); color: white; }
+        .diagram-box.group { background: var(--warning-color); color: white; }
+        .diagram-box.remote { background: #8b5cf6; color: white; }
+        .diagram-box.config { background: #06b6d4; color: white; }
+        .diagram-box.monitor { background: #ec4899; color: white; }
+
+        .diagram-arrow {
+            display: block;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            margin: 0.25rem 0;
+        }
+
+        .diagram-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-color);
+            font-weight: 600;
+        }
+
+        tr:hover { background-color: var(--bg-color); }
+
+        .priority-p0 {
+            background-color: #fef2f2;
+            border-left: 4px solid var(--error-color);
+        }
+        .priority-p1 {
+            background-color: #fffbeb;
+            border-left: 4px solid var(--warning-color);
+        }
+        .priority-p2 {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--info-color);
+        }
+        .priority-p3 {
+            background-color: #f0fdf4;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .issue-box {
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-radius: 8px;
+        }
+
+        .issue-box h4 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .issue-box .file-path {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.125rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag-critical { background: var(--error-color); color: white; }
+        .tag-important { background: var(--warning-color); color: white; }
+        .tag-suggestion { background: var(--info-color); color: white; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .stat-card {
+            background: var(--bg-color);
+            padding: 1.25rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-card .number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-card .label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .feature-card {
+            background: var(--bg-color);
+            padding: 1.25rem;
+            border-radius: 8px;
+        }
+
+        .feature-card h4 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-box {
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 1px solid #10b981;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        .summary-box h3 {
+            color: #059669;
+            margin-bottom: 1rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 1rem; }
+            header { padding: 2rem 1rem; }
+            header h1 { font-size: 1.75rem; }
+            section { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Parallel PSO 架构设计与代码审查报告</h1>
+            <p>多节点分布式粒子群优化评估系统 - 代码质量分析</p>
+            <span class="badge badge-date">审查日期: 2026-01-08</span>
+            <span class="badge badge-review">Code Review</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <nav class="toc">
+            <h2>目录</h2>
+            <ul>
+                <li><a href="#overview">1. 项目概述</a></li>
+                <li><a href="#architecture">2. 系统架构</a></li>
+                <li><a href="#modules">3. 模块详解</a></li>
+                <li><a href="#design-patterns">4. 设计模式</a></li>
+                <li><a href="#strengths">5. 实现优点</a></li>
+                <li><a href="#critical-issues">6. 关键问题 (P0)</a></li>
+                <li><a href="#important-issues">7. 重要问题 (P1)</a></li>
+                <li><a href="#suggestions">8. 建议改进 (P2)</a></li>
+                <li><a href="#security">9. 安全考虑</a></li>
+                <li><a href="#performance">10. 性能优化</a></li>
+                <li><a href="#testing">11. 测试覆盖</a></li>
+                <li><a href="#summary">12. 总结</a></li>
+            </ul>
+        </nav>
+
+        <section id="overview">
+            <h2>1. 项目概述</h2>
+            <p>
+                Parallel PSO 是 <code>msserviceprofiler.modelevalstate</code> 项目中的分布式粒子群优化评估模块，
+                用于在多节点环境中并行评估 LLM 推理服务的配置参数，显著加速优化搜索过程。
+            </p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="number">7</div>
+                    <div class="label">核心模块</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">~3500</div>
+                    <div class="label">代码行数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">6</div>
+                    <div class="label">设计模式</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number">3</div>
+                    <div class="label">测试文件</div>
+                </div>
+            </div>
+
+            <h3>核心功能</h3>
+            <ul>
+                <li><strong>多节点并行评估</strong>: 支持跨多个服务组同时评估多个粒子</li>
+                <li><strong>SSH 远程执行</strong>: 基于 Paramiko 的远程命令执行和文件传输</li>
+                <li><strong>灵活配置</strong>: 支持 TOML 配置文件、hostfile、命令行等多种配置方式</li>
+                <li><strong>健康监控</strong>: 断路器模式和健康检查机制</li>
+                <li><strong>容错处理</strong>: 重试策略和自动降级机制</li>
+            </ul>
+        </section>
+
+        <section id="architecture">
+            <h2>2. 系统架构</h2>
+
+            <h3>2.1 分层架构图</h3>
+            <div class="architecture-diagram">
+                <div class="diagram-box main">PSOOptimizer</div>
+                <span class="diagram-arrow">↓ 粒子数组</span>
+                <div class="diagram-box main">ParticleDispatcher</div>
+                <span class="diagram-arrow">↓ 批量分发</span>
+                <div class="diagram-box pool">ServiceGroupPool</div>
+                <span class="diagram-arrow">↓ 并行执行 (ThreadPoolExecutor)</span>
+                <div class="diagram-row">
+                    <div class="diagram-box group">ServiceGroup 0</div>
+                    <div class="diagram-box group">ServiceGroup 1</div>
+                    <div class="diagram-box group">ServiceGroup N</div>
+                </div>
+                <span class="diagram-arrow">↓ SSH 连接</span>
+                <div class="diagram-row">
+                    <div class="diagram-box remote">RemoteExecutor</div>
+                    <div class="diagram-box remote">RemoteExecutor</div>
+                    <div class="diagram-box remote">RemoteExecutor</div>
+                </div>
+            </div>
+
+            <h3>2.2 配套系统</h3>
+            <div class="architecture-diagram">
+                <div class="diagram-row">
+                    <div class="diagram-box config">ParallelConfig</div>
+                    <div class="diagram-box config">ServiceGroupConfig</div>
+                    <div class="diagram-box config">NodeConfig</div>
+                </div>
+                <div style="margin-top: 1rem;">
+                    <div class="diagram-box monitor">HealthMonitor</div>
+                    <div class="diagram-box monitor">CircuitBreaker</div>
+                    <div class="diagram-box monitor">RetryPolicy</div>
+                </div>
+            </div>
+
+            <h3>2.3 数据流</h3>
+            <ol>
+                <li><strong>PSOOptimizer</strong> 生成粒子群（参数组合数组）</li>
+                <li><strong>ParticleDispatcher</strong> 接收粒子并分配给可用的服务组</li>
+                <li><strong>ServiceGroupPool</strong> 使用线程池并行调度多个 ServiceGroup</li>
+                <li><strong>ServiceGroup</strong> 执行评估生命周期：
+                    <ul>
+                        <li>更新配置到主节点</li>
+                        <li>启动/重启服务</li>
+                        <li>执行 Benchmark</li>
+                        <li>收集性能指标</li>
+                    </ul>
+                </li>
+                <li><strong>RemoteExecutor</strong> 通过 SSH 执行远程命令和文件传输</li>
+                <li>结果沿着调用链返回，更新 PSO 状态</li>
+            </ol>
+        </section>
+
+        <section id="modules">
+            <h2>3. 模块详解</h2>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>模块</th>
+                        <th>文件</th>
+                        <th>职责</th>
+                        <th>行数</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>配置层</strong></td>
+                        <td><code>config.py</code></td>
+                        <td>NodeConfig、ServiceGroupConfig、ParallelConfig 数据类定义</td>
+                        <td>339</td>
+                    </tr>
+                    <tr>
+                        <td><strong>服务组</strong></td>
+                        <td><code>service_group.py</code></td>
+                        <td>单个服务组的生命周期管理（可跨多节点）</td>
+                        <td>590</td>
+                    </tr>
+                    <tr>
+                        <td><strong>远程执行</strong></td>
+                        <td><code>remote.py</code></td>
+                        <td>SSH 连接、命令执行、SFTP 文件传输</td>
+                        <td>565</td>
+                    </tr>
+                    <tr>
+                        <td><strong>服务组池</strong></td>
+                        <td><code>pool.py</code></td>
+                        <td>管理多个 ServiceGroup，协调并行评估</td>
+                        <td>372</td>
+                    </tr>
+                    <tr>
+                        <td><strong>粒子调度</strong></td>
+                        <td><code>dispatcher.py</code></td>
+                        <td>桥接 PSOOptimizer 与 ServiceGroupPool</td>
+                        <td>336</td>
+                    </tr>
+                    <tr>
+                        <td><strong>健康监控</strong></td>
+                        <td><code>monitoring.py</code></td>
+                        <td>HealthMonitor、CircuitBreaker、RetryPolicy</td>
+                        <td>552</td>
+                    </tr>
+                    <tr>
+                        <td><strong>优化器集成</strong></td>
+                        <td><code>optimizer.py</code></td>
+                        <td>PSOOptimizer 中的并行评估集成</td>
+                        <td>757</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="design-patterns">
+            <h2>4. 设计模式</h2>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>分层架构 (Layered)</h4>
+                    <p>配置层 → 执行层 → 调度层 → 池化层 → 优化器层，职责清晰分离</p>
+                </div>
+                <div class="feature-card">
+                    <h4>工厂模式 (Factory)</h4>
+                    <p><code>executor_factory</code> 用于创建 RemoteExecutor，便于测试时注入 Mock</p>
+                </div>
+                <div class="feature-card">
+                    <h4>对象池模式 (Object Pool)</h4>
+                    <p>ServiceGroupPool 管理多个 ServiceGroup 实例的复用</p>
+                </div>
+                <div class="feature-card">
+                    <h4>断路器模式 (Circuit Breaker)</h4>
+                    <p>防止级联故障，支持 CLOSED → OPEN → HALF_OPEN 状态转换</p>
+                </div>
+                <div class="feature-card">
+                    <h4>上下文管理器 (Context Manager)</h4>
+                    <p>多个类支持 <code>with</code> 语句进行资源自动管理</p>
+                </div>
+                <div class="feature-card">
+                    <h4>策略模式 (Strategy)</h4>
+                    <p>RetryPolicy 提供可配置的指数退避重试策略</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="strengths">
+            <h2>5. 实现优点</h2>
+
+            <h3>5.1 代码质量</h3>
+            <ul>
+                <li><strong>完善的文档</strong>: 每个模块都有模块级文档，类和方法有详细的类型注解</li>
+                <li><strong>类型安全</strong>: 全面使用 Python 类型注解，利用 dataclass 减少样板代码</li>
+                <li><strong>属性验证</strong>: 在 <code>__post_init__</code> 中实现配置校验</li>
+            </ul>
+
+            <h3>5.2 设计亮点</h3>
+
+            <h4>灵活的配置系统</h4>
+            <pre><code><span class="comment"># 支持多种配置方式</span>
+ParallelConfig.from_hostfile(<span class="string">"hosts.txt"</span>, nodes_per_group=<span class="number">2</span>)
+ParallelConfig.from_node_string(<span class="string">"node0,node1:node2,node3"</span>)
+ParallelConfig.from_settings(settings.parallel)</code></pre>
+
+            <h4>优雅的降级机制</h4>
+            <pre><code><span class="comment"># dispatcher.py - 自动降级到顺序执行</span>
+<span class="keyword">def</span> evaluate_particles(self, particles):
+    <span class="keyword">if not</span> self.is_ready:
+        logger.warning(<span class="string">"Parallel not available, using sequential"</span>)
+        <span class="keyword">return</span> self._evaluate_sequential(particles)</code></pre>
+
+            <h4>自定义异常层次</h4>
+            <pre><code>ModelEvalStateError (base)
+├── SimulatorStartError
+├── SimulatorStopError
+├── SimulatorHealthCheckError
+├── BenchmarkExecutionError
+├── CommunicationError
+└── IPCTimeoutError</code></pre>
+        </section>
+
+        <section id="critical-issues">
+            <h2>6. 关键问题 (P0 - 必须修复)</h2>
+
+            <div class="issue-box priority-p0">
+                <h4><span class="tag tag-critical">Critical</span> SSH 主机密钥策略安全风险</h4>
+                <p class="file-path">文件: remote.py 第 179 行</p>
+                <p><strong>问题描述:</strong> 使用 <code>AutoAddPolicy()</code> 会自动接受任何主机密钥，存在中间人攻击风险。</p>
+                <pre><code><span class="comment"># 当前代码 (不安全)</span>
+self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())</code></pre>
+                <p><strong>建议修改:</strong></p>
+                <pre><code><span class="comment"># 建议: 使用已知主机文件或 RejectPolicy</span>
+known_hosts = os.path.expanduser(<span class="string">"~/.ssh/known_hosts"</span>)
+<span class="keyword">if</span> os.path.exists(known_hosts):
+    self._ssh_client.load_host_keys(known_hosts)
+    self._ssh_client.set_missing_host_key_policy(paramiko.RejectPolicy())
+<span class="keyword">else</span>:
+    logger.warning(<span class="string">"No known_hosts, using AutoAddPolicy"</span>)
+    self._ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())</code></pre>
+            </div>
+
+            <div class="issue-box priority-p0">
+                <h4><span class="tag tag-critical">Critical</span> 环境变量命令注入风险</h4>
+                <p class="file-path">文件: remote.py 第 355-357 行</p>
+                <p><strong>问题描述:</strong> 环境变量值未经转义，恶意输入可能导致命令注入攻击。</p>
+                <pre><code><span class="comment"># 当前代码 (不安全)</span>
+<span class="keyword">if</span> env:
+    env_exports = <span class="string">" "</span>.join(f<span class="string">"{k}={v}"</span> <span class="keyword">for</span> k, v <span class="keyword">in</span> env.items())
+    parts.append(f<span class="string">"export {env_exports};"</span>)</code></pre>
+                <p><strong>建议修改:</strong></p>
+                <pre><code><span class="keyword">import</span> shlex
+
+<span class="keyword">if</span> env:
+    env_exports = <span class="string">" "</span>.join(
+        f<span class="string">"{shlex.quote(k)}={shlex.quote(str(v))}"</span>
+        <span class="keyword">for</span> k, v <span class="keyword">in</span> env.items()
+    )
+    parts.append(f<span class="string">"export {env_exports};"</span>)</code></pre>
+            </div>
+        </section>
+
+        <section id="important-issues">
+            <h2>7. 重要问题 (P1 - 应该修复)</h2>
+
+            <div class="issue-box priority-p1">
+                <h4><span class="tag tag-important">Important</span> HealthMonitor 未集成到主流程</h4>
+                <p class="file-path">文件: monitoring.py, pool.py, dispatcher.py</p>
+                <p><strong>问题描述:</strong> <code>HealthMonitor</code> 和 <code>CircuitBreaker</code> 已完整实现，但未在 <code>ServiceGroupPool</code> 或 <code>ParticleDispatcher</code> 中使用。</p>
+                <p><strong>建议:</strong> 将 HealthMonitor 集成到 ServiceGroupPool:</p>
+                <pre><code><span class="keyword">class</span> ServiceGroupPool:
+    <span class="keyword">def</span> setup(self):
+        <span class="comment"># ... existing code ...</span>
+        <span class="keyword">if</span> self.use_remote:
+            self._monitor = HealthMonitor(self)
+            self._monitor.start()
+
+    <span class="keyword">def</span> cleanup(self):
+        <span class="keyword">if</span> self._monitor:
+            self._monitor.stop()
+        <span class="comment"># ... existing code ...</span></code></pre>
+            </div>
+
+            <div class="issue-box priority-p1">
+                <h4><span class="tag tag-important">Important</span> 线程池超时处理不完整</h4>
+                <p class="file-path">文件: pool.py 第 235 行</p>
+                <p><strong>问题描述:</strong> 如果 <code>as_completed</code> 超时，未完成的 future 结果不会被收集，可能导致结果数组不完整。</p>
+                <pre><code><span class="comment"># 建议添加超时处理</span>
+<span class="keyword">try</span>:
+    <span class="keyword">for</span> future <span class="keyword">in</span> as_completed(futures, timeout=...):
+        <span class="comment"># handle result</span>
+<span class="keyword">except</span> TimeoutError:
+    <span class="keyword">for</span> future, idx <span class="keyword">in</span> futures.items():
+        <span class="keyword">if not</span> future.done():
+            future.cancel()
+            results[idx] = float(<span class="string">'inf'</span>)
+            self._stats.evaluations_failed += <span class="number">1</span></code></pre>
+            </div>
+
+            <div class="issue-box priority-p1">
+                <h4><span class="tag tag-important">Important</span> 资源清理状态检查</h4>
+                <p class="file-path">文件: service_group.py 第 333-367 行</p>
+                <p><strong>问题描述:</strong> <code>stop()</code> 方法在服务未运行时也会尝试执行 <code>pkill</code>，可能影响其他进程。</p>
+                <pre><code><span class="keyword">def</span> stop(self) -> bool:
+    <span class="keyword">if</span> self._status != ServiceGroupStatus.RUNNING:
+        logger.debug(f<span class="string">"Group {self.group_id} not running, skip stop"</span>)
+        <span class="keyword">return</span> True
+    <span class="comment"># ... rest of the code ...</span></code></pre>
+            </div>
+        </section>
+
+        <section id="suggestions">
+            <h2>8. 建议改进 (P2)</h2>
+
+            <div class="issue-box priority-p2">
+                <h4><span class="tag tag-suggestion">Suggestion</span> 添加 group_id 唯一性验证</h4>
+                <p class="file-path">文件: config.py</p>
+                <pre><code><span class="keyword">def</span> __post_init__(self):
+    <span class="keyword">if</span> self.enabled:
+        group_ids = [sg.group_id <span class="keyword">for</span> sg <span class="keyword">in</span> self.service_groups]
+        <span class="keyword">if</span> len(group_ids) != len(set(group_ids)):
+            <span class="keyword">raise</span> ValueError(<span class="string">"Duplicate group_id found"</span>)</code></pre>
+            </div>
+
+            <div class="issue-box priority-p2">
+                <h4><span class="tag tag-suggestion">Suggestion</span> 添加评估进度回调</h4>
+                <p class="file-path">文件: dispatcher.py</p>
+                <pre><code><span class="keyword">def</span> evaluate_particles(self, particles, progress_callback=None):
+    <span class="keyword">for</span> i, result <span class="keyword">in</span> enumerate(results):
+        <span class="keyword">if</span> progress_callback:
+            progress_callback(current=i+<span class="number">1</span>, total=n_particles)</code></pre>
+            </div>
+
+            <div class="issue-box priority-p2">
+                <h4><span class="tag tag-suggestion">Suggestion</span> 魔法数字常量化</h4>
+                <p class="file-path">文件: monitoring.py 第 300 行</p>
+                <pre><code><span class="comment"># 建议定义常量</span>
+SHUTDOWN_CHECK_INTERVAL = <span class="number">1.0</span>
+
+<span class="keyword">for</span> _ <span class="keyword">in</span> range(self.check_interval):
+    time.sleep(SHUTDOWN_CHECK_INTERVAL)</code></pre>
+            </div>
+
+            <div class="issue-box priority-p2">
+                <h4><span class="tag tag-suggestion">Suggestion</span> plugin_main 函数拆分</h4>
+                <p class="file-path">文件: optimizer.py (超过 150 行)</p>
+                <p>建议拆分为:</p>
+                <ul>
+                    <li><code>_build_parallel_config(args, settings)</code></li>
+                    <li><code>_create_optimizer(scheduler, settings, args)</code></li>
+                    <li><code>_run_optimization(pso)</code></li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="security">
+            <h2>9. 安全考虑</h2>
+
+            <h3>9.1 已识别的安全问题</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>级别</th>
+                        <th>问题</th>
+                        <th>位置</th>
+                        <th>建议</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="priority-p0">
+                        <td><strong>高</strong></td>
+                        <td>SSH AutoAddPolicy</td>
+                        <td>remote.py:179</td>
+                        <td>使用 RejectPolicy 或已知主机</td>
+                    </tr>
+                    <tr class="priority-p0">
+                        <td><strong>高</strong></td>
+                        <td>命令注入风险</td>
+                        <td>remote.py:355-357</td>
+                        <td>使用 shlex.quote</td>
+                    </tr>
+                    <tr class="priority-p1">
+                        <td><strong>中</strong></td>
+                        <td>敏感信息日志</td>
+                        <td>remote.py:278</td>
+                        <td>截断命令日志长度</td>
+                    </tr>
+                    <tr class="priority-p2">
+                        <td><strong>低</strong></td>
+                        <td>默认工作目录</td>
+                        <td>config.py:42</td>
+                        <td>/tmp 可能不安全</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>9.2 安全最佳实践建议</h3>
+            <ul>
+                <li><strong>SSH 密钥管理:</strong> 使用专用的 SSH 密钥，定期轮换</li>
+                <li><strong>权限最小化:</strong> 远程执行用户应使用最小权限</li>
+                <li><strong>网络隔离:</strong> 在私有网络中运行服务</li>
+                <li><strong>审计日志:</strong> 记录所有远程执行操作</li>
+            </ul>
+        </section>
+
+        <section id="performance">
+            <h2>10. 性能优化</h2>
+
+            <h3>10.1 潜在性能问题</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>问题</th>
+                        <th>位置</th>
+                        <th>影响</th>
+                        <th>建议</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>批量评估同步等待</td>
+                        <td>pool.py:207-260</td>
+                        <td>慢服务组拖慢整批次</td>
+                        <td>实现异步返回机制</td>
+                    </tr>
+                    <tr>
+                        <td>健康检查阻塞</td>
+                        <td>service_group.py:490-513</td>
+                        <td>同步阻塞等待</td>
+                        <td>使用 asyncio 或回调</td>
+                    </tr>
+                    <tr>
+                        <td>SSH 连接开销</td>
+                        <td>remote.py</td>
+                        <td>频繁重连</td>
+                        <td>连接保活和复用</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>10.2 优化建议</h3>
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <h4>连接复用</h4>
+                    <p>SSH 连接应该在服务组级别保持长连接，避免频繁重连开销</p>
+                </div>
+                <div class="feature-card">
+                    <h4>批量操作</h4>
+                    <p>配置文件可以批量上传，减少网络往返次数</p>
+                </div>
+                <div class="feature-card">
+                    <h4>并行健康检查</h4>
+                    <p>多个服务组的健康检查可以并行执行，减少总等待时间</p>
+                </div>
+                <div class="feature-card">
+                    <h4>评估结果缓存</h4>
+                    <p>相同参数的粒子可以缓存结果，避免重复计算</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="testing">
+            <h2>11. 测试覆盖</h2>
+
+            <h3>11.1 现有测试</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>测试文件</th>
+                        <th>覆盖范围</th>
+                        <th>状态</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>test_parallel_config.py</code></td>
+                        <td>NodeConfig, ServiceGroupConfig, ParallelConfig</td>
+                        <td style="color: var(--success-color);">完善</td>
+                    </tr>
+                    <tr>
+                        <td><code>test_parallel_service_group.py</code></td>
+                        <td>ServiceGroup, ServiceGroupPool, PoolStats</td>
+                        <td style="color: var(--warning-color);">基本覆盖</td>
+                    </tr>
+                    <tr>
+                        <td><code>test_parallel_dispatcher.py</code></td>
+                        <td>ParticleDispatcher, DispatcherStats</td>
+                        <td style="color: var(--warning-color);">基本覆盖</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>11.2 缺失的测试</h3>
+            <ul>
+                <li><strong>remote.py 单元测试:</strong> 需要添加 RemoteExecutor 的 Mock 测试</li>
+                <li><strong>monitoring.py 测试:</strong> 需要添加 HealthMonitor 和 CircuitBreaker 测试</li>
+                <li><strong>集成测试:</strong> 需要端到端的集成测试</li>
+                <li><strong>压力测试:</strong> 需要大规模并发场景测试</li>
+            </ul>
+
+            <h3>11.3 建议添加的测试</h3>
+            <pre><code><span class="keyword">class</span> TestRemoteExecutor:
+    <span class="keyword">def</span> test_connect_retry_on_timeout(self): ...
+    <span class="keyword">def</span> test_command_timeout_handling(self): ...
+    <span class="keyword">def</span> test_sftp_error_recovery(self): ...
+
+<span class="keyword">class</span> TestHealthMonitor:
+    <span class="keyword">def</span> test_monitor_start_stop(self): ...
+    <span class="keyword">def</span> test_circuit_breaker_transitions(self): ...
+    <span class="keyword">def</span> test_automatic_recovery(self): ...</code></pre>
+        </section>
+
+        <section id="summary">
+            <h2>12. 总结</h2>
+
+            <div class="summary-box">
+                <h3>整体评价</h3>
+                <p>该 Parallel PSO 实现展示了良好的软件工程实践，具有清晰的分层架构、完善的类型注解和文档、灵活的配置系统以及合理的错误处理机制。代码可测试性设计良好，使用了多种成熟的设计模式。</p>
+            </div>
+
+            <h3>优点总结</h3>
+            <ul>
+                <li>清晰的分层架构设计</li>
+                <li>完善的类型注解和文档</li>
+                <li>灵活的多种配置方式</li>
+                <li>合理的错误处理机制</li>
+                <li>良好的可测试性设计</li>
+                <li>完整的断路器和重试策略实现</li>
+            </ul>
+
+            <h3>优先级改进建议</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>优先级</th>
+                        <th>任务</th>
+                        <th>工作量</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="priority-p0">
+                        <td><strong>P0 (立即)</strong></td>
+                        <td>SSH 安全策略修复、命令注入风险修复</td>
+                        <td>1-2 小时</td>
+                    </tr>
+                    <tr class="priority-p1">
+                        <td><strong>P1 (短期)</strong></td>
+                        <td>HealthMonitor 集成、超时处理完善、资源清理优化</td>
+                        <td>4-8 小时</td>
+                    </tr>
+                    <tr class="priority-p2">
+                        <td><strong>P2 (中期)</strong></td>
+                        <td>性能优化、测试补充、代码重构</td>
+                        <td>1-2 天</td>
+                    </tr>
+                    <tr class="priority-p3">
+                        <td><strong>P3 (长期)</strong></td>
+                        <td>异步化改造、监控增强</td>
+                        <td>1 周+</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <footer>
+            <p>Parallel PSO 架构设计与代码审查报告</p>
+            <p>ModelEvalState - Copyright &copy; 2025 Huawei Technologies Co., Ltd.</p>
+            <p>Licensed under Apache License 2.0</p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallel PSO 单元测试报告</title>
+    <style>
+        :root {
+            --primary-color: #10b981;
+            --secondary-color: #059669;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .badge-success { background-color: rgba(255,255,255,0.2); color: white; }
+        .badge-date { background-color: rgba(0,0,0,0.2); color: white; }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .summary-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .summary-card .number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .summary-card.warning .number { color: var(--warning-color); }
+        .summary-card.error .number { color: var(--error-color); }
+
+        .summary-card .label {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--secondary-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .status-pass {
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        .status-fail {
+            color: var(--error-color);
+            font-weight: 600;
+        }
+
+        .coverage-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .coverage-fill {
+            height: 100%;
+            background-color: var(--primary-color);
+            border-radius: 4px;
+        }
+
+        .coverage-fill.low { background-color: var(--error-color); }
+        .coverage-fill.medium { background-color: var(--warning-color); }
+        .coverage-fill.high { background-color: var(--primary-color); }
+
+        .test-module {
+            margin-bottom: 2rem;
+        }
+
+        .test-module h3 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .test-list {
+            list-style: none;
+        }
+
+        .test-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+        }
+
+        .test-list li:last-child {
+            border-bottom: none;
+        }
+
+        .test-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 0.75rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: white;
+        }
+
+        .test-icon.pass { background-color: var(--primary-color); }
+        .test-icon.fail { background-color: var(--error-color); }
+
+        .env-info {
+            background-color: #f1f5f9;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .env-info p {
+            margin: 0.25rem 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .progress-ring {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 1rem;
+        }
+
+        .progress-ring circle {
+            fill: none;
+            stroke-width: 10;
+        }
+
+        .progress-ring .bg { stroke: #e2e8f0; }
+        .progress-ring .progress {
+            stroke: var(--primary-color);
+            stroke-linecap: round;
+            transform: rotate(-90deg);
+            transform-origin: center;
+            transition: stroke-dashoffset 0.5s;
+        }
+
+        .coverage-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Parallel PSO 单元测试报告</h1>
+            <p>ModelEvalState - 并行粒子群优化模块测试结果</p>
+            <span class="badge badge-success">155 passed</span>
+            <span class="badge badge-date">2026-01-09</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card">
+                <div class="number">155</div>
+                <div class="label">测试用例总数</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">155</div>
+                <div class="label">通过</div>
+            </div>
+            <div class="summary-card warning">
+                <div class="number">0</div>
+                <div class="label">失败</div>
+            </div>
+            <div class="summary-card">
+                <div class="number">77%</div>
+                <div class="label">代码覆盖率</div>
+            </div>
+        </div>
+
+        <!-- Test Environment -->
+        <section>
+            <h2>测试环境</h2>
+            <div class="env-info">
+                <p><strong>Platform:</strong> darwin (macOS)</p>
+                <p><strong>Python:</strong> 3.10.19</p>
+                <p><strong>pytest:</strong> 9.0.2</p>
+                <p><strong>pytest-cov:</strong> 7.0.0</p>
+                <p><strong>Conda Environment:</strong> modelevalstate-test</p>
+                <p><strong>测试时间:</strong> 4.48 秒</p>
+            </div>
+        </section>
+
+        <!-- Coverage Summary -->
+        <section>
+            <h2>代码覆盖率详情</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>模块</th>
+                        <th>语句数</th>
+                        <th>未覆盖</th>
+                        <th>覆盖率</th>
+                        <th>覆盖条</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>__init__.py</code></td>
+                        <td>7</td>
+                        <td>0</td>
+                        <td class="status-pass">100%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill high" style="width: 100%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>config.py</code></td>
+                        <td>122</td>
+                        <td>10</td>
+                        <td class="status-pass">92%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill high" style="width: 92%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>monitoring.py</code></td>
+                        <td>247</td>
+                        <td>9</td>
+                        <td class="status-pass">96%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill high" style="width: 96%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>dispatcher.py</code></td>
+                        <td>123</td>
+                        <td>16</td>
+                        <td class="status-pass">87%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill high" style="width: 87%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>remote.py</code></td>
+                        <td>254</td>
+                        <td>36</td>
+                        <td class="status-pass">86%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill high" style="width: 86%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>pool.py</code></td>
+                        <td>155</td>
+                        <td>73</td>
+                        <td style="color: var(--warning-color)">53%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill medium" style="width: 53%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>service_group.py</code></td>
+                        <td>241</td>
+                        <td>126</td>
+                        <td style="color: var(--warning-color)">48%</td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill medium" style="width: 48%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr style="font-weight: 600; background-color: #f1f5f9;">
+                        <td><strong>总计</strong></td>
+                        <td><strong>1149</strong></td>
+                        <td><strong>270</strong></td>
+                        <td><strong>77%</strong></td>
+                        <td>
+                            <div class="coverage-bar">
+                                <div class="coverage-fill high" style="width: 77%"></div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <p style="margin-top: 1rem; color: var(--text-muted);">
+                详细覆盖率报告: <a href="coverage_report/index.html">coverage_report/index.html</a>
+            </p>
+        </section>
+
+        <!-- Test Results by Module -->
+        <section>
+            <h2>测试结果详情</h2>
+
+            <div class="test-module">
+                <h3>test_parallel_config.py (27 tests)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>测试类</th>
+                            <th>测试数量</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>TestNodeConfig</td>
+                            <td>7</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestServiceGroupConfig</td>
+                            <td>8</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestParallelConfig</td>
+                            <td>11</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestParallelConfigIntegration</td>
+                            <td>1</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="test-module">
+                <h3>test_parallel_dispatcher.py (15 tests)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>测试类</th>
+                            <th>测试数量</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>TestDispatcherStats</td>
+                            <td>3</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestParticleDispatcher</td>
+                            <td>9</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestCreateParallelOpFunc</td>
+                            <td>3</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="test-module">
+                <h3>test_parallel_monitoring.py (38 tests)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>测试类</th>
+                            <th>测试数量</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>TestCircuitState</td>
+                            <td>2</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestHealthStatus</td>
+                            <td>4</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestCircuitBreakerConfig</td>
+                            <td>2</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestCircuitBreaker</td>
+                            <td>11</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestHealthMonitor</td>
+                            <td>13</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestRetryPolicy</td>
+                            <td>6</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestWithRetry</td>
+                            <td>6</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="test-module">
+                <h3>test_parallel_remote.py (32 tests)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>测试类</th>
+                            <th>测试数量</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>TestConnectionStatus</td>
+                            <td>2</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestCommandResult</td>
+                            <td>5</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestRemoteExecutor</td>
+                            <td>24</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestRemoteExecutorWithoutParamiko</td>
+                            <td>1</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="test-module">
+                <h3>test_parallel_service_group.py (43 tests)</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>测试类</th>
+                            <th>测试数量</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>TestServiceGroupStatus</td>
+                            <td>1</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestEvaluationResult</td>
+                            <td>2</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestServiceGroup</td>
+                            <td>10</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestServiceGroupPool</td>
+                            <td>8</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                        <tr>
+                            <td>TestPoolStats</td>
+                            <td>6</td>
+                            <td class="status-pass">PASSED</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- New Tests Summary -->
+        <section>
+            <h2>本次新增测试</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>测试文件</th>
+                        <th>测试数量</th>
+                        <th>覆盖模块</th>
+                        <th>说明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>test_parallel_remote.py</code></td>
+                        <td>32</td>
+                        <td>remote.py</td>
+                        <td>SSH 远程执行、文件操作、连接管理</td>
+                    </tr>
+                    <tr>
+                        <td><code>test_parallel_monitoring.py</code></td>
+                        <td>38</td>
+                        <td>monitoring.py</td>
+                        <td>断路器、健康监控、重试策略</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Test Command -->
+        <section>
+            <h2>测试命令</h2>
+            <div class="env-info">
+                <p><strong>运行测试:</strong></p>
+                <p style="margin-top: 0.5rem;"><code>cd msserviceprofiler && PYTHONPATH="$(pwd)" python -m pytest msserviceprofiler/modelevalstate/tests/test_parallel_*.py -v</code></p>
+                <br>
+                <p><strong>生成覆盖率报告:</strong></p>
+                <p style="margin-top: 0.5rem;"><code>python -m pytest msserviceprofiler/modelevalstate/tests/test_parallel_*.py --cov=msserviceprofiler/modelevalstate/optimizer/parallel --cov-report=html</code></p>
+            </div>
+        </section>
+
+        <!-- Recommendations -->
+        <section>
+            <h2>测试覆盖率改进建议</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>模块</th>
+                        <th>当前覆盖率</th>
+                        <th>建议补充测试</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>pool.py</code></td>
+                        <td>53%</td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 1.5rem;">
+                                <li>evaluate_batch 方法的并行执行逻辑</li>
+                                <li>_evaluate_with_retry 重试机制</li>
+                                <li>_particle_to_params 参数转换</li>
+                            </ul>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>service_group.py</code></td>
+                        <td>48%</td>
+                        <td>
+                            <ul style="margin: 0; padding-left: 1.5rem;">
+                                <li>start_service/stop_service 生命周期</li>
+                                <li>run_benchmark 基准测试执行</li>
+                                <li>完整的 evaluate 流程</li>
+                                <li>健康检查集成</li>
+                            </ul>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <footer>
+            <p>Parallel PSO 单元测试报告</p>
+            <p>ModelEvalState - Copyright &copy; 2025 Huawei Technologies Co., Ltd.</p>
+            <p>Licensed under Apache License 2.0</p>
+        </footer>
+    </div>
+</body>
+</html>

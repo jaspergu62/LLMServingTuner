@@ -30,18 +30,33 @@ from msserviceprofiler.modelevalstate.config.base_config import (
     simulate_flag, CONCURRENCYS
 )
 from msserviceprofiler.modelevalstate.optimizer.register import benchmarks, simulates
-from msserviceprofiler.modelevalstate.optimizer.performance_tunner import PerformanceTuner
+from msserviceprofiler.modelevalstate.optimizer.performance_tuner import PerformanceTuner
 from msserviceprofiler.modelevalstate.optimizer.utils import get_required_field_from_json, is_root
 
 
 MAX_ITER_NUM = 200
 
 
+def _get_parallel_config():
+    """Get parallel configuration from settings if available."""
+    try:
+        from msserviceprofiler.modelevalstate.config.config import get_settings
+        from msserviceprofiler.modelevalstate.optimizer.parallel.config import ParallelConfig
+        settings = get_settings()
+        if hasattr(settings, 'parallel') and settings.parallel and settings.parallel.enabled:
+            # Convert settings to ParallelConfig
+            return ParallelConfig.from_settings(settings.parallel)
+    except Exception as e:
+        logger.debug(f"Parallel config not available: {e}")
+    return None
+
+
 class PSOOptimizer(PerformanceTuner):
     def __init__(self, scheduler, n_particles: int = 10, iters=100, pso_options=None,
                  target_field: Optional[Tuple] = None, load_history_data: Optional[List] = None,
                  load_breakpoint: bool = False, pso_init_kwargs: Optional[Dict] = None,
-                 fine_tune=None, max_fine_tune: int = 10, **kwargs):
+                 fine_tune=None, max_fine_tune: int = 10,
+                 parallel_config=None, use_parallel: bool = False, **kwargs):
         from msserviceprofiler.modelevalstate.config.config import PsoOptions, default_support_field
         super().__init__(**kwargs)
         self.scheduler = scheduler
@@ -63,6 +78,11 @@ class PSOOptimizer(PerformanceTuner):
         self.sample_data = None
         self.fine_tune = fine_tune
         self.max_fine_tune = min(max_fine_tune, MAX_ITER_NUM)
+
+        # Parallel evaluation support
+        self.use_parallel = use_parallel
+        self.parallel_config = parallel_config or _get_parallel_config()
+        self._dispatcher = None
 
     @staticmethod
     def is_within_boundary(target_pos, min_bound, max_bound):
@@ -125,6 +145,27 @@ class PSOOptimizer(PerformanceTuner):
         return all_position, all_cost
 
     def op_func(self, x) -> np.ndarray:
+        """
+        Objective function for PSO optimization.
+
+        Evaluates particles either sequentially (default) or in parallel
+        when parallel mode is enabled.
+
+        Args:
+            x: Array of particle positions (n_particles x dimensions)
+
+        Returns:
+            Array of fitness values for each particle.
+        """
+        # Use parallel evaluation if available
+        if self._dispatcher and self._dispatcher.is_ready:
+            return self._parallel_op_func(x)
+
+        # Default sequential evaluation
+        return self._sequential_op_func(x)
+
+    def _sequential_op_func(self, x) -> np.ndarray:
+        """Sequential particle evaluation (original implementation)."""
         n_particles = x.shape[0]
         logger.debug(f"Acquired n_particles: {n_particles}, value: {x}")
         generate_speed = []
@@ -141,6 +182,78 @@ class PSOOptimizer(PerformanceTuner):
             self.scheduler.save_result(fitness=_fitness)
             generate_speed.append(_fitness)
         return np.array(generate_speed)
+
+    def _parallel_op_func(self, x) -> np.ndarray:
+        """Parallel particle evaluation using dispatcher."""
+        n_particles = x.shape[0]
+        logger.info(f"Parallel evaluation of {n_particles} particles")
+        return self._dispatcher.evaluate_particles(x)
+
+    def setup_parallel(self, benchmark_func=None) -> bool:
+        """
+        Set up parallel evaluation infrastructure.
+
+        Args:
+            benchmark_func: Optional custom benchmark function
+
+        Returns:
+            True if parallel setup succeeded, False otherwise.
+        """
+        if not self.parallel_config:
+            logger.info("No parallel configuration available")
+            return False
+
+        if not self.parallel_config.enabled:
+            logger.info("Parallel evaluation is disabled in config")
+            return False
+
+        try:
+            from msserviceprofiler.modelevalstate.optimizer.parallel.dispatcher import (
+                ParticleDispatcher
+            )
+
+            self._dispatcher = ParticleDispatcher(
+                parallel_config=self.parallel_config,
+                target_field=self.target_field,
+                fitness_func=self.minimum_algorithm,
+                result_callback=self.scheduler.save_result,
+                benchmark_func=benchmark_func,
+                use_remote=True
+            )
+
+            if self._dispatcher.setup():
+                logger.info(
+                    f"Parallel evaluation enabled with {self._dispatcher.worker_count} workers"
+                )
+                return True
+            else:
+                logger.warning("Failed to setup parallel dispatcher")
+                self._dispatcher = None
+                return False
+
+        except ImportError as e:
+            logger.warning(f"Parallel evaluation not available: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Error setting up parallel evaluation: {e}")
+            return False
+
+    def cleanup_parallel(self):
+        """Clean up parallel evaluation resources."""
+        if self._dispatcher:
+            self._dispatcher.cleanup()
+            self._dispatcher = None
+
+    @property
+    def is_parallel_ready(self) -> bool:
+        """Check if parallel evaluation is ready."""
+        return self._dispatcher is not None and self._dispatcher.is_ready
+
+    def get_parallel_stats(self) -> Optional[Dict]:
+        """Get parallel evaluation statistics."""
+        if self._dispatcher:
+            return self._dispatcher.get_summary()
+        return None
 
     def constructing_bounds(self) -> Tuple[Tuple, Tuple]:
         """
@@ -540,6 +653,31 @@ def plugin_main(args: argparse.Namespace):
         'ttft': getattr(settings, 'ttft_slo', 1.0) * (1 + getattr(settings, 'slo_coefficient', 0)),
         'tpot': getattr(settings, 'tpot_slo', 0.05) * (1 + getattr(settings, 'slo_coefficient', 0))
     }
+    # Build parallel configuration from CLI arguments
+    parallel_config = None
+    if getattr(args, 'parallel', False) or getattr(args, 'hostfile', None) or getattr(args, 'node_string', None):
+        from msserviceprofiler.modelevalstate.optimizer.parallel.config import ParallelConfig
+        try:
+            if getattr(args, 'hostfile', None):
+                parallel_config = ParallelConfig.from_hostfile(
+                    args.hostfile,
+                    nodes_per_group=getattr(args, 'nodes_per_group', 2),
+                    npus_per_node=getattr(args, 'npus_per_node', 8)
+                )
+                logger.info(f"Loaded parallel config from hostfile: {parallel_config}")
+            elif getattr(args, 'node_string', None):
+                parallel_config = ParallelConfig.from_node_string(
+                    args.node_string,
+                    npus_per_node=getattr(args, 'npus_per_node', 8)
+                )
+                logger.info(f"Loaded parallel config from node string: {parallel_config}")
+            elif settings.parallel.enabled:
+                parallel_config = ParallelConfig.from_settings(settings.parallel)
+                logger.info(f"Loaded parallel config from settings: {parallel_config}")
+        except Exception as e:
+            logger.warning(f"Failed to load parallel config, using sequential mode: {e}")
+            parallel_config = None
+
     try:
         pso = PSOOptimizer(scheduler,
                        n_particles=settings.n_particles,
@@ -556,9 +694,28 @@ def plugin_main(args: argparse.Namespace):
                        fine_tune=fine_tune,
                        max_fine_tune=settings.max_fine_tune,
                        pso_init_kwargs={"ftol": settings.ftol, "ftol_iter": settings.ftol_iter},
+                       parallel_config=parallel_config,
+                       use_parallel=getattr(args, 'parallel', False),
                        )
+
+        # Setup parallel evaluation if configured
+        if parallel_config and parallel_config.enabled:
+            if pso.setup_parallel():
+                logger.info(f"Parallel evaluation enabled with {pso._dispatcher.worker_count} workers")
+            else:
+                logger.warning("Parallel evaluation setup failed, using sequential mode")
+
         pso.run_plugin()
-    except Exception as e:	
+
+        # Cleanup parallel resources
+        pso.cleanup_parallel()
+
+        # Log parallel stats if available
+        stats = pso.get_parallel_stats()
+        if stats:
+            logger.info(f"Parallel evaluation stats: {stats}")
+
+    except Exception as e:
         logger.error(f"Failed to run optimizer. Please check. error: {e}")
 
 
@@ -584,5 +741,16 @@ def arg_parse(subparsers):
                         help="Whether to use custom performance indicators.")
     parser.add_argument("-e", "--engine", default='mindie', choices=list(simulates.keys()) + sims,
                         help="The engine used for model evaluation.")
+    # Parallel evaluation options
+    parser.add_argument("--parallel", default=False, action="store_true",
+                        help="Enable parallel PSO evaluation across multiple service groups.")
+    parser.add_argument("--hostfile", type=str, default=None,
+                        help="Path to hostfile for parallel evaluation (one host per line).")
+    parser.add_argument("--nodes-per-group", type=int, default=2,
+                        help="Number of nodes per service group (for --hostfile mode).")
+    parser.add_argument("--npus-per-node", type=int, default=8,
+                        help="Number of NPUs per node (for --hostfile mode).")
+    parser.add_argument("--node-string", type=str, default=None,
+                        help="Node specification string: 'node0,node1:node2,node3' (groups separated by :)")
     parser.set_defaults(func=plugin_main)
 

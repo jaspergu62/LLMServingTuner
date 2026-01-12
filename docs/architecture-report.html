@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModelEvalState 架构分析报告</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --accent-color: #3b82f6;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(37, 99, 235, 0.3);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .header .meta {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .header .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* Navigation */
+        .nav {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+        }
+
+        .nav ul {
+            display: flex;
+            list-style: none;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .nav a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .nav a:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h3 {
+            color: var(--secondary-color);
+            margin: 25px 0 15px 0;
+            font-size: 1.2rem;
+        }
+
+        .card h4 {
+            color: var(--text-color);
+            margin: 20px 0 10px 0;
+            font-size: 1.05rem;
+        }
+
+        /* Architecture Diagram */
+        .architecture-diagram {
+            background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-radius: 12px;
+            padding: 30px;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+
+        .arch-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 800px;
+        }
+
+        .arch-layer {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: stretch;
+        }
+
+        .arch-box {
+            background: white;
+            border: 2px solid var(--primary-color);
+            border-radius: 10px;
+            padding: 15px 20px;
+            text-align: center;
+            min-width: 150px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+            transition: transform 0.2s;
+        }
+
+        .arch-box:hover {
+            transform: translateY(-3px);
+        }
+
+        .arch-box.main {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            min-width: 200px;
+        }
+
+        .arch-box.optimizer {
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white;
+            border-color: #059669;
+        }
+
+        .arch-box.simulator {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: white;
+            border-color: #7c3aed;
+        }
+
+        .arch-box.benchmark {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            color: white;
+            border-color: #dc2626;
+        }
+
+        .arch-box.inference {
+            background: linear-gradient(135deg, #0891b2, #0e7490);
+            color: white;
+            border-color: #0891b2;
+        }
+
+        .arch-box.config {
+            background: linear-gradient(135deg, #ca8a04, #a16207);
+            color: white;
+            border-color: #ca8a04;
+        }
+
+        .arch-box-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .arch-box-desc {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .arch-arrow {
+            text-align: center;
+            color: var(--primary-color);
+            font-size: 1.5rem;
+        }
+
+        /* Flow Diagram */
+        .flow-diagram {
+            background: #fefce8;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 20px 0;
+        }
+
+        .flow-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .flow-step {
+            background: white;
+            border: 2px solid #eab308;
+            border-radius: 10px;
+            padding: 15px;
+            min-width: 180px;
+            text-align: center;
+            position: relative;
+        }
+
+        .flow-step-num {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #eab308;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .flow-step-title {
+            font-weight: 600;
+            margin-top: 5px;
+            color: #854d0e;
+        }
+
+        .flow-step-desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+
+        /* Code blocks */
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+        }
+
+        .inline-code {
+            background: #f1f5f9;
+            color: var(--primary-color);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        /* Component Grid */
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .component-card {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .component-card h4 {
+            color: var(--primary-color);
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .component-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+        }
+
+        .component-card .file-path {
+            font-size: 0.8rem;
+            color: var(--accent-color);
+            background: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: inline-block;
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-primary {
+            background: #dbeafe;
+            color: var(--primary-color);
+        }
+
+        .badge-success {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        /* Lists */
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        /* Improvement Section */
+        .improvement-item {
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border-left: 4px solid var(--success-color);
+            border-radius: 0 10px 10px 0;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .improvement-item.warning {
+            background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            border-left-color: var(--warning-color);
+        }
+
+        .improvement-item.critical {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            border-left-color: var(--error-color);
+        }
+
+        .improvement-item h4 {
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .improvement-item p {
+            margin: 5px 0;
+            color: var(--text-secondary);
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Print styles */
+        @media print {
+            .nav {
+                display: none;
+            }
+            .card {
+                break-inside: avoid;
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            .nav ul {
+                flex-direction: column;
+                align-items: center;
+            }
+            .arch-layer {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>ModelEvalState 架构分析报告</h1>
+            <p class="subtitle">华为 LLM 推理性能优化框架 - 完整架构与改进建议</p>
+            <div class="meta">
+                <div class="meta-item">
+                    <span>📅</span>
+                    <span>生成日期: 2026-01-03</span>
+                </div>
+                <div class="meta-item">
+                    <span>🏗️</span>
+                    <span>项目类型: Python 性能优化框架</span>
+                </div>
+                <div class="meta-item">
+                    <span>🎯</span>
+                    <span>目标平台: 昇腾 NPU</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <ul>
+                <li><a href="#overview">项目概述</a></li>
+                <li><a href="#architecture">系统架构</a></li>
+                <li><a href="#components">核心组件</a></li>
+                <li><a href="#dataflow">数据流</a></li>
+                <li><a href="#patterns">设计模式</a></li>
+                <li><a href="#tech-stack">技术栈</a></li>
+                <li><a href="#improvements">改进建议</a></li>
+            </ul>
+        </nav>
+
+        <!-- Overview Section -->
+        <section id="overview" class="card">
+            <h2>📋 项目概述</h2>
+            <p><strong>ModelEvalState</strong> 是华为开发的 Python 框架，用于优化大型语言模型（LLM）在昇腾 NPU 硬件上的推理性能。</p>
+
+            <h3>核心功能</h3>
+            <div class="component-grid">
+                <div class="component-card">
+                    <h4>🎯 状态性能建模</h4>
+                    <p>使用 XGBoost 基于批处理配置预测模型推理延迟</p>
+                    <span class="badge badge-primary">机器学习</span>
+                </div>
+                <div class="component-card">
+                    <h4>⚡ 参数优化</h4>
+                    <p>采用粒子群优化算法（PSO）寻找最优服务配置参数</p>
+                    <span class="badge badge-success">自动优化</span>
+                </div>
+                <div class="component-card">
+                    <h4>🔄 双模式评估</h4>
+                    <p>支持真实基准测试和模拟推理，加速优化周期</p>
+                    <span class="badge badge-warning">灵活部署</span>
+                </div>
+                <div class="component-card">
+                    <h4>🔌 多引擎支持</h4>
+                    <p>兼容 MindieLLM 和 vLLM 推理框架</p>
+                    <span class="badge badge-primary">可扩展</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Architecture Section -->
+        <section id="architecture" class="card">
+            <h2>🏗️ 系统架构图</h2>
+
+            <div class="architecture-diagram">
+                <div class="arch-container">
+                    <!-- Layer 1: Entry Points -->
+                    <div class="arch-layer">
+                        <div class="arch-box main">
+                            <div class="arch-box-title">CLI 入口</div>
+                            <div class="arch-box-desc">msserviceprofiler optimizer</div>
+                        </div>
+                        <div class="arch-box main">
+                            <div class="arch-box-title">Python API</div>
+                            <div class="arch-box-desc">编程接口</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-arrow">↓</div>
+
+                    <!-- Layer 2: Core Optimization -->
+                    <div class="arch-layer">
+                        <div class="arch-box optimizer">
+                            <div class="arch-box-title">PSOOptimizer</div>
+                            <div class="arch-box-desc">粒子群优化引擎</div>
+                        </div>
+                        <div class="arch-box optimizer">
+                            <div class="arch-box-title">PerformanceTuner</div>
+                            <div class="arch-box-desc">性能评分系统</div>
+                        </div>
+                        <div class="arch-box optimizer">
+                            <div class="arch-box-title">Scheduler</div>
+                            <div class="arch-box-desc">调度编排器</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-arrow">↓</div>
+
+                    <!-- Layer 3: Plugins -->
+                    <div class="arch-layer">
+                        <div class="arch-box simulator">
+                            <div class="arch-box-title">Simulator</div>
+                            <div class="arch-box-desc">MindieLLM / vLLM</div>
+                        </div>
+                        <div class="arch-box benchmark">
+                            <div class="arch-box-title">Benchmark</div>
+                            <div class="arch-box-desc">AIS-Bench / vLLM</div>
+                        </div>
+                        <div class="arch-box config">
+                            <div class="arch-box-title">DataStorage</div>
+                            <div class="arch-box-desc">历史数据持久化</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-arrow">↓</div>
+
+                    <!-- Layer 4: Inference & Model -->
+                    <div class="arch-layer">
+                        <div class="arch-box inference">
+                            <div class="arch-box-title">Inference Module</div>
+                            <div class="arch-box-desc">推理模拟</div>
+                        </div>
+                        <div class="arch-box inference">
+                            <div class="arch-box-title">StateXgbModel</div>
+                            <div class="arch-box-desc">XGBoost 状态预测</div>
+                        </div>
+                        <div class="arch-box inference">
+                            <div class="arch-box-title">Dataset</div>
+                            <div class="arch-box-desc">特征工程</div>
+                        </div>
+                    </div>
+
+                    <div class="arch-arrow">↓</div>
+
+                    <!-- Layer 5: Configuration -->
+                    <div class="arch-layer">
+                        <div class="arch-box config">
+                            <div class="arch-box-title">Settings</div>
+                            <div class="arch-box-desc">Pydantic 配置</div>
+                        </div>
+                        <div class="arch-box config">
+                            <div class="arch-box-title">ModelConfig</div>
+                            <div class="arch-box-desc">模型配置解析</div>
+                        </div>
+                        <div class="arch-box config">
+                            <div class="arch-box-title">Register</div>
+                            <div class="arch-box-desc">插件注册系统</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>目录结构</h3>
+            <pre><code>modelevalstate/
+├── analysis.py                # 数据可视化与统计分析
+├── common.py                  # 核心工具类 (State 类, 辅助函数)
+├── config/                    # 配置管理
+│   ├── base_config.py        # 基础配置枚举与路径
+│   ├── config.py             # Pydantic 主配置
+│   ├── model_config.py       # 模型配置解析
+│   ├── constant.py           # 常量与环境变量
+│   └── custom_command.py     # MindieLLM/vLLM 命令构建器
+├── optimizer/                # 主优化引擎
+│   ├── optimizer.py          # PSO 优化器 (PSOOptimizer)
+│   ├── performance_tunner.py # 性能评分 (PerformanceTuner)
+│   ├── scheduler.py          # 调度编排器
+│   ├── simulator.py          # 服务生命周期管理
+│   ├── store.py              # 数据持久化与历史记录
+│   ├── register.py           # 插件注册系统
+│   ├── plugins/              # 内置实现
+│   │   ├── simulate.py       # MindieLLM & vLLM 模拟器
+│   │   └── benchmark.py      # 基准测试运行器
+│   └── interfaces/           # 抽象接口
+│       ├── simulator.py      # SimulatorInterface
+│       ├── benchmark.py      # BenchmarkInterface
+│       └── custom_process.py # CustomProcess 基类
+├── inference/                # 推理模拟与状态预测
+│   ├── simulate.py           # 主模拟推理循环
+│   ├── simulate_vllm.py      # vLLM 特定模拟
+│   ├── dataset.py            # 数据预处理与编码
+│   ├── data_format_v1.py     # 数据结构定义
+│   └── state_eval_v1.py      # 状态预测评估
+├── train/                    # 模型训练流水线
+│   ├── pretrain.py           # 基础模型训练
+│   └── source_to_train.py    # 数据准备
+├── model/                    # 机器学习模型
+│   └── xgb_state_model.py   # XGBoost 状态延迟预测器
+└── patch/                    # 运行时补丁
+    ├── patch_vllm.py        # vLLM 补丁
+    └── mindie_plugin/       # MindieLLM 插件补丁</code></pre>
+        </section>
+
+        <!-- Components Section -->
+        <section id="components" class="card">
+            <h2>🧩 核心组件详解</h2>
+
+            <h3>1. 状态管理 (common.py)</h3>
+            <p>核心数据类 <code class="inline-code">State</code> 表示批处理的离散状态配置：</p>
+            <pre><code>@dataclass
+class State:
+    prefill: int = 0          # 单请求预填充时间
+    decode: int = 0           # 单请求解码时间
+    batch_prefill: int = 0    # 批量预填充配置
+    batch_decode: int = 0     # 批量解码配置</code></pre>
+
+            <h3>2. 配置系统 (config/)</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>类名</th>
+                            <th>职责</th>
+                            <th>关键特性</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code class="inline-code">OptimizerConfigField</code></td>
+                            <td>PSO 参数空间定义</td>
+                            <td>名称、位置、数据类型、最小/最大边界</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">PerformanceIndex</code></td>
+                            <td>性能指标容器</td>
+                            <td>generate_speed, TTFT, TPOT, success_rate</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">Settings</code></td>
+                            <td>全局配置管理</td>
+                            <td>TOML 加载，单例模式</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>3. 优化引擎 (optimizer/)</h3>
+
+            <h4>PSOOptimizer - 粒子群优化器</h4>
+            <p>核心优化算法，通过迭代搜索找到最优配置参数：</p>
+            <ul>
+                <li>可自定义粒子数量和迭代次数（最大 200 次）</li>
+                <li>支持断点续传，可恢复中断的优化过程</li>
+                <li>初始优化后进入微调阶段</li>
+            </ul>
+
+            <h4>PerformanceTuner - 性能评分器</h4>
+            <p>适应度函数（最小化算法）：</p>
+            <pre><code>Cost = w_gen * (target_speed / gen_speed)
+      + w_ft  * exp(k_ttft * (ttft / slo_ttft - 1))
+      + w_pot * exp(k_tpot * (tpot / slo_tpot - 1))
+      + w_succ * exp(k_succ * (slo_succ / success_rate - 1))</code></pre>
+
+            <h3>4. 插件系统 (plugins/)</h3>
+            <div class="component-grid">
+                <div class="component-card">
+                    <h4>🖥️ Simulator (MindieLLM)</h4>
+                    <p>管理 MindieLLM 推理服务，通过 JSON 配置文件更新参数，使用点号路径（如 <code class="inline-code">BackendConfig.ScheduleConfig.maxBatchSize</code>）</p>
+                    <span class="file-path">optimizer/plugins/simulate.py</span>
+                </div>
+                <div class="component-card">
+                    <h4>🖥️ VllmSimulator</h4>
+                    <p>vLLM 框架模拟器，通过环境变量传递参数，进程健康监控</p>
+                    <span class="file-path">optimizer/plugins/simulate.py</span>
+                </div>
+                <div class="component-card">
+                    <h4>📊 VllmBenchMark</h4>
+                    <p>运行 vLLM 原生基准测试工具，解析 JSON 输出获取 TTFT、TPOT、吞吐量</p>
+                    <span class="file-path">optimizer/plugins/benchmark.py</span>
+                </div>
+                <div class="component-card">
+                    <h4>📊 AisBench</h4>
+                    <p>使用华为 AIS-Bench 框架，解析文本输出获取延迟/吞吐量指标</p>
+                    <span class="file-path">optimizer/plugins/benchmark.py</span>
+                </div>
+            </div>
+
+            <h3>5. 推理预测 (inference/)</h3>
+            <p><strong>ServiceField</strong> 全局状态持有者：</p>
+            <ul>
+                <li><code class="inline-code">batch_field</code>: 当前批处理配置</li>
+                <li><code class="inline-code">request_field</code>: 单个请求详情</li>
+                <li><code class="inline-code">model_op_field</code>: 算子级别性能数据</li>
+            </ul>
+
+            <h3>6. 机器学习模型 (model/)</h3>
+            <p><strong>StateXgbModel</strong> 封装 XGBoost 模型：</p>
+            <ul>
+                <li>支持增量训练（partial_fit 模式）</li>
+                <li>可配置训练参数（目标函数、正则化等）</li>
+                <li>输出特征重要性图表</li>
+                <li>模型持久化（保存/加载）</li>
+            </ul>
+        </section>
+
+        <!-- Data Flow Section -->
+        <section id="dataflow" class="card">
+            <h2>🔄 数据流与处理流程</h2>
+
+            <h3>优化循环流程</h3>
+            <div class="flow-diagram">
+                <div class="flow-steps">
+                    <div class="flow-step">
+                        <span class="flow-step-num">1</span>
+                        <div class="flow-step-title">加载配置</div>
+                        <div class="flow-step-desc">读取 TOML 配置文件</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">2</span>
+                        <div class="flow-step-title">初始化组件</div>
+                        <div class="flow-step-desc">模拟器 + 基准测试</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">3</span>
+                        <div class="flow-step-title">PSO 初始化</div>
+                        <div class="flow-step-desc">设置参数边界</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">4</span>
+                        <div class="flow-step-title">更新配置</div>
+                        <div class="flow-step-desc">写入新参数</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">5</span>
+                        <div class="flow-step-title">启动服务</div>
+                        <div class="flow-step-desc">运行推理服务</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">6</span>
+                        <div class="flow-step-title">执行测试</div>
+                        <div class="flow-step-desc">运行基准测试</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">7</span>
+                        <div class="flow-step-title">计算适应度</div>
+                        <div class="flow-step-desc">评估性能得分</div>
+                    </div>
+                    <div class="flow-step">
+                        <span class="flow-step-num">8</span>
+                        <div class="flow-step-title">持久化结果</div>
+                        <div class="flow-step-desc">保存到 CSV</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>状态预测流水线（模拟模式）</h3>
+            <pre><code>simulate.py (推理模块)
+  ├─ 从 CSV 加载批处理数据
+  ├─ 初始化模型状态 (ServiceField)
+  ├─ 对每个批次:
+  │  ├─ 加载 batch_field (batch_size, stage 等)
+  │  ├─ 加载 request_field 元组 (input_length, output_length)
+  │  ├─ 通过 CustomLabelEncoder + OneHotEncoder 编码特征
+  │  ├─ 调用 xgb_state_model.predict()
+  │  ├─ 记录预测延迟
+  │  └─ 与真实值比较
+  └─ 输出预测准确度指标</code></pre>
+
+            <h3>配置更新流程</h3>
+            <pre><code>Simulator.update_config(params: Tuple[OptimizerConfigField])
+  ├─ 加载原始 JSON 配置
+  ├─ 对每个参数:
+  │  ├─ 解析 config_position (如 "BackendConfig.ScheduleConfig.maxBatchSize")
+  │  ├─ 遍历嵌套 dict/list 结构
+  │  └─ 更新目标路径的值
+  ├─ 将修改后的配置写回磁盘
+  └─ 服务重启时获取新配置</code></pre>
+        </section>
+
+        <!-- Design Patterns Section -->
+        <section id="patterns" class="card">
+            <h2>🎨 设计模式</h2>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>设计模式</th>
+                            <th>应用组件</th>
+                            <th>目的</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>插件架构</strong></td>
+                            <td>register.py, plugins/</td>
+                            <td>无需修改核心代码即可扩展</td>
+                        </tr>
+                        <tr>
+                            <td><strong>策略模式</strong></td>
+                            <td>SimulatorInterface, BenchmarkInterface</td>
+                            <td>切换实现（MindieLLM, vLLM, AisBench）</td>
+                        </tr>
+                        <tr>
+                            <td><strong>工厂模式</strong></td>
+                            <td>register_ori_functions()</td>
+                            <td>创建模拟器/基准测试实例</td>
+                        </tr>
+                        <tr>
+                            <td><strong>单例模式</strong></td>
+                            <td>get_settings()</td>
+                            <td>全局配置访问</td>
+                        </tr>
+                        <tr>
+                            <td><strong>上下文管理器</strong></td>
+                            <td>enable_simulate_old()</td>
+                            <td>资源清理（配置恢复）</td>
+                        </tr>
+                        <tr>
+                            <td><strong>模板方法</strong></td>
+                            <td>CustomProcess</td>
+                            <td>基础生命周期（run, stop, health check）</td>
+                        </tr>
+                        <tr>
+                            <td><strong>观察者/事件</strong></td>
+                            <td>DataStorage, CSV logging</td>
+                            <td>持久化优化历史</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>架构优势</h3>
+            <ul>
+                <li><strong>模块化设计</strong>：优化、模拟、基准测试之间清晰分离</li>
+                <li><strong>可扩展性</strong>：自定义引擎/基准测试的插件架构</li>
+                <li><strong>历史追踪</strong>：完整的 CSV 日志用于分析和断点续传</li>
+                <li><strong>多引擎支持</strong>：通过同一框架支持 MindieLLM 和 vLLM</li>
+                <li><strong>状态抽象</strong>：离散状态抽象（State 类）实现高效缓存</li>
+                <li><strong>Pydantic 验证</strong>：自动验证的类型安全配置</li>
+            </ul>
+        </section>
+
+        <!-- Tech Stack Section -->
+        <section id="tech-stack" class="card">
+            <h2>🛠️ 技术栈</h2>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>组件</th>
+                            <th>技术</th>
+                            <th>版本/说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>核心框架</td>
+                            <td>Python</td>
+                            <td>3.8+</td>
+                        </tr>
+                        <tr>
+                            <td>机器学习/优化</td>
+                            <td>XGBoost, Scikit-learn, PySwarms</td>
+                            <td>梯度提升 + 粒子群</td>
+                        </tr>
+                        <tr>
+                            <td>配置管理</td>
+                            <td>Pydantic, Pydantic-settings</td>
+                            <td>类型安全配置</td>
+                        </tr>
+                        <tr>
+                            <td>数据处理</td>
+                            <td>Pandas, NumPy</td>
+                            <td>数据分析</td>
+                        </tr>
+                        <tr>
+                            <td>可视化</td>
+                            <td>Matplotlib, Seaborn</td>
+                            <td>图表生成</td>
+                        </tr>
+                        <tr>
+                            <td>进程管理</td>
+                            <td>psutil, subprocess</td>
+                            <td>服务生命周期</td>
+                        </tr>
+                        <tr>
+                            <td>日志</td>
+                            <td>loguru</td>
+                            <td>结构化日志</td>
+                        </tr>
+                        <tr>
+                            <td>安全</td>
+                            <td>msguard</td>
+                            <td>自定义安全模块</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Improvements Section -->
+        <section id="improvements" class="card">
+            <h2>💡 改进建议</h2>
+
+            <h3>🔴 高优先级改进</h3>
+
+            <div class="improvement-item critical">
+                <h4>1. 缺少单元测试覆盖</h4>
+                <p><strong>问题</strong>：未发现测试目录或测试文件，代码质量难以保证</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>添加 pytest 测试框架</li>
+                    <li>为核心组件（State, PSOOptimizer, PerformanceTuner）编写单元测试</li>
+                    <li>设置 CI/CD 流水线强制测试覆盖率 > 80%</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item critical">
+                <h4>2. 异常处理不完善</h4>
+                <p><strong>问题</strong>：部分代码直接使用 try-except 但未记录或重新抛出异常</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>创建自定义异常类层次结构（OptimizationError, SimulatorError 等）</li>
+                    <li>在关键路径添加详细的异常日志</li>
+                    <li>实现优雅降级机制</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item critical">
+                <h4>3. 文档缺失</h4>
+                <p><strong>问题</strong>：缺少 API 文档、使用示例和架构说明</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>使用 Sphinx 生成 API 文档</li>
+                    <li>添加 README.md 包含快速开始指南</li>
+                    <li>为每个模块添加 docstring</li>
+                </ul>
+            </div>
+
+            <h3>🟡 中优先级改进</h3>
+
+            <div class="improvement-item warning">
+                <h4>4. 配置验证增强</h4>
+                <p><strong>问题</strong>：config_position 路径解析缺少验证，可能导致运行时错误</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>添加配置路径预验证</li>
+                    <li>实现配置模式（schema）验证</li>
+                    <li>提供更友好的错误消息</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item warning">
+                <h4>5. 并行优化支持</h4>
+                <p><strong>问题</strong>：当前 PSO 串行评估每个粒子，效率较低</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>使用 concurrent.futures 或 multiprocessing 并行评估</li>
+                    <li>支持分布式优化（多节点）</li>
+                    <li>添加 GPU 加速选项</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item warning">
+                <h4>6. 监控与可观测性</h4>
+                <p><strong>问题</strong>：缺少实时监控和指标收集</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>集成 Prometheus 指标导出</li>
+                    <li>添加 OpenTelemetry 追踪</li>
+                    <li>实现 Web Dashboard 展示优化进度</li>
+                </ul>
+            </div>
+
+            <h3>🟢 低优先级改进</h3>
+
+            <div class="improvement-item">
+                <h4>7. 代码风格统一</h4>
+                <p><strong>问题</strong>：部分文件使用不同的命名风格（如 performance_tunner.py 应为 performance_tuner.py）</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>添加 pre-commit hooks（black, isort, flake8）</li>
+                    <li>统一命名规范</li>
+                    <li>修复拼写错误</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item">
+                <h4>8. 依赖管理</h4>
+                <p><strong>问题</strong>：未发现 requirements.txt 或 pyproject.toml 中的完整依赖列表</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>使用 Poetry 或 pip-tools 管理依赖</li>
+                    <li>添加依赖版本锁定</li>
+                    <li>分离开发依赖和生产依赖</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item">
+                <h4>9. 缓存优化</h4>
+                <p><strong>问题</strong>：State 类使用字典键缓存，可考虑更高效的缓存策略</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>使用 functools.lru_cache 或 cachetools</li>
+                    <li>考虑 Redis 或其他分布式缓存</li>
+                    <li>实现缓存失效策略</li>
+                </ul>
+            </div>
+
+            <div class="improvement-item">
+                <h4>10. 类型注解完善</h4>
+                <p><strong>问题</strong>：部分函数缺少类型注解</p>
+                <p><strong>建议</strong>：</p>
+                <ul>
+                    <li>添加完整的类型注解</li>
+                    <li>使用 mypy 进行静态类型检查</li>
+                    <li>配置 CI 中的类型检查</li>
+                </ul>
+            </div>
+
+            <h3>🚀 功能增强建议</h3>
+
+            <div class="improvement-item">
+                <h4>11. 多目标优化</h4>
+                <p><strong>当前</strong>：单一加权适应度函数</p>
+                <p><strong>建议</strong>：实现 Pareto 前沿多目标优化，让用户可视化权衡不同指标</p>
+            </div>
+
+            <div class="improvement-item">
+                <h4>12. 自动超参数调优</h4>
+                <p><strong>当前</strong>：PSO 超参数需手动设置</p>
+                <p><strong>建议</strong>：集成 Optuna 或 Ray Tune 进行自动超参数搜索</p>
+            </div>
+
+            <div class="improvement-item">
+                <h4>13. 模型版本管理</h4>
+                <p><strong>当前</strong>：XGBoost 模型简单保存到文件</p>
+                <p><strong>建议</strong>：集成 MLflow 进行模型版本控制、实验追踪和模型注册</p>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>ModelEvalState 架构分析报告 | 自动生成于 2026-01-03</p>
+            <p>Powered by Claude Code Analysis</p>
+        </footer>
+    </div>
+
+    <script>
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('.nav a').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Highlight active nav item on scroll
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('section[id]');
+            const navLinks = document.querySelectorAll('.nav a');
+
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (window.scrollY >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.style.background = '';
+                link.style.color = '';
+                if (link.getAttribute('href') === '#' + current) {
+                    link.style.background = 'var(--accent-color)';
+                    link.style.color = 'white';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+</code></pre>

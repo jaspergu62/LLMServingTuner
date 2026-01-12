@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModelEvalState - Improvements 2, 4, 7 Changelog</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --code-bg: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(37, 99, 235, 0.3);
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .header .date {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid var(--border-color);
+        }
+
+        .card h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h3 {
+            color: var(--secondary-color);
+            margin: 25px 0 15px 0;
+            font-size: 1.2rem;
+        }
+
+        .card h4 {
+            color: var(--text-color);
+            margin: 20px 0 10px 0;
+            font-size: 1.05rem;
+        }
+
+        pre {
+            background: var(--code-bg);
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+        }
+
+        .inline-code {
+            background: #f1f5f9;
+            color: var(--primary-color);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        .file-change {
+            background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+            border-left: 4px solid var(--success-color);
+            border-radius: 0 10px 10px 0;
+            padding: 20px;
+            margin: 15px 0;
+        }
+
+        .file-change.new {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border-left-color: var(--primary-color);
+        }
+
+        .file-change.modified {
+            background: linear-gradient(135deg, #fffbeb, #fef3c7);
+            border-left-color: var(--warning-color);
+        }
+
+        .file-change h4 {
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .file-change p {
+            margin: 5px 0;
+            color: var(--text-secondary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .badge-new {
+            background: #dbeafe;
+            color: var(--primary-color);
+        }
+
+        .badge-modified {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .badge-renamed {
+            background: #f3e8ff;
+            color: #7c3aed;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: var(--primary-color);
+            color: white;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f8fafc;
+        }
+
+        ul, ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+
+        li {
+            margin: 8px 0;
+        }
+
+        .exception-tree {
+            background: #f8fafc;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.85rem;
+            line-height: 1.8;
+        }
+
+        .exception-tree .base {
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .exception-tree .category {
+            color: var(--secondary-color);
+            font-weight: 600;
+        }
+
+        .exception-tree .specific {
+            color: var(--text-secondary);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .summary-item {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-item .number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .summary-item .label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>ModelEvalState Improvements Changelog</h1>
+            <p class="subtitle">Improvements 2, 4, 7 - Code Quality & Error Handling</p>
+            <p class="date">2026-01-07</p>
+        </header>
+
+        <!-- Summary -->
+        <section class="card">
+            <h2>📊 Change Summary</h2>
+            <div class="summary-grid">
+                <div class="summary-item">
+                    <div class="number">3</div>
+                    <div class="label">New Files</div>
+                </div>
+                <div class="summary-item">
+                    <div class="number">7</div>
+                    <div class="label">Modified Files</div>
+                </div>
+                <div class="summary-item">
+                    <div class="number">1</div>
+                    <div class="label">Renamed Files</div>
+                </div>
+                <div class="summary-item">
+                    <div class="number">17</div>
+                    <div class="label">Exception Classes</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Improvement 7 -->
+        <section class="card">
+            <h2>🎨 Improvement 7: Code Style Cleanup</h2>
+            <p>Unified naming conventions, fixed typos, and added code quality tools.</p>
+
+            <h3>File Rename</h3>
+            <div class="file-change">
+                <h4><span class="badge badge-renamed">RENAMED</span> performance_tunner.py → performance_tuner.py</h4>
+                <p>Fixed typo in filename. Updated all imports across the codebase.</p>
+                <p><strong>Location:</strong> <code class="inline-code">optimizer/performance_tuner.py</code></p>
+            </div>
+
+            <h3>Typo Fixes</h3>
+            <div class="file-change modified">
+                <h4><span class="badge badge-modified">MODIFIED</span> config.toml</h4>
+                <p>Fixed parameter name typo.</p>
+                <pre><code>- name = "max_queue_deloy_mircroseconds"
++ name = "max_queue_delay_microseconds"</code></pre>
+            </div>
+
+            <div class="file-change modified">
+                <h4><span class="badge badge-modified">MODIFIED</span> config/config.py</h4>
+                <p>Fixed same parameter name in default config.</p>
+                <pre><code>- OptimizerConfigField(name="max_queue_deloy_mircroseconds", ...)
++ OptimizerConfigField(name="max_queue_delay_microseconds", ...)</code></pre>
+            </div>
+
+            <div class="file-change modified">
+                <h4><span class="badge badge-modified">MODIFIED</span> optimizer/plugins/plugin.md</h4>
+                <p>Fixed error message typo.</p>
+                <pre><code>- raise ValueError("Settings is invalidator.")
++ raise ValueError("Settings is invalid.")</code></pre>
+            </div>
+
+            <h3>New Code Quality Tools</h3>
+            <div class="file-change new">
+                <h4><span class="badge badge-new">NEW</span> .pre-commit-config.yaml</h4>
+                <p>Pre-commit hooks configuration for automated code quality checks.</p>
+                <pre><code>repos:
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        args: [--line-length=120]
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: [--profile=black, --line-length=120]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: [--max-line-length=120]</code></pre>
+            </div>
+
+            <div class="file-change new">
+                <h4><span class="badge badge-new">NEW</span> pyproject.toml</h4>
+                <p>Tool configurations for black, isort, flake8, mypy, and pytest.</p>
+                <pre><code>[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true</code></pre>
+            </div>
+
+            <h3>Usage</h3>
+            <pre><code># Install pre-commit hooks
+pip install pre-commit
+pre-commit install
+
+# Run manually on all files
+pre-commit run --all-files</code></pre>
+        </section>
+
+        <!-- Improvement 2 -->
+        <section class="card">
+            <h2>🛡️ Improvement 2: Exception Handling</h2>
+            <p>Created custom exception hierarchy for better error handling and debugging.</p>
+
+            <h3>Exception Hierarchy</h3>
+            <div class="exception-tree">
+                <span class="base">ModelEvalStateError</span> (base)<br>
+                ├── <span class="category">ConfigurationError</span><br>
+                │   ├── <span class="specific">ConfigPathError</span> - Invalid config_position path<br>
+                │   └── <span class="specific">ConfigValidationError</span> - Validation failures<br>
+                ├── <span class="category">OptimizationError</span><br>
+                │   ├── <span class="specific">PSOConvergenceError</span> - PSO failed to converge<br>
+                │   └── <span class="specific">FitnessCalculationError</span> - Fitness calc failures<br>
+                ├── <span class="category">SimulatorError</span><br>
+                │   ├── <span class="specific">SimulatorStartError</span> - Service start failures<br>
+                │   ├── <span class="specific">SimulatorStopError</span> - Service stop failures<br>
+                │   └── <span class="specific">SimulatorHealthCheckError</span> - Health check failures<br>
+                ├── <span class="category">BenchmarkError</span><br>
+                │   ├── <span class="specific">BenchmarkExecutionError</span> - Benchmark run failures<br>
+                │   └── <span class="specific">BenchmarkParseError</span> - Output parsing failures<br>
+                └── <span class="category">CommunicationError</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;├── <span class="specific">IPCTimeoutError</span> - IPC operation timeouts<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;└── <span class="specific">IPCCommandError</span> - IPC command failures
+            </div>
+
+            <div class="file-change new">
+                <h4><span class="badge badge-new">NEW</span> exceptions.py</h4>
+                <p>Custom exception classes with detailed error information.</p>
+                <pre><code>class ModelEvalStateError(Exception):
+    """Base exception for all ModelEvalState errors."""
+
+    def __init__(self, message: str, details: Optional[dict] = None):
+        self.message = message
+        self.details = details or {}
+        super().__init__(self.message)
+
+    def __str__(self) -> str:
+        if self.details:
+            detail_str = ", ".join(f"{k}={v}" for k, v in self.details.items())
+            return f"{self.message} ({detail_str})"
+        return self.message
+
+
+class ConfigPathError(ConfigurationError):
+    """Error when config_position path is invalid."""
+
+    def __init__(self, path: str, reason: str, config_file: Optional[str] = None):
+        details = {"path": path, "reason": reason}
+        if config_file:
+            details["config_file"] = config_file
+        message = f"Invalid configuration path '{path}': {reason}"
+        super().__init__(message, details)</code></pre>
+            </div>
+
+            <div class="file-change modified">
+                <h4><span class="badge badge-modified">MODIFIED</span> __init__.py</h4>
+                <p>Export all exception classes for easy import.</p>
+                <pre><code>from msserviceprofiler.modelevalstate.exceptions import (
+    ModelEvalStateError,
+    ConfigurationError,
+    ConfigPathError,
+    # ... all 17 exception classes
+)</code></pre>
+            </div>
+
+            <h3>Enhanced Logging</h3>
+            <div class="file-change modified">
+                <h4><span class="badge badge-modified">MODIFIED</span> optimizer/interfaces/simulator.py</h4>
+                <p>Added detailed logging in health check method.</p>
+                <pre><code>def health(self) -> ProcessState:
+    process_res = super().health()
+    if process_res.stage == Stage.error:
+        logger.warning(f"Simulator process health check failed: {process_res.info}")
+        return process_res
+    try:
+        logger.debug(f"Checking simulator health at {self.base_url}")
+        res = requests.get(self.base_url, timeout=10)
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Health check request failed: {e}"
+        logger.error(error_msg)
+        return ProcessState(stage=Stage.error, info=error_msg)
+    # ...</code></pre>
+            </div>
+
+            <h3>Usage Example</h3>
+            <pre><code>from msserviceprofiler.modelevalstate import (
+    ConfigPathError,
+    SimulatorStartError,
+    BenchmarkExecutionError
+)
+
+try:
+    simulator.start()
+except SimulatorStartError as e:
+    logger.error(f"Start failed: {e}")
+    logger.debug(f"Details: {e.details}")
+    # e.details = {"simulator_type": "vllm", "reason": "...", "command": "..."}</code></pre>
+        </section>
+
+        <!-- Improvement 4 -->
+        <section class="card">
+            <h2>✅ Improvement 4: Config Validation</h2>
+            <p>Added pre-validation for configuration fields with improved error messages.</p>
+
+            <h3>New Validators</h3>
+            <div class="file-change modified">
+                <h4><span class="badge badge-modified">MODIFIED</span> config/config.py</h4>
+                <p>Added field validators to <code class="inline-code">OptimizerConfigField</code>.</p>
+            </div>
+
+            <h4>config_position Validation</h4>
+            <pre><code>@field_validator("config_position")
+@classmethod
+def validate_config_position(cls, v: str) -> str:
+    """
+    Validate config_position format.
+    Valid formats:
+    - "env" for environment variables
+    - Dotted path like "BackendConfig.ScheduleConfig.maxBatchSize"
+    """
+    if not v:
+        raise ConfigPathError(v, "config_position cannot be empty")
+    if not CONFIG_POSITION_PATTERN.match(v):
+        raise ConfigPathError(
+            v,
+            f"Invalid format. Expected 'env' or dotted path, got '{v}'"
+        )
+    return v</code></pre>
+
+            <h4>dtype Validation</h4>
+            <pre><code># Valid dtype values
+VALID_DTYPES = {"int", "float", "bool", "enum", "ratio", "range", "factories", "env"}
+
+@field_validator("dtype")
+@classmethod
+def validate_dtype(cls, v: str) -> str:
+    """Validate dtype is one of the supported types."""
+    if v not in cls.VALID_DTYPES:
+        raise ConfigValidationError(
+            "dtype", v,
+            f"Must be one of: {', '.join(sorted(cls.VALID_DTYPES))}"
+        )
+    return v</code></pre>
+
+            <h4>Improved min/max Validation</h4>
+            <pre><code>@model_validator(mode="after")
+def update_constant(self):
+    if self.min > self.max:
+        raise ConfigValidationError(
+            "min/max",
+            f"min={self.min}, max={self.max}",
+            f"min ({self.min}) cannot be greater than max ({self.max})"
+        )
+    # ...</code></pre>
+
+            <h3>Valid config_position Patterns</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Pattern</th>
+                            <th>Example</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code class="inline-code">env</code></td>
+                            <td><code>env</code></td>
+                            <td>Set as environment variable</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">Section.Key</code></td>
+                            <td><code>BackendConfig.maxBatchSize</code></td>
+                            <td>JSON config path</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">Section.Sub.Key</code></td>
+                            <td><code>BackendConfig.ScheduleConfig.maxBatchSize</code></td>
+                            <td>Nested JSON path</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">Section.Index.Key</code></td>
+                            <td><code>ModelConfig.0.tp</code></td>
+                            <td>Array index access</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Valid dtype Values</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>dtype</th>
+                            <th>Description</th>
+                            <th>dtype_param</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code class="inline-code">int</code></td>
+                            <td>Integer within min/max bounds</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">float</code></td>
+                            <td>Float within min/max bounds</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">bool</code></td>
+                            <td>Boolean (0 or 1)</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">enum</code></td>
+                            <td>Discrete choices</td>
+                            <td>List of valid values</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">ratio</code></td>
+                            <td>Fraction of another parameter</td>
+                            <td>Target field name</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">range</code></td>
+                            <td>Generate enum from 0 to max</td>
+                            <td>Step size</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">factories</code></td>
+                            <td>Derived from another parameter</td>
+                            <td>Dict with target_name, product, dtype</td>
+                        </tr>
+                        <tr>
+                            <td><code class="inline-code">env</code></td>
+                            <td>Environment variable</td>
+                            <td>-</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Files Changed Summary -->
+        <section class="card">
+            <h2>📁 Files Changed Summary</h2>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>Status</th>
+                            <th>Improvement</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>exceptions.py</code></td>
+                            <td><span class="badge badge-new">NEW</span></td>
+                            <td>#2</td>
+                        </tr>
+                        <tr>
+                            <td><code>.pre-commit-config.yaml</code></td>
+                            <td><span class="badge badge-new">NEW</span></td>
+                            <td>#7</td>
+                        </tr>
+                        <tr>
+                            <td><code>pyproject.toml</code></td>
+                            <td><span class="badge badge-new">NEW</span></td>
+                            <td>#7</td>
+                        </tr>
+                        <tr>
+                            <td><code>optimizer/performance_tuner.py</code></td>
+                            <td><span class="badge badge-renamed">RENAMED</span></td>
+                            <td>#7</td>
+                        </tr>
+                        <tr>
+                            <td><code>__init__.py</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#2</td>
+                        </tr>
+                        <tr>
+                            <td><code>config/config.py</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#4, #7</td>
+                        </tr>
+                        <tr>
+                            <td><code>config.toml</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#7</td>
+                        </tr>
+                        <tr>
+                            <td><code>optimizer/optimizer.py</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#7</td>
+                        </tr>
+                        <tr>
+                            <td><code>optimizer/interfaces/simulator.py</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#2</td>
+                        </tr>
+                        <tr>
+                            <td><code>optimizer/plugins/plugin.md</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#7</td>
+                        </tr>
+                        <tr>
+                            <td><code>CLAUDE.md</code></td>
+                            <td><span class="badge badge-modified">MODIFIED</span></td>
+                            <td>#7</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <p>ModelEvalState Improvements Changelog | Generated 2026-01-07</p>
+            <p>Improvements 2, 4, 7 - Exception Handling, Config Validation, Code Style</p>
+        </footer>
+    </div>
+</body>
+</html>

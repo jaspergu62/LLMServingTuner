@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parallel PSO Evaluation - Architecture & User Guide</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --accent-color: #3b82f6;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-color: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --code-bg: #1e293b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 3rem 2rem;
+            margin-bottom: 2rem;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .badge-version {
+            background-color: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .badge-status {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        nav.toc {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        nav.toc h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        nav.toc ul {
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.5rem;
+        }
+
+        nav.toc a {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 0.5rem;
+            display: block;
+            border-radius: 6px;
+            transition: background-color 0.2s;
+        }
+
+        nav.toc a:hover {
+            background-color: var(--bg-color);
+            color: var(--primary-color);
+        }
+
+        section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        section h2 {
+            font-size: 1.75rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        section h3 {
+            font-size: 1.25rem;
+            color: var(--text-color);
+            margin: 1.5rem 0 1rem 0;
+        }
+
+        section h4 {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            margin: 1rem 0 0.5rem 0;
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        ul, ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        code {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background-color: var(--bg-color);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background-color: var(--code-bg);
+            color: #e2e8f0;
+            padding: 1.5rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+
+        .comment { color: #6b7280; }
+        .keyword { color: #f472b6; }
+        .string { color: #a5f3fc; }
+        .number { color: #fbbf24; }
+        .class-name { color: #67e8f9; }
+        .function { color: #c4b5fd; }
+
+        .architecture-diagram {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 1.5rem 0;
+            text-align: center;
+        }
+
+        .diagram-box {
+            display: inline-block;
+            background: white;
+            border: 2px solid var(--primary-color);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin: 0.5rem;
+            font-weight: 500;
+            min-width: 150px;
+        }
+
+        .diagram-box.main {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--secondary-color);
+        }
+
+        .diagram-box.pool {
+            background: var(--success-color);
+            color: white;
+            border-color: #059669;
+        }
+
+        .diagram-box.group {
+            background: var(--warning-color);
+            color: white;
+            border-color: #d97706;
+        }
+
+        .diagram-box.remote {
+            background: #8b5cf6;
+            color: white;
+            border-color: #7c3aed;
+        }
+
+        .diagram-arrow {
+            display: block;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            margin: 0.5rem 0;
+        }
+
+        .diagram-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .flow-chart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--bg-color);
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        tr:hover {
+            background-color: var(--bg-color);
+        }
+
+        .info-box {
+            background-color: #eff6ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .warning-box {
+            background-color: #fffbeb;
+            border-left: 4px solid var(--warning-color);
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .success-box {
+            background-color: #ecfdf5;
+            border-left: 4px solid var(--success-color);
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .feature-card {
+            background: var(--bg-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+
+        .feature-card h4 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            header {
+                padding: 2rem 1rem;
+            }
+
+            header h1 {
+                font-size: 1.75rem;
+            }
+
+            section {
+                padding: 1.5rem;
+            }
+
+            .diagram-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Parallel PSO Evaluation</h1>
+            <p>Multi-Node Distributed Particle Swarm Optimization for LLM Inference Tuning</p>
+            <span class="badge badge-version">Version 1.0</span>
+            <span class="badge badge-status">Production Ready</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <nav class="toc">
+            <h2>Table of Contents</h2>
+            <ul>
+                <li><a href="#overview">1. Overview</a></li>
+                <li><a href="#architecture">2. Architecture Design</a></li>
+                <li><a href="#components">3. Core Components</a></li>
+                <li><a href="#configuration">4. Configuration</a></li>
+                <li><a href="#cli-usage">5. CLI Usage</a></li>
+                <li><a href="#api-reference">6. API Reference</a></li>
+                <li><a href="#examples">7. Examples</a></li>
+                <li><a href="#troubleshooting">8. Troubleshooting</a></li>
+            </ul>
+        </nav>
+
+        <section id="overview">
+            <h2>1. Overview</h2>
+            <p>
+                The Parallel PSO Evaluation system enables distributed particle evaluation across multiple
+                service groups, significantly accelerating the optimization process for large-scale LLM
+                inference parameter tuning.
+            </p>
+
+            <h3>Key Features</h3>
+            <div class="grid-2">
+                <div class="feature-card">
+                    <h4>Multi-Node Parallelism</h4>
+                    <p>Evaluate multiple particles simultaneously across distributed service groups,
+                    each potentially spanning multiple nodes.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Automatic Failover</h4>
+                    <p>Graceful fallback to sequential evaluation when parallel infrastructure is
+                    unavailable or encounters errors.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>SSH-Based Remote Execution</h4>
+                    <p>Secure remote command execution and file transfer using paramiko, with
+                    automatic reconnection and retry logic.</p>
+                </div>
+                <div class="feature-card">
+                    <h4>Flexible Configuration</h4>
+                    <p>Multiple configuration methods: TOML config files, hostfiles,
+                    or command-line node strings.</p>
+                </div>
+            </div>
+
+            <h3>Use Case Example</h3>
+            <div class="info-box">
+                <strong>Scenario:</strong> Tuning Qwen3-235B model on 8 servers with 16 NPUs each.
+                <ul style="margin-top: 0.5rem; margin-bottom: 0;">
+                    <li>Each service instance requires 2 nodes (32 NPUs total)</li>
+                    <li>4 service groups can run in parallel</li>
+                    <li>4 particles evaluated per PSO iteration</li>
+                    <li>~4x speedup compared to sequential evaluation</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="architecture">
+            <h2>2. Architecture Design</h2>
+
+            <h3>System Architecture</h3>
+            <div class="architecture-diagram">
+                <div class="flow-chart">
+                    <div class="diagram-box main">PSOOptimizer</div>
+                    <span class="diagram-arrow">↓ particles</span>
+                    <div class="diagram-box main">ParticleDispatcher</div>
+                    <span class="diagram-arrow">↓ batch dispatch</span>
+                    <div class="diagram-box pool">ServiceGroupPool</div>
+                    <span class="diagram-arrow">↓ parallel execution</span>
+                    <div class="diagram-row">
+                        <div class="diagram-box group">ServiceGroup 0</div>
+                        <div class="diagram-box group">ServiceGroup 1</div>
+                        <div class="diagram-box group">ServiceGroup 2</div>
+                        <div class="diagram-box group">ServiceGroup 3</div>
+                    </div>
+                    <span class="diagram-arrow">↓ SSH connections</span>
+                    <div class="diagram-row">
+                        <div class="diagram-box remote">RemoteExecutor</div>
+                        <div class="diagram-box remote">RemoteExecutor</div>
+                        <div class="diagram-box remote">RemoteExecutor</div>
+                        <div class="diagram-box remote">RemoteExecutor</div>
+                    </div>
+                </div>
+            </div>
+
+            <h3>Data Flow</h3>
+            <ol>
+                <li><strong>PSOOptimizer</strong> generates a swarm of particles (parameter combinations)</li>
+                <li><strong>ParticleDispatcher</strong> receives particles and distributes them to available workers</li>
+                <li><strong>ServiceGroupPool</strong> manages multiple ServiceGroup instances using ThreadPoolExecutor</li>
+                <li><strong>ServiceGroup</strong> handles the evaluation lifecycle:
+                    <ul>
+                        <li>Update configuration on master node</li>
+                        <li>Start/restart the service</li>
+                        <li>Run benchmark</li>
+                        <li>Collect performance metrics</li>
+                    </ul>
+                </li>
+                <li><strong>RemoteExecutor</strong> executes commands and transfers files via SSH</li>
+                <li>Results flow back up through the chain to update PSO state</li>
+            </ol>
+
+            <h3>Service Group Topology</h3>
+            <div class="architecture-diagram">
+                <div style="text-align: left; max-width: 600px; margin: 0 auto;">
+                    <pre style="background: white; color: var(--text-color); border: 1px solid var(--border-color);">
+┌─────────────────────────────────────────────────────┐
+│                  Service Group 0                     │
+│  ┌─────────────────┐    ┌─────────────────┐         │
+│  │   Master Node   │    │   Worker Node   │         │
+│  │   (node0)       │◄───│   (node1)       │         │
+│  │   NPU 0-7       │    │   NPU 0-7       │         │
+│  │                 │    │                 │         │
+│  │  - Config file  │    │  - Worker proc  │         │
+│  │  - Start script │    │                 │         │
+│  │  - Health check │    │                 │         │
+│  └─────────────────┘    └─────────────────┘         │
+└─────────────────────────────────────────────────────┘
+                    </pre>
+                </div>
+            </div>
+        </section>
+
+        <section id="components">
+            <h2>3. Core Components</h2>
+
+            <h3>ParticleDispatcher</h3>
+            <p>The bridge between PSOOptimizer and ServiceGroupPool, coordinating particle distribution and result collection.</p>
+            <table>
+                <tr>
+                    <th>Method</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>setup()</code></td>
+                    <td>Initialize the service group pool and establish connections</td>
+                </tr>
+                <tr>
+                    <td><code>cleanup()</code></td>
+                    <td>Release all resources and close connections</td>
+                </tr>
+                <tr>
+                    <td><code>evaluate_particles(particles)</code></td>
+                    <td>Evaluate all particles in parallel, returns fitness values</td>
+                </tr>
+                <tr>
+                    <td><code>get_summary()</code></td>
+                    <td>Get dispatcher state and statistics</td>
+                </tr>
+            </table>
+
+            <h3>ServiceGroupPool</h3>
+            <p>Manages multiple ServiceGroup instances for parallel evaluation.</p>
+            <table>
+                <tr>
+                    <th>Property</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>worker_count</code></td>
+                    <td>Number of healthy service groups available</td>
+                </tr>
+                <tr>
+                    <td><code>healthy_groups</code></td>
+                    <td>List of service groups in healthy state</td>
+                </tr>
+                <tr>
+                    <td><code>stats</code></td>
+                    <td>Pool statistics (success rate, avg evaluation time)</td>
+                </tr>
+            </table>
+
+            <h3>ServiceGroup</h3>
+            <p>Manages a single service instance that may span multiple nodes.</p>
+            <table>
+                <tr>
+                    <th>Method</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>setup()</code></td>
+                    <td>Initialize connections to all nodes in the group</td>
+                </tr>
+                <tr>
+                    <td><code>evaluate(params, fitness_func)</code></td>
+                    <td>Full evaluation cycle: config → start → benchmark → fitness</td>
+                </tr>
+                <tr>
+                    <td><code>start()</code></td>
+                    <td>Start the service on all nodes via master</td>
+                </tr>
+                <tr>
+                    <td><code>stop()</code></td>
+                    <td>Stop the service on all nodes</td>
+                </tr>
+                <tr>
+                    <td><code>health_check()</code></td>
+                    <td>Check if service is responding</td>
+                </tr>
+            </table>
+
+            <h3>RemoteExecutor</h3>
+            <p>SSH-based remote command execution and file transfer.</p>
+            <table>
+                <tr>
+                    <th>Method</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>connect()</code></td>
+                    <td>Establish SSH connection with retry logic</td>
+                </tr>
+                <tr>
+                    <td><code>execute(command)</code></td>
+                    <td>Execute command on remote node</td>
+                </tr>
+                <tr>
+                    <td><code>upload_file(local, remote)</code></td>
+                    <td>Upload file via SFTP</td>
+                </tr>
+                <tr>
+                    <td><code>write_file(path, content)</code></td>
+                    <td>Write content directly to remote file</td>
+                </tr>
+            </table>
+        </section>
+
+        <section id="configuration">
+            <h2>4. Configuration</h2>
+
+            <h3>Configuration File (config.toml)</h3>
+            <pre><code><span class="comment"># Enable parallel PSO evaluation</span>
+[parallel]
+enabled = <span class="keyword">true</span>
+evaluation_timeout = <span class="number">600</span>  <span class="comment"># seconds per particle</span>
+retry_count = <span class="number">2</span>
+retry_delay = <span class="number">10</span>  <span class="comment"># seconds between retries</span>
+
+<span class="comment"># Service Group 0: nodes 0-1</span>
+[[parallel.service_groups]]
+group_id = <span class="number">0</span>
+master_node_index = <span class="number">0</span>
+start_script = <span class="string">"./start_service.sh"</span>
+config_path = <span class="string">"/opt/service/config.json"</span>
+health_check_url = <span class="string">"http://{host}:8000/health"</span>
+health_check_timeout = <span class="number">300</span>
+
+[[parallel.service_groups.nodes]]
+host = <span class="string">"node0.cluster"</span>
+ssh_port = <span class="number">22</span>
+npu_ids = [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>]
+work_dir = <span class="string">"/opt/modelevalstate"</span>
+
+[[parallel.service_groups.nodes]]
+host = <span class="string">"node1.cluster"</span>
+ssh_port = <span class="number">22</span>
+npu_ids = [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>]
+
+<span class="comment"># Service Group 1: nodes 2-3</span>
+[[parallel.service_groups]]
+group_id = <span class="number">1</span>
+[[parallel.service_groups.nodes]]
+host = <span class="string">"node2.cluster"</span>
+[[parallel.service_groups.nodes]]
+host = <span class="string">"node3.cluster"</span>
+</code></pre>
+
+            <h3>Configuration Options</h3>
+            <table>
+                <tr>
+                    <th>Option</th>
+                    <th>Type</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>enabled</code></td>
+                    <td>bool</td>
+                    <td>false</td>
+                    <td>Enable parallel evaluation</td>
+                </tr>
+                <tr>
+                    <td><code>evaluation_timeout</code></td>
+                    <td>int</td>
+                    <td>600</td>
+                    <td>Timeout per particle evaluation (seconds)</td>
+                </tr>
+                <tr>
+                    <td><code>retry_count</code></td>
+                    <td>int</td>
+                    <td>2</td>
+                    <td>Number of retry attempts on failure</td>
+                </tr>
+                <tr>
+                    <td><code>retry_delay</code></td>
+                    <td>int</td>
+                    <td>10</td>
+                    <td>Delay between retries (seconds)</td>
+                </tr>
+            </table>
+
+            <h4>Node Configuration</h4>
+            <table>
+                <tr>
+                    <th>Option</th>
+                    <th>Type</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>host</code></td>
+                    <td>string</td>
+                    <td>required</td>
+                    <td>Hostname or IP address</td>
+                </tr>
+                <tr>
+                    <td><code>ssh_port</code></td>
+                    <td>int</td>
+                    <td>22</td>
+                    <td>SSH port</td>
+                </tr>
+                <tr>
+                    <td><code>npu_ids</code></td>
+                    <td>list[int]</td>
+                    <td>[0-7]</td>
+                    <td>Available NPU device IDs</td>
+                </tr>
+                <tr>
+                    <td><code>work_dir</code></td>
+                    <td>string</td>
+                    <td>/tmp/modelevalstate</td>
+                    <td>Working directory on node</td>
+                </tr>
+                <tr>
+                    <td><code>username</code></td>
+                    <td>string</td>
+                    <td>current user</td>
+                    <td>SSH username</td>
+                </tr>
+            </table>
+        </section>
+
+        <section id="cli-usage">
+            <h2>5. CLI Usage</h2>
+
+            <h3>Command Line Arguments</h3>
+            <pre><code>msserviceprofiler optimizer [options]
+
+<span class="comment"># Parallel evaluation options:</span>
+  --parallel              Enable parallel PSO evaluation
+  --hostfile PATH         Path to hostfile (one host per line)
+  --nodes-per-group N     Nodes per service group (default: 2)
+  --npus-per-node N       NPUs per node (default: 8)
+  --node-string STRING    Node specification string
+</code></pre>
+
+            <h3>Using Hostfile</h3>
+            <p>Create a hostfile with one hostname per line:</p>
+            <pre><code><span class="comment"># hostfile.txt</span>
+node0.cluster
+node1.cluster
+node2.cluster
+node3.cluster
+node4.cluster
+node5.cluster
+node6.cluster
+node7.cluster
+</code></pre>
+
+            <pre><code><span class="comment"># Run with hostfile (creates 4 groups of 2 nodes each)</span>
+msserviceprofiler optimizer --parallel \
+    --hostfile hostfile.txt \
+    --nodes-per-group 2 \
+    --npus-per-node 16
+</code></pre>
+
+            <h3>Using Node String</h3>
+            <p>Specify nodes directly on command line:</p>
+            <pre><code><span class="comment"># Format: groups separated by ':', nodes within group separated by ','</span>
+msserviceprofiler optimizer \
+    --node-string "node0,node1:node2,node3:node4,node5:node6,node7"
+</code></pre>
+
+            <h3>Using Config File</h3>
+            <pre><code><span class="comment"># Simply enable in config.toml and run normally</span>
+msserviceprofiler optimizer -e mindie -b ais_bench
+</code></pre>
+        </section>
+
+        <section id="api-reference">
+            <h2>6. API Reference</h2>
+
+            <h3>PSOOptimizer Parallel Methods</h3>
+            <pre><code><span class="keyword">from</span> msserviceprofiler.modelevalstate.optimizer.optimizer <span class="keyword">import</span> PSOOptimizer
+<span class="keyword">from</span> msserviceprofiler.modelevalstate.optimizer.parallel <span class="keyword">import</span> ParallelConfig
+
+<span class="comment"># Create optimizer with parallel config</span>
+parallel_config = ParallelConfig.from_hostfile(
+    <span class="string">"hostfile.txt"</span>,
+    nodes_per_group=<span class="number">2</span>,
+    npus_per_node=<span class="number">16</span>
+)
+
+pso = PSOOptimizer(
+    scheduler=scheduler,
+    n_particles=<span class="number">10</span>,
+    iters=<span class="number">50</span>,
+    parallel_config=parallel_config,
+    use_parallel=<span class="keyword">True</span>
+)
+
+<span class="comment"># Setup parallel evaluation</span>
+<span class="keyword">if</span> pso.setup_parallel():
+    print(<span class="string">f"Parallel enabled: {pso.is_parallel_ready}"</span>)
+
+<span class="comment"># Run optimization (automatically uses parallel)</span>
+pso.run_plugin()
+
+<span class="comment"># Get statistics</span>
+stats = pso.get_parallel_stats()
+print(<span class="string">f"Success rate: {stats['stats']['success_rate']:.2%}"</span>)
+
+<span class="comment"># Cleanup</span>
+pso.cleanup_parallel()
+</code></pre>
+
+            <h3>ParallelConfig Factory Methods</h3>
+            <pre><code><span class="keyword">from</span> msserviceprofiler.modelevalstate.optimizer.parallel <span class="keyword">import</span> ParallelConfig
+
+<span class="comment"># From hostfile</span>
+config = ParallelConfig.from_hostfile(
+    hostfile_path=<span class="string">"/path/to/hostfile"</span>,
+    nodes_per_group=<span class="number">2</span>,
+    npus_per_node=<span class="number">8</span>,
+    evaluation_timeout=<span class="number">600</span>
+)
+
+<span class="comment"># From node string</span>
+config = ParallelConfig.from_node_string(
+    node_string=<span class="string">"node0,node1:node2,node3"</span>,
+    npus_per_node=<span class="number">16</span>
+)
+
+<span class="comment"># From settings object</span>
+config = ParallelConfig.from_settings(settings.parallel)
+
+<span class="comment"># Manual construction</span>
+config = ParallelConfig(
+    enabled=<span class="keyword">True</span>,
+    service_groups=[
+        ServiceGroupConfig(
+            group_id=<span class="number">0</span>,
+            nodes=[
+                NodeConfig(host=<span class="string">"node0"</span>),
+                NodeConfig(host=<span class="string">"node1"</span>)
+            ]
+        )
+    ]
+)
+</code></pre>
+
+            <h3>Direct ParticleDispatcher Usage</h3>
+            <pre><code><span class="keyword">from</span> msserviceprofiler.modelevalstate.optimizer.parallel <span class="keyword">import</span> (
+    ParticleDispatcher,
+    ParallelConfig
+)
+
+<span class="comment"># Create dispatcher</span>
+dispatcher = ParticleDispatcher(
+    parallel_config=config,
+    target_field=target_field,
+    fitness_func=minimum_algorithm,
+    result_callback=save_result
+)
+
+<span class="comment"># Use as context manager</span>
+<span class="keyword">with</span> dispatcher:
+    fitness_values = dispatcher.evaluate_particles(particles)
+    print(<span class="string">f"Evaluated {len(fitness_values)} particles"</span>)
+    print(<span class="string">f"Workers: {dispatcher.worker_count}"</span>)
+</code></pre>
+        </section>
+
+        <section id="examples">
+            <h2>7. Examples</h2>
+
+            <h3>Example 1: Qwen3-235B on 8 Servers</h3>
+            <div class="info-box">
+                <strong>Setup:</strong> 8 servers, 16 NPUs each, model requires 2 nodes per instance
+            </div>
+
+            <pre><code><span class="comment"># hostfile.txt</span>
+server01.cluster
+server02.cluster
+server03.cluster
+server04.cluster
+server05.cluster
+server06.cluster
+server07.cluster
+server08.cluster
+</code></pre>
+
+            <pre><code><span class="comment"># Run optimization with 4 parallel service groups</span>
+msserviceprofiler optimizer \
+    --parallel \
+    --hostfile hostfile.txt \
+    --nodes-per-group 2 \
+    --npus-per-node 16 \
+    -e mindie \
+    -b ais_bench
+</code></pre>
+
+            <h3>Example 2: Mixed Node Sizes</h3>
+            <pre><code><span class="comment"># config.toml - custom configuration for heterogeneous cluster</span>
+[parallel]
+enabled = true
+
+<span class="comment"># Group 0: Large nodes (16 NPUs each)</span>
+[[parallel.service_groups]]
+group_id = 0
+[[parallel.service_groups.nodes]]
+host = "large-node0"
+npu_ids = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+<span class="comment"># Group 1: Two smaller nodes (8 NPUs each)</span>
+[[parallel.service_groups]]
+group_id = 1
+[[parallel.service_groups.nodes]]
+host = "small-node0"
+npu_ids = [0, 1, 2, 3, 4, 5, 6, 7]
+[[parallel.service_groups.nodes]]
+host = "small-node1"
+npu_ids = [0, 1, 2, 3, 4, 5, 6, 7]
+</code></pre>
+
+            <h3>Example 3: Programmatic Usage</h3>
+            <pre><code><span class="keyword">import</span> numpy <span class="keyword">as</span> np
+<span class="keyword">from</span> msserviceprofiler.modelevalstate.optimizer.parallel <span class="keyword">import</span> (
+    ParallelConfig,
+    ServiceGroupConfig,
+    NodeConfig,
+    ParticleDispatcher
+)
+
+<span class="comment"># Build configuration programmatically</span>
+service_groups = []
+hosts = [<span class="string">"node0"</span>, <span class="string">"node1"</span>, <span class="string">"node2"</span>, <span class="string">"node3"</span>]
+
+<span class="keyword">for</span> i <span class="keyword">in</span> range(<span class="number">0</span>, len(hosts), <span class="number">2</span>):
+    group = ServiceGroupConfig(
+        group_id=i // <span class="number">2</span>,
+        nodes=[
+            NodeConfig(host=hosts[i]),
+            NodeConfig(host=hosts[i + <span class="number">1</span>])
+        ],
+        start_script=<span class="string">"/opt/llm/start.sh"</span>,
+        health_check_url=<span class="string">"http://{host}:8080/v1/health"</span>
+    )
+    service_groups.append(group)
+
+config = ParallelConfig(
+    enabled=<span class="keyword">True</span>,
+    service_groups=service_groups,
+    evaluation_timeout=<span class="number">900</span>
+)
+
+<span class="comment"># Use with custom fitness function</span>
+<span class="keyword">def</span> <span class="function">fitness_func</span>(perf_index):
+    <span class="keyword">return</span> -perf_index.generate_speed  <span class="comment"># Maximize throughput</span>
+
+dispatcher = ParticleDispatcher(
+    parallel_config=config,
+    target_field=target_field,
+    fitness_func=fitness_func
+)
+
+<span class="keyword">with</span> dispatcher:
+    particles = np.random.rand(<span class="number">10</span>, <span class="number">5</span>)  <span class="comment"># 10 particles, 5 dimensions</span>
+    fitness = dispatcher.evaluate_particles(particles)
+    best_idx = np.argmin(fitness)
+    print(<span class="string">f"Best particle: {particles[best_idx]}"</span>)
+</code></pre>
+        </section>
+
+        <section id="troubleshooting">
+            <h2>8. Troubleshooting</h2>
+
+            <h3>Common Issues</h3>
+
+            <div class="warning-box">
+                <h4>SSH Connection Failed</h4>
+                <p><strong>Symptom:</strong> "Authentication failed" or "Connection refused" errors</p>
+                <p><strong>Solution:</strong></p>
+                <ul>
+                    <li>Verify SSH key-based authentication is configured</li>
+                    <li>Check <code>ssh-copy-id user@node</code> has been run</li>
+                    <li>Verify SSH port is correct (default: 22)</li>
+                    <li>Check firewall rules allow SSH connections</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h4>Health Check Timeout</h4>
+                <p><strong>Symptom:</strong> Service starts but health check fails</p>
+                <p><strong>Solution:</strong></p>
+                <ul>
+                    <li>Increase <code>health_check_timeout</code> (default: 300s)</li>
+                    <li>Verify health check URL is correct</li>
+                    <li>Check service logs on master node</li>
+                    <li>Ensure service port is not blocked by firewall</li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h4>Paramiko Not Available</h4>
+                <p><strong>Symptom:</strong> ImportError for paramiko</p>
+                <p><strong>Solution:</strong></p>
+                <pre><code>pip install paramiko</code></pre>
+            </div>
+
+            <h3>Debugging Tips</h3>
+            <ul>
+                <li>Enable debug logging: <code>export LOGURU_LEVEL=DEBUG</code></li>
+                <li>Check individual node connectivity: <code>ssh user@node "echo ok"</code></li>
+                <li>Verify start script works manually on master node</li>
+                <li>Check NPU availability: <code>npu-smi info</code></li>
+            </ul>
+
+            <h3>Performance Optimization</h3>
+            <div class="success-box">
+                <h4>Best Practices</h4>
+                <ul>
+                    <li>Set <code>n_particles</code> equal to number of service groups for optimal parallelism</li>
+                    <li>Use dedicated SSH connections (avoid multiplexing)</li>
+                    <li>Place config files on fast storage (SSD/NVMe)</li>
+                    <li>Monitor network bandwidth between nodes</li>
+                    <li>Use persistent SSH connections when possible</li>
+                </ul>
+            </div>
+        </section>
+
+        <footer>
+            <p>ModelEvalState - Parallel PSO Evaluation</p>
+            <p>Copyright &copy; 2025 Huawei Technologies Co., Ltd.</p>
+            <p>Licensed under Apache License 2.0</p>
+        </footer>
+    </div>
+</body>
+</html>
