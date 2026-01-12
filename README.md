@@ -269,9 +269,7 @@ Contributions are welcome! Please:
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
-
-Developed by Huawei Technologies Co., Ltd.
+## 📞 Support
 
 For questions or support, please open an issue on GitHub.
 
