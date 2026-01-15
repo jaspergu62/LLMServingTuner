@@ -1,13 +1,20 @@
 # -------------------------寻优相关参数配置------------------------------------------------
-n_particles = 10 
-iters = 5 
-ttft_penalty = 1 
-tpot_penalty = 0 
-success_rate_penalty = 5.0 
-ttft_slo = 1 
-tpot_slo = 0.05 
+n_particles = 10
+iters = 5
+ttft_penalty = 1
+tpot_penalty = 0
+success_rate_penalty = 5.0
+ttft_slo = 1
+tpot_slo = 0.05
 service = "master"
-sample_size = 1000 
+sample_size = 1000
+
+# -------------------------CBO代理模型配置 (默认开启)------------------------------------------------
+[cbo]
+enabled = true              # 是否启用CBO代理模型 (设置为false可关闭)
+initial_points = 5          # 启用代理模型前的真实评估次数
+strategy = "conservative"   # 候选筛选策略
+feasibility_threshold = -1.2  # 可行性阈值
 
 # -------------------------选取top_k进入精调------------------------------------------------
 [data_storage]

@@ -1,0 +1,63 @@
+[project]
+name = "llmservingtuner"
+version = "3.1.0"
+description = "LLM Inference Service Optimization Framework"
+authors = [
+    {name = "wangdengkai2@huawei.com"}
+]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "filelock>=3.13.1",
+    "pydantic-settings>=2.2.1",
+    "pydantic>=2.10.5",
+    "pyswarms>=1.3.0",
+    "loguru>=0.7.3",
+    "psutil>=6.0.0",
+    "packaging>=21.0",
+    "numpy",
+    "pandas",
+]
+
+[project.optional-dependencies]
+cbo = [
+    "botorch>=0.15.1",
+    "gpytorch>=1.11",
+    "torch>=2.0.0",
+]
+train = [
+    "xgboost==2.0.0",
+    "seaborn>=0.13.2",
+    "matplotlib>=3.7.2",
+    "scipy>=1.10.1",
+    "scikit-learn>=1.3.2",
+]
+speed = [
+    "xgboost==2.0.0",
+    "seaborn>=0.13.2",
+    "matplotlib>=3.7.2",
+    "scipy>=1.10.1",
+    "scikit-learn>=1.3.2",
+    "swifter[groupby]>=1.4.0",
+    "modin[all]>=0.32.0",
+]
+all = [
+    "llmservingtuner[cbo,train,speed]",
+]
+
+[project.entry-points.'llmservingtuner.plugins']
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["llmservingtuner*"]
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
