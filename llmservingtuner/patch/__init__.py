@@ -13,65 +13,132 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Patch module for LLM serving frameworks.
+
+This module provides patches for various LLM serving frameworks:
+- MindIE LLM (Huawei)
+- vLLM Ascend (Huawei NPU)
+- vLLM GPU (NVIDIA GPU)
+"""
+
 from loguru import logger
 
 from llmservingtuner.common import get_module_version
 
+# Module names
 MINDIE_LLM = "mindie_llm"
 VLLM_ASCEND = "vllm_ascend"
+VLLM_GPU = "vllm"
 
-simulate_patch = []
-optimize_patch = []
-vllm_simulate_patch = []
-vllm_optimize_patch = []
+# Patch registries for different environments
+mindie_simulate_patch = []
+mindie_optimize_patch = []
+vllm_ascend_simulate_patch = []
+vllm_ascend_optimize_patch = []
+vllm_gpu_simulate_patch = []
+vllm_gpu_optimize_patch = []
 
+# Environment to patch mapping
 env_patch = {
-    "MODEL_EVAL_STATE_SIMULATE": simulate_patch,
-    "MODEL_EVAL_STATE_ALL": optimize_patch
+    "MODEL_EVAL_STATE_SIMULATE": mindie_simulate_patch,
+    "MODEL_EVAL_STATE_ALL": mindie_optimize_patch
 }
 
-vllm_env_patch = {
-    "MODEL_EVAL_STATE_SIMULATE": vllm_simulate_patch,
-    "MODEL_EVAL_STATE_ALL": vllm_optimize_patch
+vllm_ascend_env_patch = {
+    "MODEL_EVAL_STATE_SIMULATE": vllm_ascend_simulate_patch,
+    "MODEL_EVAL_STATE_ALL": vllm_ascend_optimize_patch
 }
+
+vllm_gpu_env_patch = {
+    "MODEL_EVAL_STATE_SIMULATE": vllm_gpu_simulate_patch,
+    "MODEL_EVAL_STATE_ALL": vllm_gpu_optimize_patch
+}
+
+# Register MindIE patches
+try:
+    from llmservingtuner.patch.patch_manager import Patch2rc1  # mindie 2.1rc1-2.2
+    mindie_simulate_patch.append(Patch2rc1)
+    mindie_optimize_patch.append(Patch2rc1)
+except ImportError as e:
+    logger.warning(f"Failed to import Patch2rc1: {e}")
 
 try:
-    from llmservingtuner.patch.patch_manager import Patch2rc1
-
-    simulate_patch.append(Patch2rc1)
-    optimize_patch.append(Patch2rc1)
+    from llmservingtuner.patch.patch_mindie import PatchMindie2rc1  # mindie 2.0a9-2.0
+    mindie_simulate_patch.append(PatchMindie2rc1)
+    mindie_optimize_patch.append(PatchMindie2rc1)
 except ImportError as e:
-    logger.warning(f"Failed from .patch_manager import Patch2rc1. error: {e}")
+    logger.warning(f"Failed to import PatchMindie2rc1: {e}")
 
+# Register vLLM Ascend patches
 try:
     from llmservingtuner.patch.patch_vllm import PatchVllm
-
-    vllm_optimize_patch.append(PatchVllm)
-    vllm_simulate_patch.append(PatchVllm)
+    vllm_ascend_optimize_patch.append(PatchVllm)
+    vllm_ascend_simulate_patch.append(PatchVllm)
 except ImportError as e:
-    logger.warning(f"Failed from .patch_vllm import PatchVllm. error: {e}")
+    logger.warning(f"Failed to import PatchVllm: {e}")
+
+try:
+    from llmservingtuner.patch.patch_vllm_ascend import PatchVllmAscend
+    vllm_ascend_optimize_patch.append(PatchVllmAscend)
+    vllm_ascend_simulate_patch.append(PatchVllmAscend)
+except ImportError as e:
+    logger.warning(f"Failed to import PatchVllmAscend: {e}")
+
+# Register vLLM GPU patches
+try:
+    from llmservingtuner.patch.patch_vllm_gpu import PatchVllmGPU, PatchVllmGPUV1
+    vllm_gpu_optimize_patch.append(PatchVllmGPU)
+    vllm_gpu_simulate_patch.append(PatchVllmGPU)
+    vllm_gpu_optimize_patch.append(PatchVllmGPUV1)
+    vllm_gpu_simulate_patch.append(PatchVllmGPUV1)
+except ImportError as e:
+    logger.warning(f"Failed to import PatchVllmGPU/PatchVllmGPUV1: {e}")
 
 
 def enable_patch(target_env):
-    flag = []
+    """
+    Enable patches for the specified environment.
+
+    Args:
+        target_env: Environment variable name (MODEL_EVAL_STATE_SIMULATE or MODEL_EVAL_STATE_ALL)
+
+    Returns:
+        List of successfully applied patch classes
+    """
+    applied_patches = []
+
+    # Apply MindIE patches
     try:
         mindie_llm_version = get_module_version(MINDIE_LLM)
-
-        for _p in env_patch.get(target_env, []):
-            if _p.check_version(mindie_llm_version):
-                _p.patch()
-                flag.append(_p)
+        for patch_cls in env_patch.get(target_env, []):
+            if patch_cls.check_version(mindie_llm_version):
+                patch_cls.patch()
+                applied_patches.append(patch_cls)
     except (ModuleNotFoundError, ValueError):
         pass
 
+    # Apply vLLM Ascend patches
     try:
         vllm_ascend_version = get_module_version(VLLM_ASCEND)
-        for _p in vllm_env_patch.get(target_env):
-            if _p.check_version(vllm_ascend_version):
-                _p.patch()
-                flag.append(_p)
+        for patch_cls in vllm_ascend_env_patch.get(target_env, []):
+            if patch_cls.check_version(vllm_ascend_version):
+                patch_cls.patch()
+                applied_patches.append(patch_cls)
     except (ModuleNotFoundError, ValueError):
         pass
 
-    if flag:
-        logger.info(f"Installed patch list {flag}.")
+    # Apply vLLM GPU patches
+    try:
+        vllm_gpu_version = get_module_version(VLLM_GPU)
+        for patch_cls in vllm_gpu_env_patch.get(target_env, []):
+            if patch_cls.check_version(vllm_gpu_version):
+                patch_cls.patch()
+                applied_patches.append(patch_cls)
+    except (ModuleNotFoundError, ValueError):
+        pass
+
+    if applied_patches:
+        logger.info(f"Applied patches: {[p.__name__ for p in applied_patches]}")
+
+    return applied_patches

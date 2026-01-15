@@ -14,35 +14,33 @@
 # limitations under the License.
 
 from pathlib import Path
- 
-from loguru import logger
-from msserviceprofiler.msguard import Rule 
-from llmservingtuner.patch.patch_manager import check_flag, add_patch
 
- 
+from loguru import logger
+from msserviceprofiler.msguard import Rule
+from llmservingtuner.patch.patch_manager import check_append_patch, add_append_patch
+
+
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
- 
- 
+
+
 class PatchVllm:
- 
+    """Patch for vllm_ascend model_runner.py."""
+
     @staticmethod
     def check_version(target_version):
         return True
- 
+
     @staticmethod
     def patch():
         import vllm_ascend
         file_path = vllm_ascend.__path__[0]
-        # 检查文件是否存在
-        model_runner_file = Path(file_path).joinpath("worker/model_runner.py").resolve()
-        if not Rule.input_file_read.is_satisfied_by(model_runner_file):
-            logger.error("not found patch file for mindie")
+        file = Path(file_path).joinpath("worker/model_runner.py").resolve()
+        if not Rule.input_file_read.is_satisfied_by(file):
+            logger.error("not found patch file for vllm_ascend")
             return
-        plugin_manager_patch = _patch_dir.joinpath("model_runner_patch.patch")
-        diff_flag = check_flag(model_runner_file, plugin_manager_patch)
-        if not diff_flag:
-            # 已经打过补丁，不需要打了
+        patch = _patch_dir.joinpath("patches/vllm.model_runner.patch")
+        if not check_append_patch(file, patch):
             logger.info("The patch already exists.")
             return
-        add_patch(model_runner_file, plugin_manager_patch)
+        add_append_patch(file, patch)
 

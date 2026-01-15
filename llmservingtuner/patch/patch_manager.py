@@ -27,11 +27,6 @@ from msserviceprofiler.msguard.security import open_s
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
 
-def check_flag(target_file, patch_file):
-    """Check if patch has already been applied (alias for check_append_patch)."""
-    return check_append_patch(target_file, patch_file)
-
-
 def check_append_patch(target_file, patch_file):
     """Check if an append-style patch has already been applied."""
     with open_s(target_file, "r", encoding="utf-8") as f:
@@ -51,13 +46,6 @@ def check_append_patch(target_file, patch_file):
         else:
             diff_flag = True
     return diff_flag
-
-
-@validate_params({'patch_file': Rule.input_file_read})
-@validate_params({'target_file': Rule.output_path_write})
-def add_patch(target_file, patch_file):
-    """Add patch content to target file (alias for add_append_patch)."""
-    add_append_patch(target_file, patch_file)
 
 
 @validate_params({'patch_file': Rule.input_file_read})
@@ -115,6 +103,7 @@ def add_replace_patch(target_file, patch_file):
 
 
 class Patch2rc1:
+    """Patch for Mindie LLM version 2.1rc1 - 2.2."""
     mindie_llm = "2.2"
     mindie_llm_low = "2.1rc1"
 
@@ -133,7 +122,6 @@ class Patch2rc1:
     def patch():
         import mindie_llm
         file_path = mindie_llm.__path__[0]
-        # 检查文件是否存在
         simulate_plugin_file = Path(file_path).joinpath("text_generator/plugins/simulate/simulate_plugin.py").resolve()
         simulate_init_file = Path(file_path).joinpath("text_generator/plugins/simulate/__init__.py").resolve()
         plugins_init_file = Path(file_path).joinpath("text_generator/plugins/__init__.py").resolve()
@@ -149,10 +137,8 @@ class Patch2rc1:
         if not simulate_plugin_file.exists():
             shutil.copy(simulate_plugin_patch, simulate_plugin_file)
         plugins_init_patch = _patch_dir.joinpath("mindie_plugin/plugin_init_patch.py")
-        diff_flag = check_flag(plugins_init_file, plugins_init_patch)
-        if not diff_flag:
-            # 已经打过补丁，不需要打了
-            logger.info("The patch aleady exists.")
+        if not check_append_patch(plugins_init_file, plugins_init_patch):
+            logger.info("The patch already exists.")
             return
-        add_patch(plugins_init_file, plugins_init_patch)
+        add_append_patch(plugins_init_file, plugins_init_patch)
 
