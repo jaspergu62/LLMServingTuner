@@ -262,7 +262,8 @@ class Simulate:
 
         return: time ms
         """
-        time_sleep = os.getenv(IS_SLEEP_FLAG, str(time_sleep)).lower().strip() == "true"
+        sleep_env = os.getenv(IS_SLEEP_FLAG) or os.getenv(IS_SLEEP_FLAG.lower())
+        time_sleep = (sleep_env or str(time_sleep)).lower().strip() == "true"
         # 增加缓存
         st = time.perf_counter()
         _cache_key = (ServiceField.batch_field, ServiceField.request_field)

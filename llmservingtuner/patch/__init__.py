@@ -40,19 +40,22 @@ vllm_gpu_simulate_patch = []
 vllm_gpu_optimize_patch = []
 
 # Environment to patch mapping
+LLMSERVINGTUNER_SIMULATE = "LLMSERVINGTUNER_SIMULATE"
+LLMSERVINGTUNER_ALL = "LLMSERVINGTUNER_ALL"
+
 env_patch = {
-    "MODEL_EVAL_STATE_SIMULATE": mindie_simulate_patch,
-    "MODEL_EVAL_STATE_ALL": mindie_optimize_patch
+    LLMSERVINGTUNER_SIMULATE: mindie_simulate_patch,
+    LLMSERVINGTUNER_ALL: mindie_optimize_patch,
 }
 
 vllm_ascend_env_patch = {
-    "MODEL_EVAL_STATE_SIMULATE": vllm_ascend_simulate_patch,
-    "MODEL_EVAL_STATE_ALL": vllm_ascend_optimize_patch
+    LLMSERVINGTUNER_SIMULATE: vllm_ascend_simulate_patch,
+    LLMSERVINGTUNER_ALL: vllm_ascend_optimize_patch,
 }
 
 vllm_gpu_env_patch = {
-    "MODEL_EVAL_STATE_SIMULATE": vllm_gpu_simulate_patch,
-    "MODEL_EVAL_STATE_ALL": vllm_gpu_optimize_patch
+    LLMSERVINGTUNER_SIMULATE: vllm_gpu_simulate_patch,
+    LLMSERVINGTUNER_ALL: vllm_gpu_optimize_patch,
 }
 
 # Register MindIE patches
@@ -101,7 +104,7 @@ def enable_patch(target_env):
     Enable patches for the specified environment.
 
     Args:
-        target_env: Environment variable name (MODEL_EVAL_STATE_SIMULATE or MODEL_EVAL_STATE_ALL)
+        target_env: Environment variable name (LLMSERVINGTUNER_SIMULATE or LLMSERVINGTUNER_ALL)
 
     Returns:
         List of successfully applied patch classes

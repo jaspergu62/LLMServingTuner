@@ -12,12 +12,17 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import os
+from typing import Optional
 
-MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
-MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
+LLMSERVINGTUNER_SIMULATE = "LLMSERVINGTUNER_SIMULATE"
+LLMSERVINGTUNER_ALL = "LLMSERVINGTUNER_ALL"
 SIMULATE = "simulate"
 
-simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
+def _get_env_value(key: str) -> Optional[str]:
+    return os.getenv(key) or os.getenv(key.lower())
+
+
+simulate_env = _get_env_value(LLMSERVINGTUNER_SIMULATE)
 simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
 
 REAL_EVALUATION = "real_evaluation"

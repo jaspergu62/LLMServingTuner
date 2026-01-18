@@ -4,34 +4,42 @@ import os
 import time
 from enum import Enum
 from pathlib import Path
-
+from typing import Optional
 import llmservingtuner
 
 RUN_TIME = time.strftime("%Y%m%d%H%M%S", time.localtime())
 INSTALL_PATH = Path(llmservingtuner.__path__[0])
 RUN_PATH = Path(os.getcwd())
-MODEL_EVAL_STATE_CONFIG_PATH = "MODEL_EVAL_STATE_CONFIG_PATH"
-modelevalstate_config_path = os.getenv(MODEL_EVAL_STATE_CONFIG_PATH) or os.getenv(MODEL_EVAL_STATE_CONFIG_PATH.lower())
-if not modelevalstate_config_path:
-    modelevalstate_config_path = RUN_PATH.joinpath("config.toml")
-modelevalstate_config_path = Path(modelevalstate_config_path).absolute().resolve()
+LLMSERVINGTUNER_CONFIG_PATH = "LLMSERVINGTUNER_CONFIG_PATH"
 
-CUSTOM_OUTPUT = "MODEL_EVAL_STATE_OUTPUT"
-custom_output = os.getenv(CUSTOM_OUTPUT) or os.getenv(CUSTOM_OUTPUT.lower())
+
+def _get_env_value(key: str) -> Optional[str]:
+    return os.getenv(key) or os.getenv(key.lower())
+
+
+_config_path = _get_env_value(LLMSERVINGTUNER_CONFIG_PATH)
+if not _config_path:
+    _config_path = RUN_PATH.joinpath("config.toml")
+llmservingtuner_config_path = Path(_config_path).absolute().resolve()
+
+LLMSERVINGTUNER_OUTPUT = "LLMSERVINGTUNER_OUTPUT"
+CUSTOM_OUTPUT = LLMSERVINGTUNER_OUTPUT
+custom_output = _get_env_value(LLMSERVINGTUNER_OUTPUT)
 if custom_output:
     custom_output = Path(custom_output).resolve()
 else:
     custom_output = RUN_PATH
-VLLM_CUSTOM_OUTPUT = "MODEL_EVAL_STATE_VLLM_CUSTOM_OUTPUT"
-MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
-MODEL_EVAL_STATE_ALL = "MODEL_EVAL_STATE_ALL"
+LLMSERVINGTUNER_VLLM_CUSTOM_OUTPUT = "LLMSERVINGTUNER_VLLM_CUSTOM_OUTPUT"
+VLLM_CUSTOM_OUTPUT = LLMSERVINGTUNER_VLLM_CUSTOM_OUTPUT
+LLMSERVINGTUNER_SIMULATE = "LLMSERVINGTUNER_SIMULATE"
+LLMSERVINGTUNER_ALL = "LLMSERVINGTUNER_ALL"
 SIMULATE = "simulate"
 REAL_EVALUATION = "real_evaluation"
 REQUESTRATES = ("REQUESTRATE",)
 CONCURRENCYS = ("CONCURRENCY", "MAXCONCURRENCY")
-simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower())
+simulate_env = _get_env_value(LLMSERVINGTUNER_SIMULATE)
 simulate_flag = simulate_env and (simulate_env.lower() == "true" or simulate_env.lower() != "false")
-optimizer_env = os.getenv(MODEL_EVAL_STATE_ALL) or os.getenv(MODEL_EVAL_STATE_ALL.lower())
+optimizer_env = _get_env_value(LLMSERVINGTUNER_ALL)
 optimizer_flag = optimizer_env and (optimizer_env.lower() == "true" or optimizer_env.lower() != "false")
 
 

@@ -1,278 +1,73 @@
 # LLMServingTuner
 
-**ModelEvalState** - LLM Inference Service Optimization Framework for Ascend NPU
+An LLM serving auto‑tuning framework that works on both Ascend NPU and NVIDIA GPU.
 
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
-[![Platform](https://img.shields.io/badge/platform-Ascend%20NPU-orange.svg)]()
+## Platforms
+- Ascend NPU (MindIE)
+- NVIDIA GPU (vLLM)
 
-## 📋 Overview
+## Workflow & Examples
 
-**ModelEvalState** is a Python framework developed for optimizing Large Language Model (LLM) inference performance on Ascend NPU hardware. It uses Particle Swarm Optimization (PSO) to automatically tune service parameters (batch sizes, queue delays, TP/DP configurations) for optimal performance.
+### 1) Profile (collect runtime data)
+Generate a profile output directory that contains at least `profiler.db` and `request.csv` (vLLM also needs `kvcache.csv`).
 
-### Key Features
-
-🎯 **State Performance Modeling**
-- Uses XGBoost to predict model inference latency based on batch configuration
-- Enables fast simulation-based optimization without real benchmark overhead
-
-⚡ **Parameter Optimization**
-- Particle Swarm Optimization (PSO) algorithm finds optimal service configuration
-- Supports multiple inference backends (Mindie, VLLM)
-- Configurable optimization objectives with weighted metrics
-
-🔄 **Dual-Mode Evaluation**
-- **Real Benchmark**: Execute actual benchmarks (VLLM, AisBench) for precise measurements
-- **Simulation**: Use pre-trained XGBoost models for fast parameter exploration
-
-🔌 **Plugin System**
-- Easy integration of custom inference engines and benchmarks
-- Register via Python entry points in `pyproject.toml`
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     PSOOptimizer                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Particle     │  │ Fitness      │  │ Performance  │      │
-│  │ Evolution    │──│ Calculation  │──│ Tuner        │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└────────────┬────────────────────────────────────────────────┘
-             │
-    ┌────────┴────────┐
-    │                 │
-    ▼                 ▼
-┌─────────────┐  ┌─────────────┐
-│  Simulator  │  │  Benchmark  │
-│  Interface  │  │  Interface  │
-├─────────────┤  ├─────────────┤
-│ • Mindie    │  │ • VLLM      │
-│ • VLLM      │  │ • AisBench  │
-└─────────────┘  └─────────────┘
-```
-
-### Core Components
-
-**Configuration System** (`config/`)
-- Pydantic-based settings management
-- `OptimizerConfigField`: Parameter search space definition
-- `PerformanceIndex`: Metrics tracking (TTFT, TPOT, throughput, success rate)
-
-**Optimization Engine** (`optimizer/`)
-- `PSOOptimizer`: Core PSO implementation
-- `PerformanceTuner`: Fitness calculation with weighted metrics
-- `Scheduler`: Task coordination via file-based IPC
-
-**Simulator Interface** (`optimizer/interfaces/simulator.py`)
-- Abstract base for service lifecycle management
-- Implementations: `Simulator` (Mindie), `VllmSimulator`
-
-**Benchmark Interface** (`optimizer/interfaces/benchmark.py`)
-- Abstract base for performance testing
-- Implementations: `VllmBenchMark`, `AisBench`
-
-**State Prediction** (`inference/`)
-- `ServiceField`: Runtime inference state simulation
-- XGBoost-based latency prediction
-
-**Model Training** (`train/`)
-- `PretrainModel`: Train XGBoost models for latency prediction
-
-## 🚀 Quick Start
-
-### Installation
-
+Example (GPU/vLLM, enable profiling):
 ```bash
-# Clone repository
-git clone https://github.com/jaspergu62/LLMServingTuner.git
-cd LLMServingTuner
-
-# Install (development mode)
-pip install -e .
+export LLMSERVINGTUNER_PROFILE=true
+# start your service and run workload to produce profiler.db/request.csv/kvcache.csv
 ```
 
-### Basic Usage
-
-```bash
-# Run optimizer with specific engine and benchmark
-msserviceprofiler optimizer -e vllm -b vllm_benchmark
-
-# List available engines and benchmarks
-msserviceprofiler optimizer -h
-
-# Continue from last checkpoint
-msserviceprofiler optimizer -lb --backup
-```
-
-### Configuration
-
-Edit `config.toml` to customize optimization parameters:
-
-```toml
-[data_storage]
-base_path = "./msserviceprofiler_data"
-
-[optimizer_engine]
-engine = "mindie"  # or "vllm"
-benchmark = "aisbench"  # or "vllm_benchmark"
-
-[[optimizer_config_field]]
-name = "max_batch_size"
-dtype = "int"
-min = 16
-max = 512
-config_position = "BackendConfig.ScheduleConfig.maxBatchSize"
-
-[[optimizer_config_field]]
-name = "max_queue_delay_microseconds"
-dtype = "int"
-min = 100
-max = 10000
-config_position = "BackendConfig.ScheduleConfig.maxQueueDelayMicroseconds"
-```
-
-### OptimizerConfigField Types
-
-| dtype | Description | Example |
-|-------|-------------|---------|
-| `int`, `float` | Numeric within min/max | batch_size: 16-512 |
-| `bool` | Boolean (0/1) | enable_feature: 0/1 |
-| `enum` | Discrete choices | dtype_param: [32, 64, 128] |
-| `ratio` | Fraction of another param | dp = total_npus / tp |
-| `range` | Generate enum from 0 to max | step = dtype_param |
-| `factories` | Derived from other params | Computed values |
-| `env` | Environment variable | Set as ENV var |
-
-## 📊 Performance Metrics
-
-Default fitness weights:
-- **Generate Speed**: 0.4 (maximize throughput)
-- **TTFT** (Time to First Token): 0.2
-- **TPOT** (Time per Output Token): 0.3
-- **Success Rate**: 0.1
-
-Customize in `PerformanceTuner` class:
-
+### 2) Train (train the simulation model)
 ```python
-tuner = PerformanceTuner(
-    ttft_penalty=3.0,
-    tpot_penalty=3.0,
-    success_rate_penalty=5.0,
-    ttft_slo=0.5,
-    tpot_slo=0.05,
-    generate_speed_target=5300
+from llmservingtuner.train.source_to_train import source_to_model, req_decodetimes
+from llmservingtuner.train.pretrain import pretrain
+
+profile_dir = "/path/to/profile_output"  # contains profiler.db/request.csv (+ kvcache.csv for vLLM)
+source_to_model(profile_dir, model_type="vllm")  # or "mindie"
+pretrain(f"{profile_dir}/output_csv", "/path/to/model_output")
+req_decodetimes(profile_dir, "/path/to/model_output")
+```
+
+### 3) Simulate benchmark
+```bash
+export LLMSERVINGTUNER_SIMULATE=true
+# run your usual benchmark/workload (simulation model will be used)
+```
+
+### 4) Config tune (parameter optimization)
+```python
+from argparse import Namespace
+from llmservingtuner.optimizer.optimizer import plugin_main
+
+args = Namespace(
+    engine="vllm",            # or "mindie"
+    benchmark_policy="vllm_benchmark",  # or "ais_bench"
+    load_breakpoint=False,
+    backup=False,
+    pd="competition",
 )
+plugin_main(args)
 ```
 
-## 🔌 Plugin Development
-
-### Register Custom Simulator
-
-```python
-# my_plugin/simulator.py
-from msserviceprofiler.modelevalstate.optimizer.interfaces import SimulatorInterface
-
-class MySimulator(SimulatorInterface):
-    def start(self):
-        # Start service
-        pass
-
-    def stop(self):
-        # Stop service
-        pass
-
-    def update_config(self, params):
-        # Update configuration
-        pass
-```
-
+Config example (`config.toml`):
 ```toml
-# pyproject.toml
-[project.entry-points.'msserviceprofiler.modelevalstate.plugins']
-my_plugin = "my_package:register"
+n_particles = 10
+iters = 5
+
+[vllm.command]
+host = "127.0.0.1"
+port = "8000"
+model = "/path/to/model"
+served_model_name = "my_model"
+
+[[vllm.target_field]]
+name = "MAX_NUM_BATCHED_TOKENS"
+config_position = "env"
+min = 8192
+max = 65536
+dtype = "int"
+value = 8192
 ```
 
-```python
-# my_package/__init__.py
-from msserviceprofiler.modelevalstate.optimizer.register import register_simulator
-
-def register():
-    register_simulator("my_engine", MySimulator)
-```
-
-## 📁 Project Structure
-
-```
-.
-├── config/              # Configuration management
-│   ├── config.py        # Pydantic settings
-│   ├── base_config.py   # Constants and enums
-│   └── custom_command.py # Service launch commands
-├── optimizer/           # PSO optimization engine
-│   ├── optimizer.py     # Core PSO implementation
-│   ├── performance_tuner.py # Fitness calculation
-│   ├── scheduler.py     # Task scheduling
-│   ├── interfaces/      # Abstract interfaces
-│   │   ├── simulator.py
-│   │   └── benchmark.py
-│   └── plugins/         # Built-in implementations
-│       ├── simulate.py  # Mindie/VLLM simulators
-│       └── benchmark.py # VLLM/AisBench benchmarks
-├── inference/           # State prediction
-│   └── simulate.py      # ServiceField for simulation
-├── train/               # Model training
-│   └── pretrain.py      # XGBoost training
-├── model/               # Saved models
-├── data_feature/        # Feature engineering
-└── config.toml          # Main configuration file
-```
-
-## 🛠️ Development
-
-### Run Tests
-
-```bash
-pytest tests/
-```
-
-### Code Quality
-
-```bash
-# Format code
-black . --line-length 120
-
-# Sort imports
-isort . --profile black
-
-# Lint
-flake8 . --max-line-length 120
-```
-
-## 📖 Documentation
-
-- **Architecture Report**: See `docs/architecture-report.html`
-- **Plugin Guide**: See `optimizer/plugins/plugin.md`
-- **API Documentation**: (Coming soon)
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## 📞 Support
-
-For questions or support, please open an issue on GitHub.
-
----
-
-**Note**: For parallel PSO evaluation with multi-node support, see the [`parallel_pso`](https://github.com/jaspergu62/LLMServingTuner/tree/parallel_pso) branch.
+## Note
+There is no full documentation yet. The steps above are enough to run profile → train → simulate benchmark → config tune.

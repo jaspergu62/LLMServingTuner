@@ -22,8 +22,8 @@ from llmservingtuner.config.custom_command import VllmBenchmarkCommandConfig, \
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
 from msserviceprofiler.msguard.security import open_s, mkdir_s
 from .base_config import (
-    INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,	
-    modelevalstate_config_path, MODEL_EVAL_STATE_CONFIG_PATH, AnalyzeTool, BenchMarkPolicy,
+    INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,
+    llmservingtuner_config_path, AnalyzeTool, BenchMarkPolicy,
 )
 
 
@@ -450,11 +450,16 @@ class Settings(BaseSettings):
     设置类的定义，通过读取配置文件初始化配置
     """
     model_config = SettingsConfigDict(
-        toml_file=[INSTALL_PATH.joinpath("model_eval_state.toml"), Path("~/model_eval_state.toml").expanduser(),
-                   RUN_PATH.joinpath("model_eval_state.toml"),
-                   INSTALL_PATH.joinpath("config.toml"), Path("~/config.toml").expanduser(),
-                   RUN_PATH.joinpath("config.toml"), modelevalstate_config_path],
-        env_prefix="model_eval_state_")
+        toml_file=[
+            INSTALL_PATH.joinpath("llmservingtuner.toml"),
+            Path("~/llmservingtuner.toml").expanduser(),
+            RUN_PATH.joinpath("llmservingtuner.toml"),
+            INSTALL_PATH.joinpath("config.toml"),
+            Path("~/config.toml").expanduser(),
+            RUN_PATH.joinpath("config.toml"),
+            llmservingtuner_config_path,
+        ],
+        env_prefix="llmservingtuner_")
 
     output: Path = Field(default_factory=lambda: Path(os.getcwd()).joinpath("result").resolve(), validate_default=True)
     simulator_output: Path = Field(

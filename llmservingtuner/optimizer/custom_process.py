@@ -23,8 +23,8 @@ from typing import Tuple, Optional, List
 import psutil
 from loguru import logger
 
-from llmservingtuner.config.base_config import CUSTOM_OUTPUT, MODEL_EVAL_STATE_CONFIG_PATH, \
-    modelevalstate_config_path
+from llmservingtuner.config.base_config import CUSTOM_OUTPUT, LLMSERVINGTUNER_CONFIG_PATH, \
+    llmservingtuner_config_path
 from llmservingtuner.config.config import OptimizerConfigField, get_settings, ProcessState, Stage
 from llmservingtuner.optimizer.utils import close_file_fp, remove_file, kill_children, \
     backup, kill_process
@@ -82,7 +82,7 @@ class CustomProcess:
         backup(self.run_log, self.bak_path, self.__class__.__name__)
 
     def before_run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None):
-        self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_")
+        self.run_log_fp, self.run_log = tempfile.mkstemp(prefix="llmservingtuner_")
         self.run_log_offset = 0
         if not run_params:
             return
@@ -105,8 +105,8 @@ class CustomProcess:
             # 设置输出目录
             self.env[CUSTOM_OUTPUT] = str(get_settings().output)
         # 设置读取的json文件
-        if MODEL_EVAL_STATE_CONFIG_PATH not in self.env:
-            self.env[MODEL_EVAL_STATE_CONFIG_PATH] = str(modelevalstate_config_path)
+        if LLMSERVINGTUNER_CONFIG_PATH not in self.env:
+            self.env[LLMSERVINGTUNER_CONFIG_PATH] = str(llmservingtuner_config_path)
                 
 
     def run(self, run_params: Optional[Tuple[OptimizerConfigField, ...]] = None, **kwargs):

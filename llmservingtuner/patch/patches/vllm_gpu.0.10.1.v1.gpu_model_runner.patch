@@ -104,10 +104,16 @@ logger = init_logger(__name__)
 from llmservingtuner.inference.simulate import Simulate
 from llmservingtuner.inference.simulate_vllm import SimulateVllm
 
-MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"
-MODEL_EVAL_STATE_PROFILE = "MODEL_EVAL_STATE_PROFILE"
-_simulate_env = os.getenv(MODEL_EVAL_STATE_SIMULATE) or os.getenv(MODEL_EVAL_STATE_SIMULATE.lower() if MODEL_EVAL_STATE_SIMULATE else "")
-_profile_env = os.getenv(MODEL_EVAL_STATE_PROFILE) or os.getenv(MODEL_EVAL_STATE_PROFILE.lower() if MODEL_EVAL_STATE_PROFILE else "")
+LLMSERVINGTUNER_SIMULATE = "LLMSERVINGTUNER_SIMULATE"
+LLMSERVINGTUNER_PROFILE = "LLMSERVINGTUNER_PROFILE"
+
+
+def _get_env_value(key):
+    return os.getenv(key) or os.getenv(key.lower() if key else "")
+
+
+_simulate_env = _get_env_value(LLMSERVINGTUNER_SIMULATE)
+_profile_env = _get_env_value(LLMSERVINGTUNER_PROFILE)
 _simulate_flag = bool(_simulate_env) and (_simulate_env.lower() == "true" or _simulate_env.lower() != "false")
 _profile_flag = bool(_profile_env) and (_profile_env.lower() == "true" or _profile_env.lower() != "false")
 
