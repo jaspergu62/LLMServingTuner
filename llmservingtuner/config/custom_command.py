@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Optional
 from loguru import logger
 from pydantic import BaseModel, Field
-from msserviceprofiler.msguard import Rule
 
 
 MAX_REQUEST_NUM = 1e6
@@ -112,7 +111,7 @@ class KubectlCommand():
     @property
     def command(self):
         kubectl_command_path = self.command_config.kubectl_single_path
-        if not Rule.input_file_read.is_satisfied_by(kubectl_command_path):
+        if not kubectl_command_path or not Path(kubectl_command_path).exists():
             logger.error("the file of kubectl_single_path is not safe, please check")
             return None
         cmd = ['bash', kubectl_command_path]

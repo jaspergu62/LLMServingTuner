@@ -11,7 +11,6 @@ from typing import Dict, Tuple
 import shutil
 import pandas as pd
 from loguru import logger
-from msserviceprofiler.msguard import validate_params, Rule
 
 
 _PREFILL = "prefill"
@@ -105,7 +104,6 @@ def get_module_version(module_name):
     raise ValueError("模块未安装或无法获取版本")
 
 
-@validate_params({"path": Rule.input_file_read})
 def read_csv_s(path, **kwargs):
     try:
         return pd.read_csv(path, **kwargs)

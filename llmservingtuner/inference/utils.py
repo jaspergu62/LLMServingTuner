@@ -35,7 +35,6 @@ from llmservingtuner.inference.constant import (
     ALL_ARCHITECTURE,
     ALL_ARCHITECTURE_MAPPING
 )
-from msserviceprofiler.msguard.security.io import open_s, mkdir_s
 
 OUTPUT_LENGTH_FIELD = "output_length"
 TOTAL_OUTPUT_LENGTH = "total_output_length"
@@ -540,7 +539,7 @@ def save_dataframe_to_csv(filtered_df, output, file_name, check_columns=None):
             return
     
     output_path = Path(output)
-    mkdir_s(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
     file_path = output_path / file_name
     file_path = str(file_path)
 
@@ -548,7 +547,7 @@ def save_dataframe_to_csv(filtered_df, output, file_name, check_columns=None):
         logger.warning(f"DataFrame contains invalid values. Aborting write to {file_name!r}.")
         return
     
-    with open_s(file_path, "w") as f:
+    with open(file_path, "w") as f:
         filtered_df.to_csv(f, index=False)
         logger.info(f"Write to {file_name!r} success.")
 

@@ -30,7 +30,6 @@ from llmservingtuner.config.base_config import simulate_flag, SIMULATE
 from llmservingtuner.config.custom_command import MindieCommand, VllmCommand
 from llmservingtuner.optimizer.custom_process import CustomProcess
 from llmservingtuner.optimizer.utils import backup, remove_file, close_file_fp
-from msserviceprofiler.msguard.security import open_s
 from llmservingtuner.optimizer.plugins.simulate import Simulator
 
 
@@ -48,12 +47,12 @@ def enable_simulate_old(simulate):
                 model_config["plugin_params"] = json.dumps(_plugin_params)
         else:
             model_config["plugin_params"] = json.dumps({"plugin_type": SIMULATE})
-        with open_s(simulate.config.config_path, 'w') as f:
+        with open(simulate.config.config_path, 'w') as f:
             json.dump(data, f, indent=4)
         yield simulate_flag
         if simulate.config.config_path.exists():
             simulate.config.config_path.unlink()
-        with open_s(simulate.config.config_path, 'w') as f:
+        with open(simulate.config.config_path, 'w') as f:
             json.dump(origin_data, f, indent=4)
     else:
         yield simulate_flag

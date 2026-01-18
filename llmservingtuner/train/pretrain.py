@@ -21,7 +21,6 @@ from loguru import logger
 from pandas import DataFrame
 from sklearn.metrics import r2_score, mean_absolute_percentage_error
 from sklearn.model_selection import train_test_split
-from msserviceprofiler.msguard import Rule
 from llmservingtuner.analysis import AnalysisState
 from llmservingtuner.common import _DECODE, _PREFILL, State
 from llmservingtuner.common import computer_speed_with_second, get_train_sub_path, \
@@ -288,7 +287,7 @@ parser.add_argument("-o", "--output", default=Path("output"), type=Path)
 
 def pretrain(input_path, output_path):
     _input_file = Path(input_path).expanduser().resolve()
-    if not Rule.input_dir_traverse.is_satisfied_by(_input_file):
+    if not _input_file.exists() or not _input_file.is_dir():
         logger.error("not found dir for train model")
         return
     # 获取目录中所有的feature.csv
@@ -341,5 +340,4 @@ def main(args):
     _input_file = Path(args.input).expanduser().resolve()
     output = Path(args.output).expanduser().resolve()
     pretrain(_input_file, output)
-
 

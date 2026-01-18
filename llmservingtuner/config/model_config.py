@@ -9,7 +9,6 @@ from loguru import logger
 
 from llmservingtuner.common import get_npu_total_memory
 from llmservingtuner.config.config import get_settings
-from msserviceprofiler.msguard.security import open_s
 
 
 class ModelConfig:
@@ -17,7 +16,7 @@ class ModelConfig:
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path!r}")
         try:
-            with open_s(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, 'r', encoding='utf-8') as f:
                 config_data = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"The JSON format of the configuration file '{config_path!r}' is invalid") from e
@@ -175,7 +174,7 @@ class MindieModelConfig:
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path!r}")
         try:
-            with open_s(config_path, 'r', encoding='utf-8') as f:
+            with open(config_path, 'r', encoding='utf-8') as f:
                 self.config_data = json.load(f)
         except json.JSONDecodeError as e:
             raise ValueError(f"The JSON format of the configuration file '{config_path!r}' is invalid") from e

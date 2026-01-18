@@ -21,7 +21,6 @@ from typing import List, Optional
 from warnings import warn
 from loguru import logger
 import pandas as pd
-from msserviceprofiler.msguard import Rule
 from llmservingtuner.inference.common import get_bins_and_label
 from llmservingtuner.inference.file_reader import StaticFile
 from llmservingtuner.common import read_csv_s
@@ -95,7 +94,8 @@ class FileReader:
         self.current_file_index = start_file_index
         self.current_line_index = start_lines
         for _file in file_paths:
-            if not Rule.input_file_read.is_satisfied_by(_file):
+            _path = Path(_file)
+            if not _path.exists() or not _path.is_file():
                 logger.error("please check the file for train exist and permissions")
                 return
         self.columns = columns
@@ -148,4 +148,3 @@ class FileReader:
         elif not lines:
             raise ValueError(f"lines is empty. lines: {lines}")
         return pd.concat(lines)
-

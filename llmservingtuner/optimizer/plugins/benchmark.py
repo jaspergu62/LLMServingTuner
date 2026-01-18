@@ -26,7 +26,7 @@ from llmservingtuner.config.config import AisBenchConfig, VllmBenchmarkConfig, g
     PerformanceIndex, OptimizerConfigField
 from llmservingtuner.config.custom_command import AisBenchCommand, VllmBenchmarkCommand
 from llmservingtuner.optimizer.interfaces.benchmark import BenchmarkInterface
-from msserviceprofiler.msguard.security import open_s, walk_s
+import os
 from llmservingtuner.optimizer.utils import backup, remove_file
 
   
@@ -59,7 +59,7 @@ class AisBench(BenchmarkInterface):
         self.work_path = self.config.work_path
         self.update_command()
         self.model_config_path = self.get_models_config_path()
-        with open_s(self.model_config_path, 'r', encoding='utf-8') as f:
+        with open(self.model_config_path, 'r', encoding='utf-8') as f:
             self.default_data = f.read()
         self.mindie_benchmark_perf_columns = [k.lower().strip() for k in MINDIE_BENCHMARK_PERF_COLUMNS]
 
@@ -140,7 +140,7 @@ class AisBench(BenchmarkInterface):
         output_path = Path(self.config.output_path)
         rate_files = glob.glob(f"{output_path}/*/performances/*/*dataset.json")
         for json_file in rate_files:
-            with open_s(json_file, "r") as f:
+            with open(json_file, "r") as f:
                 try:
                     data = json.load(f)
                 except json.decoder.JSONDecodeError as e:
@@ -169,7 +169,7 @@ class AisBench(BenchmarkInterface):
             self.config.performance_config.time_per_output_token.algorithm)
         rate_files = glob.glob(f"{output_path}/*/performances/*/*dataset.json")
         for json_file in rate_files:
-            with open_s(json_file, "r") as f:
+            with open(json_file, "r") as f:
                 try:
                     data = json.load(f)
                 except json.decoder.JSONDecodeError as e:
@@ -199,7 +199,7 @@ class AisBench(BenchmarkInterface):
             except ValueError:
                 logger.warning(f"the {k.name} is not number; please check: {k.value}")
                 concurrency = rate = None
-        with open_s(self.model_config_path, 'r', encoding='utf-8') as f:
+        with open(self.model_config_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         _request_rate_pattern = re.compile(r"(request_rate\s*=\s*)\d{1,10}(?:\.\d{1,30})?\s*,")
         _batch_size_pattern = re.compile(r"(batch_size\s*=\s*)\d{1,10}(?:\.\d{1,30})?\s*,")
@@ -219,7 +219,7 @@ class AisBench(BenchmarkInterface):
                     lines[i] = lines[i].replace(_res.group(), f"batch_size = {concurrency},")
  
         # 将修改后的内容写回文件
-        with open_s(self.model_config_path, 'w', encoding='utf-8') as f:
+        with open(self.model_config_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
 
 
@@ -270,24 +270,25 @@ class VllmBenchMark(BenchmarkInterface):
     def get_performance_index(self):
         output_path = Path(self.config.command.result_dir)
         performance_index = PerformanceIndex()
-        for file in walk_s(output_path):
-            file = Path(file)
-            if not file.name.endswith(".json"):
-                continue
-            with open_s(file, mode='r', encoding="utf-8") as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError:
-                    logger.error(f"Failed in parse vllm benchmark result. file: {file}")
+        for root, _, files in os.walk(output_path):
+            for name in files:
+                file = Path(root).joinpath(name)
+                if not file.name.endswith(".json"):
                     continue
+                with open(file, mode='r', encoding="utf-8") as f:
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError:
+                        logger.error(f"Failed in parse vllm benchmark result. file: {file}")
+                        continue
 
-            performance_index.generate_speed = data.get("output_throughput", 0)
-            performance_index.time_to_first_token = data.get("mean_ttft_ms", 0) / MS_TO_S
-            performance_index.time_per_output_token = data.get("mean_tpot_ms", 0) / MS_TO_S
-            num_prompts = data.get("num_prompts", 1)
-            completed = data.get("completed", 0)
-            performance_index.success_rate = 0
-            if num_prompts > 0:
-                performance_index.success_rate = completed / num_prompts
+                performance_index.generate_speed = data.get("output_throughput", 0)
+                performance_index.time_to_first_token = data.get("mean_ttft_ms", 0) / MS_TO_S
+                performance_index.time_per_output_token = data.get("mean_tpot_ms", 0) / MS_TO_S
+                num_prompts = data.get("num_prompts", 1)
+                completed = data.get("completed", 0)
+                performance_index.success_rate = 0
+                if num_prompts > 0:
+                    performance_index.success_rate = completed / num_prompts
             performance_index.throughput = float(data.get("request_throughput", 3.0))
         return performance_index

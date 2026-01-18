@@ -20,7 +20,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, PydanticBaseSett
 from llmservingtuner.common import is_vllm, is_mindie, ais_bench_exists
 from llmservingtuner.config.custom_command import VllmBenchmarkCommandConfig, \
     MindieCommandConfig, VllmCommandConfig, AisBenchCommandConfig, KubectlCommandConfig
-from msserviceprofiler.msguard.security import open_s, mkdir_s
 from .base_config import (
     INSTALL_PATH, RUN_PATH, ServiceType, CUSTOM_OUTPUT, DeployPolicy, RUN_TIME,
     llmservingtuner_config_path, AnalyzeTool, BenchMarkPolicy,
@@ -356,7 +355,7 @@ class LatencyModel(BaseModel):
     @field_validator("base_path", "cache_data", "static_file_dir")
     @classmethod
     def create_path(cls, path: Path) -> Path:
-        mkdir_s(path)
+        path.mkdir(parents=True, exist_ok=True, mode=0o750)
         return path
 
 
@@ -572,7 +571,7 @@ class Settings(BaseSettings):
         if not self.mindie.config_path.exists():
             logger.error(f"File Not Found. file: {self.mindie.config_path!r}")
             return self
-        with open_s(self.mindie.config_path, "r") as f:
+        with open(self.mindie.config_path, "r") as f:
             try:
                 mindie_config = json.load(f)
             except json.decoder.JSONDecodeError as e:

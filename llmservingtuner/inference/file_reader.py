@@ -25,7 +25,6 @@ from llmservingtuner.inference.data_format_v1 import EnvField, HardWare, MindieC
     ModelConfig, ModelOpField, ModelStruct, \
     ENV_FIELD, HARDWARE_FIELD, MINDIE_FIELD, MODEL_CONFIG_FIELD, MODEL_STRUCT_FIELD, MODEL_OP_FIELD, BATCH_SIZE, \
     MAX_SEQ_LEN
-from msserviceprofiler.msguard.security import open_s
 
 
 @dataclass
@@ -79,7 +78,7 @@ class FileHanlder:
 
     @staticmethod
     def load_hardware_data(hardware_path: Path) -> HardWare:
-        with open_s(hardware_path, "r", encoding="utf-8") as f:
+        with open(hardware_path, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
@@ -97,7 +96,7 @@ class FileHanlder:
 
     @staticmethod
     def load_env_data(env_path: Path) -> EnvField:
-        with open_s(env_path, "r", encoding="utf-8") as f:
+        with open(env_path, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
@@ -109,7 +108,7 @@ class FileHanlder:
 
     @staticmethod
     def load_mindie_config(mindie_config_path: Path) -> MindieConfig:
-        with open_s(mindie_config_path, "r", encoding="utf-8") as f:
+        with open(mindie_config_path, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
@@ -129,7 +128,7 @@ class FileHanlder:
 
     @staticmethod
     def load_model_config(config_path: Path) -> ModelConfig:
-        with open_s(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
@@ -148,7 +147,7 @@ class FileHanlder:
     @staticmethod
     def load_model_struct(model_struct_path: Path) -> ModelStruct:
         _load_field = None
-        with open_s(model_struct_path, "r", encoding="utf-8", newline="") as f:
+        with open(model_struct_path, "r", encoding="utf-8", newline="") as f:
             model_struct_reader = csv.reader(f)
             model_struct = None
             for i, row in enumerate(model_struct_reader):
@@ -210,7 +209,7 @@ class FileHanlder:
     def load_op_data(op_path: Path) -> Dict[Tuple, Tuple[ModelOpField]]:
         op_type = BATCH_SIZE
         all_op_data = {}
-        with open_s(op_path, "r", encoding="utf-8", newline="") as f:
+        with open(op_path, "r", encoding="utf-8", newline="") as f:
             op_reader = csv.reader(f)
             for i, row in enumerate(op_reader):
                 if i == 0:

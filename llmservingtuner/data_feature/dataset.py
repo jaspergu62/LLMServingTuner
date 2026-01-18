@@ -44,7 +44,6 @@ from llmservingtuner.inference.dataset import CustomOneHotEncoder, CustomLabelEn
     preset_category_data
 from llmservingtuner.inference.utils import PreprocessTool, TOTAL_OUTPUT_LENGTH, \
     TOTAL_SEQ_LENGTH, TOTAL_PREFILL_TOKEN
-from msserviceprofiler.msguard.security.io import open_s
 
 matplotlib.use("Agg")
 
@@ -342,4 +341,3 @@ class MyDataSet:
             self.plot_custom_pairplot(request_df, middle_save_path, "request_pairplot.png")
         except Exception as e:
             logger.error(f"error occur when plot request pairplot: {e}")
-

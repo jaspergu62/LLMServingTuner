@@ -16,7 +16,6 @@
 from pathlib import Path
 
 from loguru import logger
-from msserviceprofiler.msguard import Rule
 from llmservingtuner.patch.patch_manager import check_append_patch, add_append_patch
 
 
@@ -35,7 +34,7 @@ class PatchVllm:
         import vllm_ascend
         file_path = vllm_ascend.__path__[0]
         file = Path(file_path).joinpath("worker/model_runner.py").resolve()
-        if not Rule.input_file_read.is_satisfied_by(file):
+        if not file.exists():
             logger.error("not found patch file for vllm_ascend")
             return
         patch = _patch_dir.joinpath("patches/vllm.model_runner.patch")
@@ -43,4 +42,3 @@ class PatchVllm:
             logger.info("The patch already exists.")
             return
         add_append_patch(file, patch)
-

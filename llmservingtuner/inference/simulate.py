@@ -34,7 +34,6 @@ from llmservingtuner.inference.data_format_v1 import BatchField, RequestField, C
 from llmservingtuner.inference.dataset import CustomLabelEncoder, preset_category_data, DataProcessor
 from llmservingtuner.inference.file_reader import FileHanlder, StaticFile
 from llmservingtuner.inference.state_eval_v1 import predict_v1_with_cache
-from msserviceprofiler.msguard.security import open_s
 
 predict_queue = queue.Queue()
 
@@ -132,7 +131,7 @@ class Simulate:
             else:
                 plugin_object.eos_token_id = plugin_object.input_manager.cache_config.eos_token_id[0]
             if ServiceField.config_path.req_and_decode_file.exists():
-                with open_s(ServiceField.config_path.req_and_decode_file, 'r') as f:
+                with open(ServiceField.config_path.req_and_decode_file, 'r') as f:
                     try:
                         req_and_decode = json.load(f)
                     except json.JSONDecodeError as e:

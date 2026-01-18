@@ -25,7 +25,6 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import mean_squared_error as MSE
 
 from llmservingtuner.data_feature.dataset import MyDataSet
-from msserviceprofiler.msguard.security import open_s
 
 
 class StateXgbModel:
@@ -105,7 +104,7 @@ def plot_feature_importance(model, save_path: Optional[Path] = None):
     if save_path:
         plt.savefig(save_path.joinpath("cover_score.png"))
         plt.close()
-        with open_s(save_path.joinpath("feature_importance.txt"), 'w') as f:
+        with open(save_path.joinpath("feature_importance.txt"), 'w') as f:
             f.write(f"weight score: {model.get_score(importance_type='weight')} \n")
             f.write(f"gain score: {model.get_score(importance_type='gain')} \n")
             f.write(f"cover score: {model.get_score(importance_type='cover')} \n")
@@ -128,5 +127,4 @@ def plot_pred_and_test(pred, my_data, save_path: Optional[Path] = None):
         plt.close()
     else:
         plt.show()
-
 

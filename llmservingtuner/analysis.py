@@ -12,7 +12,6 @@ from typing import Dict, List, Optional
 import numpy as np
 from matplotlib import pyplot as plt
 from loguru import logger
-from msserviceprofiler.msguard.security import open_s
 from llmservingtuner.common import State
 
 
@@ -159,7 +158,7 @@ class AnalysisState:
         if config.save_path:
             plt.savefig(Path(config.save_path).joinpath(f"{config.x_label}_{config.y_label}_{config.title}.png"))
             plt.close()
-            with open_s(config.save_path.joinpath(f"{config.title}.txt"), 'w') as f:
+            with open(config.save_path.joinpath(f"{config.title}.txt"), 'w') as f:
                 f.write('mean\n')
                 f.write(json.dumps(_mean))
                 f.write('\n')

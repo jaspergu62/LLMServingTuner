@@ -28,7 +28,6 @@ from llmservingtuner.config.base_config import CUSTOM_OUTPUT, LLMSERVINGTUNER_CO
 from llmservingtuner.config.config import OptimizerConfigField, get_settings, ProcessState, Stage
 from llmservingtuner.optimizer.utils import close_file_fp, remove_file, kill_children, \
     backup, kill_process
-from msserviceprofiler.msguard.security import open_s
 
 
 class CustomProcess:
@@ -145,7 +144,7 @@ class CustomProcess:
         run_log_path = Path(self.run_log)
         if run_log_path.exists():
             try:
-                with open_s(run_log_path, "r", encoding="utf-8") as f:
+                with open(run_log_path, "r", encoding="utf-8") as f:
                     f.seek(self.run_log_offset)
                     output = f.read()
                     self.run_log_offset = f.tell()
@@ -198,7 +197,7 @@ class CustomProcess:
         run_log_path = Path(self.run_log)
         if run_log_path.exists():
             try:
-                with open_s(run_log_path, "r", encoding="utf-8") as f:
+                with open(run_log_path, "r", encoding="utf-8") as f:
                     file_lines = f.readlines()
             except (UnicodeError, OSError) as e:
                 logger.error(f"Failed read {self.command} log. error {e}")

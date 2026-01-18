@@ -18,7 +18,6 @@ import time
 from pathlib import Path
 from loguru import logger
 from filelock import FileLock
-from msserviceprofiler.msguard.security import open_s
  
  
 class CustomCommand:
@@ -79,29 +78,29 @@ class CommunicationForFile:
         self.cmd_file = cmd_file
         self.cmd_file_lock = cmd_file.parent.joinpath(f"{cmd_file.name}.lock")
         if not self.cmd_file_lock.exists():
-            with open_s(self.cmd_file_lock, "w") as f:
+            with open(self.cmd_file_lock, "w") as f:
                 pass
         self.res_file = res_file
         self.res_file_lock = res_file.parent.joinpath(f"{res_file.name}.lock")
         if not self.res_file_lock.exists():
-            with open_s(self.res_file_lock, "w") as f:
+            with open(self.res_file_lock, "w") as f:
                 pass
         self.timeout = timeout
  
     def send_command(self, cmd):
         with FileLock(self.cmd_file_lock):
             if self.cmd_file.exists():
-                with open_s(self.cmd_file, "w") as fcmd:
+                with open(self.cmd_file, "w") as fcmd:
                     fcmd.write(cmd)
             else:
-                with open_s(self.cmd_file, "w", buffering=1024) as fcmd:
+                with open(self.cmd_file, "w", buffering=1024) as fcmd:
                     fcmd.write(cmd)
  
     def recv_command(self):
         with FileLock(self.res_file_lock):
             if not self.res_file.exists():
                 return ''
-            with open_s(self.res_file, 'r', encoding="utf-8") as f:
+            with open(self.res_file, 'r', encoding="utf-8") as f:
                 data = f.read()
         return data
  

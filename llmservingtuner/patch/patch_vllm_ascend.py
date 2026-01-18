@@ -16,7 +16,6 @@
 from pathlib import Path
  
 from loguru import logger
-from msserviceprofiler.msguard import Rule 
 from llmservingtuner.patch.patch_manager import check_append_patch, add_append_patch
 
  
@@ -41,4 +40,3 @@ class PatchVllmAscend:
             logger.info("The patch already exists.")
             return
         add_append_patch(file, patch)
-

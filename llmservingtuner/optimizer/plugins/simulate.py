@@ -29,7 +29,6 @@ from llmservingtuner.config.config import get_settings, OptimizerConfigField, Vl
 from llmservingtuner.config.custom_command import VllmCommand, MindieCommand
 from llmservingtuner.optimizer.interfaces.simulator import SimulatorInterface
 from llmservingtuner.optimizer.utils import remove_file, close_file_fp, backup
-from msserviceprofiler.msguard.security import open_s
 
 
 @dataclass
@@ -63,13 +62,13 @@ class Simulator(SimulatorInterface):
         logger.debug(f"config path {self.config.config_path}", )
         if not self.config.config_path.exists():
             raise FileNotFoundError(self.config.config_path)
-        with open_s(self.config.config_path, "r") as f:
+        with open(self.config.config_path, "r") as f:
             data = json.load(f)
         self.default_config = data
         logger.debug(f"config bak path {self.config.config_bak_path}", )
         if self.config.config_bak_path.exists():
             self.config.config_bak_path.unlink()
-        with open_s(self.config.config_bak_path, 'w') as fout:
+        with open(self.config.config_bak_path, 'w') as fout:
             json.dump(self.default_config, fout, indent=4)
         self.command = MindieCommand(self.config.command).command
 
@@ -223,13 +222,13 @@ class Simulator(SimulatorInterface):
         logger.debug(f"new config {new_config}")
         if self.config.config_path.exists():
             self.config.config_path.unlink()
-        with open_s(self.config.config_path, "w") as fout:
+        with open(self.config.config_path, "w") as fout:
             json.dump(new_config, fout, indent=4, ensure_ascii=False)
 
     def stop(self, del_log: bool = True):
         # 恢复默认的mindie 配置
         remove_file(self.config.config_path)
-        with open_s(self.config.config_path, "w") as fout:
+        with open(self.config.config_path, "w") as fout:
             json.dump(self.default_config, fout, indent=4, ensure_ascii=False)
         super().stop(del_log)
 
@@ -284,12 +283,12 @@ class DisaggregationSimulator(SimulatorInterface):
         super().__init__(*args, process_name=self.config.process_name, **kwargs)
         if not self.config.config_single_path.exists():
             raise FileNotFoundError(self.config.config_single_path)
-        with open_s(self.config.config_single_path, "r") as f:
+        with open(self.config.config_single_path, "r") as f:
             try:
                 data = json.load(f)
             except json.JSONDecodeError:
                 logger.error(f"Failed in read config.json. file: {self.config.config_single_path}")
-        with open_s(self.config.config_single_pd_path, "r") as f:
+        with open(self.config.config_single_pd_path, "r") as f:
             try:
                 pd_data = json.load(f)
             except json.JSONDecodeError:
@@ -299,7 +298,7 @@ class DisaggregationSimulator(SimulatorInterface):
         logger.debug(f"config bak path {self.config.config_single_bak_path!r}", )
         if self.config.config_single_bak_path.exists():
             self.config.config_single_bak_path.unlink()
-        with open_s(self.config.config_single_bak_path, "w") as fout:
+        with open(self.config.config_single_bak_path, "w") as fout:
             json.dump(self.default_config, fout, indent=4)
         self.run_log = None
         self.mindie_log_offset = 0
@@ -450,11 +449,11 @@ class DisaggregationSimulator(SimulatorInterface):
         logger.debug(f"new config {new_config}")
         if self.config.config_single_path.exists():
             self.config.config_single_path.unlink()
-        with open_s(self.config.config_single_path, "w") as fout:
+        with open(self.config.config_single_path, "w") as fout:
             json.dump(new_config, fout, indent=4)
         if self.config.config_single_pd_path.exists():
             self.config.config_single_pd_path.unlink()
-        with open_s(self.config.config_single_pd_path, "w") as fout:
+        with open(self.config.config_single_pd_path, "w") as fout:
             json.dump(pd_config, fout, indent=4)
         
     def update_command(self):
@@ -469,7 +468,7 @@ class DisaggregationSimulator(SimulatorInterface):
         yaml_dir = self.config.kubectl_single_path.parent
         yaml_path = os.path.join(yaml_dir, "deployment/mindie_service_single_container.yaml")
         logger.info(f"yaml_path: {yaml_path}")
-        with open_s(yaml_path, 'r') as file:
+        with open(yaml_path, 'r') as file:
             all_documents = yaml.safe_load_all(file)
             for doc in all_documents:
                 # 检查文档中是否存在 spec.ports 部分
@@ -517,7 +516,7 @@ class DisaggregationSimulator(SimulatorInterface):
     def health(self):
         process_res = ProcessState()
         process_res.stage = Stage.error
-        with open_s(self.run_log, "r") as f:
+        with open(self.run_log, "r") as f:
             try:
                 f.seek(self.mindie_log_offset)
                 output = f.read()

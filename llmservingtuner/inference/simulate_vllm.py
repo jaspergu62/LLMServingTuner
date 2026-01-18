@@ -30,7 +30,6 @@ from llmservingtuner.inference.data_format_v1 import BatchField, RequestField
 from llmservingtuner.inference.dataset import CustomLabelEncoder, preset_category_data, DataProcessor
 from llmservingtuner.inference.file_reader import FileHanlder, StaticFile
 from llmservingtuner.inference.simulate import ServiceField, write_file, file_log
-from msserviceprofiler.msguard.security import open_s
 
 
 class SimulateVllm:
@@ -46,7 +45,7 @@ class SimulateVllm:
     def init(profile_flag: bool = False):
         if SimulateVllm.first:
             if ServiceField.config_path.req_and_decode_file.exists():
-                with open_s(ServiceField.config_path.req_and_decode_file, 'r') as f:
+                with open(ServiceField.config_path.req_and_decode_file, 'r') as f:
                     try:
                         req_and_decode = json.load(f)
                     except json.JSONDecodeError as e:

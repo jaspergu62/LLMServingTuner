@@ -24,8 +24,6 @@ from typing import Dict, List, Tuple, Any
 
 import pandas as pd
 from loguru import logger
-from msserviceprofiler.msguard.security import open_s
-from msserviceprofiler.msguard import Rule
 from llmservingtuner.common import read_csv_s
 from llmservingtuner.optimizer.utils import is_root
 
@@ -351,7 +349,7 @@ def save_processed_data_to_csv_vllm(
             right_index=True,
             suffixes=('_exec', '_batch')
         )
-        with open_s(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
             an_data = ExecutionDataVllm(merged_df, processed_data.req_df, processed_data.rids_ori, 
                                     processed_data.kvcache_df)
@@ -381,7 +379,7 @@ def save_processed_data_to_csv_mindie(
             right_index=True,
             suffixes=('_exec', '_batch')
         )
-        with open_s(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
             write_csv_header(csvfile)
             an_data = ExecutionDataMindie(merged_df, processed_data.req_df, processed_data.rids_ori, 
                                     processed_data.index_dict, processed_data.batch_id_block_sum)
@@ -392,7 +390,7 @@ def save_processed_data_to_csv_mindie(
 
 def source_to_model(input_path: str, model_type: str):
     ori_db_path = os.path.join(input_path, 'profiler.db')
-    if not Rule.input_file_read.is_satisfied_by(ori_db_path):
+    if not Path(ori_db_path).exists():
         logger.error("please check the db from profiling")
         return
     db_connector = DatabaseConnector(ori_db_path)
@@ -444,7 +442,7 @@ def req_decodetimes(input_path, output_path):
     data = {}
 
     # 打开并读取CSV文件
-    with open_s(csv_file, 'r', encoding='utf-8') as file:
+    with open(csv_file, 'r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         req_id = 0
         for row in reader:
@@ -461,7 +459,7 @@ def req_decodetimes(input_path, output_path):
                 continue
 
     # 将字典写入JSON文件
-    with open_s(json_file, 'w', encoding='utf-8') as file:
+    with open(json_file, 'w', encoding='utf-8') as file:
         json.dump(data, file, indent=4, ensure_ascii=False)
 
 

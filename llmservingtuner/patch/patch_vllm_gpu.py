@@ -17,7 +17,6 @@ from pathlib import Path
 
 from loguru import logger
 from packaging import version
-from msserviceprofiler.msguard import Rule 
 from llmservingtuner.patch.patch_manager import check_append_patch, add_append_patch, add_diff_patch, add_replace_patch
 
 

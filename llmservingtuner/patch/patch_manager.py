@@ -21,7 +21,6 @@ from pathlib import Path
 
 from loguru import logger
 from packaging import version
-from msserviceprofiler.msguard import validate_params, Rule
 
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
