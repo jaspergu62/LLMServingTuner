@@ -59,12 +59,12 @@ vllm_gpu_env_patch = {
 }
 
 # Register MindIE patches
-try:
-    from llmservingtuner.patch.patch_manager import Patch2rc1  # mindie 2.1rc1-2.2
-    mindie_simulate_patch.append(Patch2rc1)
-    mindie_optimize_patch.append(Patch2rc1)
-except ImportError as e:
-    logger.warning(f"Failed to import Patch2rc1: {e}")
+# try:
+#     from llmservingtuner.patch.patch_manager import Patch2rc1  # mindie 2.1rc1-2.2
+#     mindie_simulate_patch.append(Patch2rc1)
+#     mindie_optimize_patch.append(Patch2rc1)
+# except ImportError as e:
+#     logger.warning(f"Failed to import Patch2rc1: {e}")
 
 try:
     from llmservingtuner.patch.patch_mindie import PatchMindie2rc1  # mindie 2.0a9-2.0

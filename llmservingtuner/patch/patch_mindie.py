@@ -14,7 +14,7 @@
 # limitations under the License.
 
 """
-Mindie LLM patch for version 2.0a9 - 2.0.
+Mindie LLM patch.
 Patches the plugin_manager.py file.
 """
 
@@ -29,7 +29,7 @@ _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
 
 class PatchMindie2rc1:
-    """Patch for Mindie LLM version 2.0a9 - 2.0."""
+    """Patch for Mindie LLM"""
     mindie_llm = "2.0"
     mindie_llm_low = "2.0a9"
 
