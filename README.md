@@ -6,15 +6,21 @@ An LLM serving auto‑tuning framework.
 - Ascend NPU (MindIE, vLLM-Ascend)
 - NVIDIA GPU (vLLM)
 
-## Workflow & Examples
+## Example Workflow
 
-### 0) Apply patch (one‑time)
+### 0) Environment
+Reference workflow of tuning vllm configuration on H20:
+- vllm == 0.10.1
+- torch == 2.7.1
+- nvidia-cuda-runtime-cu12 == 12.6.77
+
+### 1) Apply patch (one‑time)
 Apply the patch to your serving framework so it can collect features / enable simulation:
 ```bash
 python -c "from llmservingtuner.patch import enable_patch; enable_patch('LLMSERVINGTUNER_SIMULATE')"
 ```
 
-### 1) Profile (single CSV)
+### 2) Profile (single CSV)
 Set profile mode and run your normal workload. A single CSV will be written to `/tmp/profile/`.
 ```bash
 export LLMSERVINGTUNER_PROFILE=true
@@ -23,20 +29,20 @@ export LLMSERVINGTUNER_PROFILE=true
 
 For profiling with more information, can check `msserviceprofiler.ms_service_profiler` and use `llmserving/train/pretrain.py` instead.
 
-### 2) Train (from the single profile CSV)
+### 3) Train (from the single profile CSV)
 ```bash
 python examples/train_from_vllm_profile.py \
   --profile-csv /tmp/profile/20250101-1200.csv \
   --output-dir /path/to/model_output
 ```
 
-### 3) Simulate benchmark
+### 4) Simulate benchmark
 ```bash
 export LLMSERVINGTUNER_SIMULATE=true
 # run your usual benchmark/workload (simulation model will be used)
 ```
 
-### 4) Configuration tunning (parameter optimization)
+### 5) Configuration tunning (parameter optimization)
 
 ```bash
 python examples/run_tune.py \
