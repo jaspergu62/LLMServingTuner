@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import csv
 import json
 import threading
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -37,9 +39,11 @@ class SimulateVllm:
     req_to_output_len = defaultdict(int)
     req_to_stop_token_ids = {}
     req_id_to_max_token_by_sequence = {}
+    profile_file = None
+    profile_file_header = None
  
     @staticmethod
-    def init():
+    def init(profile_flag: bool = False):
         if SimulateVllm.first:
             if ServiceField.config_path.req_and_decode_file.exists():
                 with open_s(ServiceField.config_path.req_and_decode_file, 'r') as f:
@@ -68,6 +72,20 @@ class SimulateVllm:
             SimulateVllm.first = False
             simulate.sub_thread = threading.Thread(target=write_file, args=(file_log,))
             simulate.sub_thread.start()
+            if profile_flag:
+                profile_dir = Path("/tmp/profile/")
+                profile_dir.mkdir(parents=True, exist_ok=True)
+                SimulateVllm.profile_file = profile_dir / f"{time.strftime('%Y%m%d-%H%M')}.csv"
+                SimulateVllm.profile_file_header = [
+                    "('batch_stage', 'batch_size', 'total_need_blocks', 'total_prefill_token', 'max_seq_len', 'model_execute_time')",
+                    "('input_length', 'need_blocks', 'output_length')",
+                ]
+                try:
+                    with open(str(SimulateVllm.profile_file), "a", newline="", buffering=1024 * 1024) as f:
+                        writer = csv.DictWriter(f, fieldnames=SimulateVllm.profile_file_header)
+                        writer.writeheader()
+                except Exception as e:
+                    logger.debug(f"profile write header error: {e}")
     
     @staticmethod
     def process_batch(model_input):
@@ -131,6 +149,102 @@ class SimulateVllm:
         ServiceField.batch_field = batch_field
         ServiceField.request_field = tuple(sorted(request_field))
         return batch_field, tuple(sorted(request_field))
+
+    @staticmethod
+    def generate_features_v1(input_batch, scheduler_output=None, request_states=None):
+        if input_batch.num_reqs == 0:
+            return None, None
+
+        num_reqs = int(input_batch.num_reqs)
+        seq_lens = input_batch.num_tokens[:num_reqs].tolist()
+        seq_lens = [int(seq_len) for seq_len in seq_lens]
+
+        all_need_blocks = torch.zeros((num_reqs, 1))
+        if input_batch.block_table is not None:
+            for req_index in range(num_reqs):
+                total_blocks = 0
+                for block_table in input_batch.block_table.block_tables:
+                    total_blocks += block_table.num_blocks_per_row[req_index]
+                all_need_blocks[req_index, 0] = total_blocks
+
+        _total_req_prefill_tokens = []
+        _all_request_ids = set()
+        _req_to_scheduled_prefill = defaultdict(int)
+        SimulateVllm.req_to_output_len = defaultdict(int)
+        _req_to_need_blocks = defaultdict(int)
+        _req_to_scheduled_decode = defaultdict(int)
+
+        scheduled_token_map = scheduler_output.num_scheduled_tokens if scheduler_output is not None else {}
+
+        for req_index, req_id in enumerate(input_batch.req_ids):
+            if req_id is None:
+                logger.warning(f"req_id is None, req_index: {req_index}")
+                continue
+
+            _all_request_ids.add(req_id)
+            scheduled_tokens = int(scheduled_token_map.get(req_id, 0))
+
+            req_state = request_states.get(req_id) if request_states is not None else None
+
+            if req_state is not None:
+                prompt_len = int(getattr(req_state, "num_prompt_tokens", len(req_state.prompt_token_ids)))
+                computed_tokens = int(getattr(req_state, "num_computed_tokens", 0))
+                current_output_len = len(req_state.output_token_ids)
+            else:
+                prompt_len = int(input_batch.num_prompt_tokens[req_index])
+                computed_tokens = int(input_batch.num_computed_tokens_cpu[req_index])
+                output_ids = input_batch.req_output_token_ids[req_index]
+                current_output_len = len(output_ids) if output_ids else 0
+
+            prefilling_already = min(computed_tokens, prompt_len)
+            remaining_prefill = max(prompt_len - prefilling_already, 0)
+            scheduled_prefill = min(remaining_prefill, scheduled_tokens)
+            scheduled_decode = max(scheduled_tokens - scheduled_prefill, 0)
+
+            _req_to_scheduled_prefill[req_id] = scheduled_prefill
+            _req_to_scheduled_decode[req_id] = scheduled_decode
+            _total_req_prefill_tokens.append(scheduled_prefill)
+
+            SimulateVllm.req_to_output_len[req_id] = current_output_len
+            _req_need_block = all_need_blocks[req_index].sum().item()
+            _req_to_need_blocks[req_id] = _req_need_block
+
+        request_field = []
+        total_prefill_tokens = 0
+        total_decode_tokens = 0
+        for _cur_id in _all_request_ids:
+            scheduled_prefill = int(_req_to_scheduled_prefill.get(_cur_id, 0))
+            scheduled_decode = int(_req_to_scheduled_decode.get(_cur_id, 0))
+            total_prefill_tokens += scheduled_prefill
+            total_decode_tokens += scheduled_decode
+
+            request_field.append(RequestField(
+                input_length=scheduled_prefill,
+                need_blocks=int(_req_to_need_blocks.get(_cur_id, 0)),
+                output_length=scheduled_decode
+            ))
+
+        if total_prefill_tokens > 0 and total_decode_tokens == 0:
+            batch_stage = BatchStage.PREFILL
+        else:
+            batch_stage = BatchStage.DECODE
+
+        if batch_stage == BatchStage.PREFILL:
+            max_tokens_this_step = max(_total_req_prefill_tokens) if _total_req_prefill_tokens else 0
+        else:
+            per_req_decode = list(_req_to_scheduled_decode.values())
+            max_tokens_this_step = max(per_req_decode) if per_req_decode else 0
+
+        batch_field = BatchField(
+            batch_stage,
+            num_reqs,
+            total_need_blocks=int(all_need_blocks.sum().item()),
+            total_prefill_token=int(total_prefill_tokens),
+            max_seq_len=int(max_tokens_this_step)
+        )
+        ServiceField.batch_field = batch_field
+        ServiceField.request_field = tuple(sorted(request_field))
+        return ServiceField.batch_field, ServiceField.request_field
 
     @staticmethod
     def get_max_output_len(req_id):
@@ -205,3 +319,40 @@ class SimulateVllm:
                         _seq_out.logprobs.pop(_origin_token)
                     # 处理完这个请求
                     break
+
+    @staticmethod
+    def record_features(batch_elapsed_ms: float):
+        if SimulateVllm.profile_file is None or SimulateVllm.profile_file_header is None:
+            logger.debug("record_features called without profile enabled.")
+            return
+
+        batch_field = (
+            str(ServiceField.batch_field.batch_stage),
+            ServiceField.batch_field.batch_size,
+            ServiceField.batch_field.total_need_blocks,
+            ServiceField.batch_field.total_prefill_token,
+            ServiceField.batch_field.max_seq_len,
+            f"{batch_elapsed_ms:.3f}",
+        )
+
+        request_field = []
+        for req in ServiceField.request_field:
+            request_field.append(
+                (
+                    req.input_length,
+                    req.need_blocks,
+                    req.output_length
+                )
+            )
+
+        row = {
+            "('batch_stage', 'batch_size', 'total_need_blocks', 'total_prefill_token', 'max_seq_len', 'model_execute_time')": batch_field,
+            "('input_length', 'need_blocks', 'output_length')": tuple(request_field)
+        }
+
+        try:
+            with open(str(SimulateVllm.profile_file), "a", newline="", buffering=1024 * 1024) as f:
+                writer = csv.DictWriter(f, fieldnames=SimulateVllm.profile_file_header)
+                writer.writerow(row)
+        except Exception as e:
+            logger.debug(f"profile write error: {e}")
