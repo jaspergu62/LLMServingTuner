@@ -616,26 +616,25 @@ class VidurTraceDataset(BenchmarkDataset):
         num_tokens: int,
         rng: np.random.Generator,
     ) -> tuple[str, int]:
-        """Generate a deterministic prompt whose tokenized length matches num_tokens."""
+        """Generate a prompt whose tokenized length is close to num_tokens."""
         if num_tokens <= 0:
             raise ValueError("num_tokens must be positive.")
 
-        candidate_tokens = [" hello", " world", " this", " is", " test"]
-        prompt_tokens = []
-        for _ in range(num_tokens):
-            prompt_tokens.append(rng.choice(candidate_tokens))
+        vocab_size = tokenizer.vocab_size
+        if vocab_size is None:
+            candidate_tokens = [" hello", " world", " this", " is", " test"]
+            prompt_tokens = [rng.choice(candidate_tokens) for _ in range(num_tokens)]
+            prompt = tokenizer.convert_tokens_to_string(prompt_tokens)
+            encoded = tokenizer(prompt, add_special_tokens=False).input_ids
+            return prompt, len(encoded)
 
-        prompt = tokenizer.convert_tokens_to_string(prompt_tokens)
-        
-        encoded = tokenizer(prompt, add_special_tokens=False).input_ids
-
-        if abs(len(encoded) - num_tokens) > 5:
-            raise ValueError(
-                f"Unable to synthesize prompt with exactly {num_tokens} tokens, encoded into {len(encoded)} tokens.",
-                prompt
-            )
-
-        return prompt, len(encoded)
+        token_ids = rng.integers(0, vocab_size, size=num_tokens).tolist()
+        prompt = tokenizer.decode(token_ids)
+        re_encoded_sequence = tokenizer.encode(prompt, add_special_tokens=False)[
+            :num_tokens
+        ]
+        prompt = tokenizer.decode(re_encoded_sequence)
+        return prompt, len(re_encoded_sequence)
 
     def sample(
         self,
@@ -691,6 +690,9 @@ class VidurTraceDataset(BenchmarkDataset):
             f"{mean_rps:.3f}" if np.isfinite(mean_rps) else "inf",
             f"{mean_tps:.1f}" if np.isfinite(mean_tps) else "inf",
         )
+
+        if max_total_tokens is None:
+            max_total_tokens = getattr(tokenizer, "model_max_length", None)
 
         samples: list[SampleRequest] = []
         for row in df.itertuples(index=False):
