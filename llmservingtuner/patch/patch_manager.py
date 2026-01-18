@@ -47,7 +47,6 @@ def check_append_patch(target_file, patch_file):
     return diff_flag
 
 
-@validate_params({'target_file': Rule.output_path_write})
 def add_append_patch(target_file, patch_file):
     """Append patch content to the end of target file."""
     flags = os.O_WRONLY | os.O_CREAT
