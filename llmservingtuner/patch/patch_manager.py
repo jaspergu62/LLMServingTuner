@@ -22,16 +22,15 @@ from pathlib import Path
 from loguru import logger
 from packaging import version
 from msserviceprofiler.msguard import validate_params, Rule
-from msserviceprofiler.msguard.security import open_s
 
 _patch_dir = Path(__file__).absolute().expanduser().parent.resolve()
 
 
 def check_append_patch(target_file, patch_file):
     """Check if an append-style patch has already been applied."""
-    with open_s(target_file, "r", encoding="utf-8") as f:
+    with open(target_file, "r", encoding="utf-8") as f:
         data = f.readlines()
-    with open_s(patch_file, "r", encoding="utf-8") as f:
+    with open(patch_file, "r", encoding="utf-8") as f:
         patch_data = f.readlines()
     i = 0
     diff_flag = True
@@ -141,4 +140,3 @@ class Patch2rc1:
             logger.info("The patch already exists.")
             return
         add_append_patch(plugins_init_file, plugins_init_patch)
-

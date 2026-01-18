@@ -14,7 +14,7 @@ dependencies = [
     "packaging>=21.0",
     "numpy",
     "pandas",
-    "msserviceprofiler",
+    "msserviceprofiler==1.2.0",
 ]
 
 [project.optional-dependencies]

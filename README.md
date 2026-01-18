@@ -10,6 +10,7 @@ An LLM serving auto‑tuning framework.
 
 ### 0) Environment
 Reference workflow of tuning vllm configuration on H20:
+- msserviceprofiler == 1.2.0
 - vllm == 0.10.1
 - torch == 2.7.1
 - nvidia-cuda-runtime-cu12 == 12.6.77
