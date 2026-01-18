@@ -51,7 +51,7 @@ def load_general_plugins():
         return None
     plugins_loaded = True
 
-    plugins = load_plugins_by_group(group='modelevalstate.plugins')
+    plugins = load_plugins_by_group(group='llmservingtuner.plugins')
     # general plugins, we only need to execute the loaded functions
     for func in plugins.values():
         func()

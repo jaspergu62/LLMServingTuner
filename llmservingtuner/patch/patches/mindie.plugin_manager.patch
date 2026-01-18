@@ -13,12 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# modelevalstate
 import os
 
 from loguru import logger
 
-from msserviceprofiler.modelevalstate.inference.simulate import Simulate, ServiceField
+from llmservingtuner.inference.simulate import Simulate, ServiceField
 
 MODEL_EVAL_STATE_COLLECT = "MODEL_EVAL_STATE_COLLECT"
 MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"

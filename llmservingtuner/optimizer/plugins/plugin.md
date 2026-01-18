@@ -209,10 +209,10 @@ class llmservingtuner.optimizer.simulator.SimulatorInterface()
 ```
 注册实现：llmservingtuner.optimizer.register.register_simulator
 ### 插件pyproject.toml
-入口设置为modelevalstate.plugins
+入口设置为llmservingtuner.plugins
 例如：
 ```
-[project.entry-points.'modelevalstate.plugins']
+[project.entry-points.'llmservingtuner.plugins']
 vllm_inference_optimization="vllm_inference_optimization:register"
 ```
 使用插件模式前需要先在插件目录中（确保当前路径下包含pyproject.toml）对插件进行安装：

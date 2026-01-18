@@ -13,11 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# modelevalstate
 import os
  
-from msserviceprofiler.modelevalstate.inference.simulate import Simulate
-from msserviceprofiler.modelevalstate.inference.simulate_vllm import SimulateVllm
+from llmservingtuner.inference.simulate import Simulate
+from llmservingtuner.inference.simulate_vllm import SimulateVllm
  
  
 MODEL_EVAL_STATE_SIMULATE = "MODEL_EVAL_STATE_SIMULATE"

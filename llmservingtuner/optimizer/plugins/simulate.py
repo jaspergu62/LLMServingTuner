@@ -537,7 +537,7 @@ class DisaggregationSimulator(SimulatorInterface):
     def start_server(self, run_params: Tuple[OptimizerConfigField]):
         super().before_run(run_params)
         self.prepare_before_start_server()
-        self.mindie_log_fp, self.run_log = tempfile.mkstemp(prefix="modelevalstate_mindie")
+        self.mindie_log_fp, self.run_log = tempfile.mkstemp(prefix="llmservingtuner_mindie")
         self.mindie_log_offset = 0
         if self.config.work_path:
             cwd = self.config.work_path
