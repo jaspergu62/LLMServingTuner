@@ -20,6 +20,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from loguru import logger
+import os
 
 from llmservingtuner.inference.common import (
     OP_EXPECTED_FIELD_MAPPING,

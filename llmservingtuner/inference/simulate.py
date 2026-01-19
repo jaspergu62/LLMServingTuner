@@ -277,14 +277,16 @@ class Simulate:
         else:
             predict_res = Simulate.predict_cache.get(_cache_key)
 
-        for _pre_v in predict_res:
+        for _pre_v in predict_res: # ms
             if _pre_v == -1:
                 continue
+            if _pre_v > 3000 or _pre_v < 1: 
+                logger.error("Simulate: (ms) predicted={} is with wrong unit", _pre_v)
             if time_sleep:
-                _run_time = time.perf_counter() - st
-                _wait_time = _pre_v / 10 ** 9 - _run_time
-                # logger.debug("Simulate: predicted_us={}, run_s={:.6f}, sleep_s={:.6f}",
-                                # _pre_v, _run_time, _wait_time)
+                _run_time = (time.perf_counter() - st) * 1000  # s -> ms
+                _wait_time = _pre_v - _run_time
+                logger.debug("Simulate: (ms) predicted={}, run_s={:.6f}, sleep_s={:.6f}",
+                                _pre_v, _run_time, _wait_time)
                 if _wait_time > 0:
                     time.sleep(_wait_time)
                 return _pre_v
