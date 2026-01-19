@@ -67,7 +67,7 @@ class FileLogger:
         self.mode = mode
 
     def open_file(self):
-        flags = os.O_WRONLY | os.O_CREAT
+        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
         modes = stat.S_IWUSR | stat.S_IRUSR
         if not isinstance(self.file_path, Path):
             self.file_path = Path(self.file_path)

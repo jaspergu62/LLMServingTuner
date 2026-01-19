@@ -116,8 +116,12 @@ def update_cache(cache_predict: Optional[CachePredict], persistent_threshold: in
             cache_predict.update(*res)
         if cache_predict.new_data is not None and len(cache_predict.new_data) > persistent_threshold:
             cache_predict.save()
+            cache_predict.new_data = None
+            cache_predict.new_label = None
         if flag:
             break
+        if not items:
+            time.sleep(0.5)
         time.sleep(1)
     cache_predict.save()
 
