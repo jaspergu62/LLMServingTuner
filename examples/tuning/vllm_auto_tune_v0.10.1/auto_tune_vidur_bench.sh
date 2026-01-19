@@ -41,13 +41,8 @@ rm -rf $PROFILE_PATH
 mkdir -p $LOG_FOLDER
 mkdir -p $PROFILE_PATH
 
-cd "$BASE/vllm"
 
-pip install -q datasets
-
-current_hash=$(git rev-parse HEAD)
-echo "hash:$current_hash" >> "$RESULT"
-echo "current_hash: $current_hash"
+# pip install -q datasets
 
 TOTAL_LEN=$((INPUT_LEN + OUTPUT_LEN))
 RED='\033[0;31m'
