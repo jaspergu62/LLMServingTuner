@@ -282,7 +282,9 @@ class Simulate:
                 continue
             if time_sleep:
                 _run_time = time.perf_counter() - st
-                _wait_time = _pre_v / 10 ** 6 - _run_time
+                _wait_time = _pre_v / 10 ** 9 - _run_time
+                # logger.debug("Simulate: predicted_us={}, run_s={:.6f}, sleep_s={:.6f}",
+                                # _pre_v, _run_time, _wait_time)
                 if _wait_time > 0:
                     time.sleep(_wait_time)
                 return _pre_v
