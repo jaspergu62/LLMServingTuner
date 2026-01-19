@@ -39,6 +39,7 @@ python examples/train_from_vllm_profile.py \
 
 ### 4) Simulate benchmark
 ```bash
+export LLMSERVINGTUNER_PROFILE=false
 export LLMSERVINGTUNER_SIMULATE=true
 # run your usual benchmark/workload (simulation model will be used)
 ```

@@ -137,6 +137,11 @@ min = 1
 max = 1000
 dtype = "float"
 value = 100
+
+# ----------------------latency model相关配置------------------------------------------------
+[latency_model]
+model_path = "/tmp/latency_model/model/xgb_model.ubj"
+
 # -------------------------kubectl相关配置------------------------------------------------
 [kubectl]
 kubectl_default_path = ""

@@ -114,7 +114,8 @@ def signal_handler(file_logger):
     file_logger.close()
 
 
-file_log = FileLogger(Path(settings.simulator_output).joinpath(f"simulate_{os.getpid()}.csv"))
+_sim_ts = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+file_log = FileLogger(Path(settings.simulator_output).joinpath(f"simulate_output_{_sim_ts}_{os.getpid()}.csv"))
 atexit.register(signal_handler, file_log)
 
 
@@ -151,6 +152,8 @@ class Simulate:
             custom_encoder = CustomLabelEncoder(preset_category_data)
             custom_encoder.fit()
             ServiceField.data_processor = DataProcessor(custom_encoder)
+            logger.info("Simulate init: latency model path: {}", ServiceField.config_path.model_path)
+            logger.info("Simulate init: output file: {}", file_log.file_path)
             Simulate.first = False
             global sub_thread
             sub_thread = threading.Thread(target=write_file, args=(file_log,))
