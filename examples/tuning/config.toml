@@ -6,23 +6,16 @@ tpot_penalty = 0
 success_rate_penalty = 5.0
 ttft_slo = 1
 tpot_slo = 0.05
-service = "master"
-sample_size = 1000
+
 # 自定义终止寻优条件，当相对上一轮的相对误差小于这个值时，考虑终止寻优, -inf表示，不自动终止，跑完所有迭代计划。
 ftol = -inf
 ftol_iter = 3 # 自定义终止条件，第几次满足相对误差的时候，进行终止。
-service = "master" # 服务是双机运行时需要使用。 主节点服务配置为master，从节点服务配置为slave。
 sample_size = 1000 # 对原始数据集采样大小，用采样后的数据进行调优。
 mem_coefficient = 0.8 # kv 显示使用剩余显存系数，
 scaling_coefficient = 1.3 # 理论推导计算出max batch size上限后，将上限缩放的比例
 theory_guided_enable = true # 是否开启理论推导，来压缩部分搜索空间,使用前 请确保显存未被占用，否则会无效。
 
-use_surrogate = true # 是否开启surrogate
-[suggrogate]
-objective_index = 0
-initial_points = 10
-strategy = "conservative"
-feasibility_threshold = -1.2
+# service = "master" # 服务是双机运行时需要使用。 主节点服务配置为master，从节点服务配置为slave。
 
 [pso_options]
 # 寻优算法 寻优方向和速度控制参数
@@ -54,12 +47,9 @@ port = "8010"
 model = "/ssd3/models/Qwen3-30B-A3B"
 served_model_name = "Qwen3-30B-A3B"
 dataset_name = "sharegpt"
-dataset_path = "/home/airr/hyj/dataset/ShareGPT_V3_unfiltered_cleaned_split.json"
 num_prompts = 1000
-others = ""
+others = "--dataset-path /home/airr/hyj/dataset/ShareGPT_V3_unfiltered_cleaned_split.json"
 
-
-value = 128
 
 
 # -------------------------vllm相关配置------------------------------------------------
