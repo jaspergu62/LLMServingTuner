@@ -352,6 +352,27 @@ class LatencyModel(BaseModel):
     cache_data: Optional[Path] = Field(
         default_factory=lambda data: data["base_path"].joinpath("cache").resolve())
 
+    # Predictor type selection: "xgboost" or "vidur"
+    predictor_type: str = "xgboost"
+
+    # Vidur predictor configuration (used when predictor_type = "vidur")
+    vidur_model_name: str = "meta-llama/Llama-2-7b-hf"
+    vidur_device: str = "a100"
+    vidur_network_device: str = "a100_pairwise_nvlink"
+    vidur_tensor_parallel_size: int = 1
+    vidur_num_pipeline_stages: int = 1
+    vidur_block_size: int = 16
+    vidur_predictor_type: str = "random_forest"  # "random_forest" or "linear_regression"
+    vidur_compute_input_file: Optional[str] = None
+    vidur_attention_input_file: Optional[str] = None
+    vidur_all_reduce_input_file: Optional[str] = None
+    vidur_send_recv_input_file: Optional[str] = None
+    vidur_cpu_overhead_input_file: Optional[str] = None
+    vidur_cache_dir: str = "cache"
+    vidur_prediction_max_batch_size: int = 128
+    vidur_prediction_max_tokens_per_request: int = 4096
+    vidur_prediction_max_prefill_chunk_size: int = 4096
+
     @field_validator("base_path", "cache_data", "static_file_dir")
     @classmethod
     def create_path(cls, path: Path) -> Path:

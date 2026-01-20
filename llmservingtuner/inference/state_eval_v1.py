@@ -47,6 +47,9 @@ from llmservingtuner.inference.file_reader import FileHanlder, StaticFile
 from llmservingtuner.common import read_csv_s
 from llmservingtuner.inference.utils import save_dataframe_to_csv
 
+# Vidur predictor import (lazy import to avoid dependency issues)
+_vidur_evaluator = None
+
 
 sub_thread = None
 predict_queue = queue.Queue()
@@ -289,7 +292,40 @@ def predict_v1_with_cache(
         env_field=fh.env_info,
         hardware_field=fh.hardware,
     )
-    xgb_state_eval = XGBStateEvaluate(xgb_model_path=config_path.model_path, dataprocessor=data_processor, **kwargs)
+
+    # Select predictor based on configuration
+    settings = get_settings()
+    predictor_type = getattr(settings.latency_model, 'predictor_type', 'xgboost')
+
+    if predictor_type == "vidur":
+        evaluator = get_vidur_evaluator()
+    else:
+        evaluator = XGBStateEvaluate(xgb_model_path=config_path.model_path, dataprocessor=data_processor, **kwargs)
+
     # 预测
-    res = xgb_state_eval.predict(input_data)
+    res = evaluator.predict(input_data)
     return res
+
+
+def get_vidur_evaluator():
+    """
+    Get or create a Vidur evaluator instance.
+
+    Returns:
+        VidurStateEvaluate instance
+    """
+    global _vidur_evaluator
+    if _vidur_evaluator is None:
+        try:
+            from llmservingtuner.model.vidur_model import create_vidur_evaluator_from_settings
+            settings = get_settings()
+            _vidur_evaluator = create_vidur_evaluator_from_settings(settings)
+            logger.info("Vidur predictor initialized successfully")
+        except ImportError as e:
+            logger.error(f"Failed to import Vidur predictor: {e}")
+            logger.error("Please ensure vidur package is installed")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to initialize Vidur predictor: {e}")
+            raise
+    return _vidur_evaluator

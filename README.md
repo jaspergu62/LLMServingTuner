@@ -89,3 +89,91 @@ max = 65536
 dtype = "int"
 value = 8192
 ```
+
+## Using Vidur Predictor
+
+LLMServingTuner supports using [Vidur](https://github.com/microsoft/vidur) as an alternative execution time predictor. Vidur provides fine-grained, component-level latency prediction based on profiling data.
+
+### Prerequisites
+
+1. Install Vidur:
+```bash
+cd /path/to/vidur
+pip install -e .
+```
+
+2. Prepare profiling data for your model and device (see Vidur documentation for profiling instructions).
+
+### Configuration
+
+To use Vidur predictor instead of the default XGBoost model, modify your `config.toml`:
+
+```toml
+[latency_model]
+# Switch to Vidur predictor
+predictor_type = "vidur"
+
+# Model configuration (must match your profiling data)
+vidur_model_name = "meta-llama/Llama-2-7b-hf"
+vidur_device = "a100"
+vidur_network_device = "a100_pairwise_nvlink"
+
+# Parallelism configuration
+vidur_tensor_parallel_size = 1
+vidur_num_pipeline_stages = 1
+
+# Scheduler configuration
+vidur_block_size = 16
+
+# Predictor type: "random_forest" or "linear_regression"
+vidur_predictor_type = "random_forest"
+
+# Cache directory for trained models
+vidur_cache_dir = "cache"
+
+# Prediction limits
+vidur_prediction_max_batch_size = 128
+vidur_prediction_max_tokens_per_request = 4096
+
+# Optional: Override default profiling data paths
+# vidur_compute_input_file = "./data/profiling/compute/a100/llama-2-7b/mlp.csv"
+# vidur_attention_input_file = "./data/profiling/compute/a100/llama-2-7b/attention.csv"
+# vidur_all_reduce_input_file = "./data/profiling/network/a100_pairwise_nvlink/all_reduce.csv"
+# vidur_send_recv_input_file = "./data/profiling/network/a100_pairwise_nvlink/send_recv.csv"
+```
+
+### Supported Models
+
+Vidur supports various model configurations. Common model names include:
+- `meta-llama/Llama-2-7b-hf`
+- `meta-llama/Llama-2-70b-hf`
+- `meta-llama/Meta-Llama-3-8B`
+- `meta-llama/Meta-Llama-3-70B`
+- `Qwen/Qwen-72B`
+- `microsoft/phi-2`
+
+### Supported Devices
+
+Common device configurations:
+- `a100` - NVIDIA A100 GPU
+- `h100` - NVIDIA H100 GPU
+
+Network devices (for tensor parallelism):
+- `a100_pairwise_nvlink`
+- `h100_pairwise_nvlink`
+
+### Switching Between Predictors
+
+You can easily switch between XGBoost and Vidur predictors by changing `predictor_type`:
+
+```toml
+[latency_model]
+# Use XGBoost (default)
+predictor_type = "xgboost"
+model_path = "/path/to/xgb_model.ubj"
+
+# Or use Vidur
+# predictor_type = "vidur"
+# vidur_model_name = "meta-llama/Llama-2-7b-hf"
+# ...
+```
