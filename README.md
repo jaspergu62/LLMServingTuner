@@ -6,6 +6,8 @@ An LLM serving auto‑tuning framework.
 - Ascend NPU (MindIE, vLLM-Ascend)
 - NVIDIA GPU (vLLM)
 
+
+
 ## Example Workflow
 
 ### 0) Environment
@@ -90,6 +92,8 @@ dtype = "int"
 value = 8192
 ```
 
+
+
 ## Using Vidur Predictor
 
 LLMServingTuner supports using [Vidur](https://github.com/microsoft/vidur) as an alternative execution time predictor. Vidur provides fine-grained, component-level latency prediction based on profiling data.
@@ -140,40 +144,4 @@ vidur_prediction_max_tokens_per_request = 4096
 # vidur_attention_input_file = "./data/profiling/compute/a100/llama-2-7b/attention.csv"
 # vidur_all_reduce_input_file = "./data/profiling/network/a100_pairwise_nvlink/all_reduce.csv"
 # vidur_send_recv_input_file = "./data/profiling/network/a100_pairwise_nvlink/send_recv.csv"
-```
-
-### Supported Models
-
-Vidur supports various model configurations. Common model names include:
-- `meta-llama/Llama-2-7b-hf`
-- `meta-llama/Llama-2-70b-hf`
-- `meta-llama/Meta-Llama-3-8B`
-- `meta-llama/Meta-Llama-3-70B`
-- `Qwen/Qwen-72B`
-- `microsoft/phi-2`
-
-### Supported Devices
-
-Common device configurations:
-- `a100` - NVIDIA A100 GPU
-- `h100` - NVIDIA H100 GPU
-
-Network devices (for tensor parallelism):
-- `a100_pairwise_nvlink`
-- `h100_pairwise_nvlink`
-
-### Switching Between Predictors
-
-You can easily switch between XGBoost and Vidur predictors by changing `predictor_type`:
-
-```toml
-[latency_model]
-# Use XGBoost (default)
-predictor_type = "xgboost"
-model_path = "/path/to/xgb_model.ubj"
-
-# Or use Vidur
-# predictor_type = "vidur"
-# vidur_model_name = "meta-llama/Llama-2-7b-hf"
-# ...
 ```
