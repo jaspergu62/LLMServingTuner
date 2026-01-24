@@ -47,6 +47,9 @@ class RequestFuncOutput:
     tpot: float = 0.0  # avg next-token latencies
     prompt_len: int = 0
     error: str = ""
+    # Timestamps relative to benchmark start (set by benchmark_serving.py)
+    submit_time: float = 0.0  # when request was submitted (relative to benchmark start)
+    finish_time: float = 0.0  # when request completed (relative to benchmark start)
 
 
 async def async_request_tgi(

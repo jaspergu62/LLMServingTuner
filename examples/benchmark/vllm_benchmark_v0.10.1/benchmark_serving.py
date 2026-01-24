@@ -35,6 +35,7 @@ On the client side, run:
 
 import argparse
 import asyncio
+import csv
 import gc
 import json
 import os
@@ -442,12 +443,16 @@ async def benchmark(
     #                 if max_concurrency else contextlib.nullcontext())
     semaphore = asyncio.Semaphore(max_concurrency) if max_concurrency else None
 
-    async def limited_request_func(request_func_input, pbar):
+    async def limited_request_func(request_func_input, pbar, submit_time):
         if semaphore is None:
             response = await request_func(request_func_input=request_func_input, pbar=pbar)
         else:
             async with semaphore:
                 response = await request_func(request_func_input=request_func_input, pbar=pbar)
+
+        # Record timestamps relative to benchmark start
+        response.submit_time = submit_time
+        response.finish_time = time.perf_counter() - benchmark_start_time
 
         # # debug log
         # prompt_preview = (request_func_input.prompt or "")[:30].replace("\n", " ")
@@ -516,7 +521,8 @@ async def benchmark(
             ignore_eos=ignore_eos,
             extra_body=extra_body,
         )
-        task = limited_request_func(request_func_input=request_func_input, pbar=pbar)
+        submit_time = time.perf_counter() - benchmark_start_time
+        task = limited_request_func(request_func_input=request_func_input, pbar=pbar, submit_time=submit_time)
         tasks.append(asyncio.create_task(task))
     outputs: list[RequestFuncOutput] = await asyncio.gather(*tasks)
 
@@ -581,6 +587,17 @@ async def benchmark(
         "itls": [output.itl for output in outputs],
         "generated_texts": [output.generated_text for output in outputs],
         "errors": [output.error for output in outputs],
+        # Per-request timing (relative to benchmark start)
+        "submit_times": [output.submit_time for output in outputs],
+        "finish_times": [output.finish_time for output in outputs],
+        "latencies": [output.latency for output in outputs],
+        # Computed metrics per request
+        "ttft_abs": [output.submit_time + output.ttft for output in outputs],  # absolute TTFT time
+        "tpots": [
+            (output.latency - output.ttft) / max(1, actual_output_lens[i] - 1)
+            if output.success and actual_output_lens[i] > 1 else 0.0
+            for i, output in enumerate(outputs)
+        ],
     }
 
     if rps_change_events:
@@ -1021,6 +1038,11 @@ def main(args: argparse.Namespace):
                 "itls",
                 "generated_texts",
                 "errors",
+                "submit_times",
+                "finish_times",
+                "latencies",
+                "ttft_abs",
+                "tpots",
             ]:
                 if field in result_json:
                     del result_json[field]
@@ -1051,6 +1073,39 @@ def main(args: argparse.Namespace):
                 outfile.write("\n")
             json.dump(result_json, outfile)
         save_to_pytorch_benchmark_format(args, result_json, file_name)
+
+        # Save per-request metrics to CSV if detailed mode
+        if args.save_detailed:
+            csv_file_name = f"{os.path.splitext(file_name)[0]}_requests.csv"
+            with open(csv_file_name, "w", newline="", encoding="utf-8") as csvfile:
+                fieldnames = [
+                    "request_id",
+                    "input_len",
+                    "output_len",
+                    "submit_time",
+                    "finish_time",
+                    "ttft",
+                    "ttft_abs",
+                    "latency",
+                    "tpot",
+                    "success",
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for i in range(len(benchmark_result.get("submit_times", []))):
+                    writer.writerow({
+                        "request_id": i,
+                        "input_len": benchmark_result["input_lens"][i] if i < len(benchmark_result.get("input_lens", [])) else "",
+                        "output_len": benchmark_result["output_lens"][i] if i < len(benchmark_result.get("output_lens", [])) else "",
+                        "submit_time": benchmark_result["submit_times"][i],
+                        "finish_time": benchmark_result["finish_times"][i],
+                        "ttft": benchmark_result["ttfts"][i] if i < len(benchmark_result.get("ttfts", [])) else "",
+                        "ttft_abs": benchmark_result["ttft_abs"][i] if i < len(benchmark_result.get("ttft_abs", [])) else "",
+                        "latency": benchmark_result["latencies"][i],
+                        "tpot": benchmark_result["tpots"][i] if i < len(benchmark_result.get("tpots", [])) else "",
+                        "success": benchmark_result.get("errors", [""])[i] == "" if i < len(benchmark_result.get("errors", [])) else True,
+                    })
+            print(f"Per-request metrics saved to {csv_file_name}")
 
 
 def create_argument_parser():
