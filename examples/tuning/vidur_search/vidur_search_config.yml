@@ -1,0 +1,101 @@
+# Vidur Config Optimizer Configuration
+# Based on LLMServingTuner vLLM parameter space
+#
+# Parameter mapping from vLLM to Vidur:
+#   MAX_NUM_BATCHED_TOKENS (8192-65536) → max_seq_len (controls vllm_scheduler_config_max_tokens_in_batch)
+#   MAX_NUM_SEQS (32-512)               → batch_sizes (controls batch_size_cap)
+#   REQUESTRATE (1-1000)                → start_qps (QPS for capacity search)
+#   Tensor Parallel / Pipeline Parallel → tp_dimensions / pp_dimensions
+#
+# Usage:
+#   1. First export your benchmark dataset to vidur trace format:
+#      python export_trace_for_vidur.py \
+#          --dataset-name sharegpt \
+#          --dataset-path /path/to/ShareGPT.json \
+#          --num-prompts 1000 \
+#          --request-rate 100 \
+#          --output ./data/traces/benchmark_trace.csv
+#
+#   2. Run vidur config optimizer:
+#      cd /path/to/vidur
+#      python -m vidur.config_optimizer.config_explorer.main \
+#          --config-path /path/to/vidur_search_config.yml \
+#          --output-dir ./search_results \
+#          --time-limit 60
+
+# ============================================================================
+# Cluster Configuration
+# ============================================================================
+clusters:
+  # H20 cluster (added to match LLMServingTuner H20 device support)
+  - device: h20
+    num_gpus: 8
+    gpus_per_node: 8
+
+# ============================================================================
+# Scheduler Configuration
+# ============================================================================
+# vllm scheduler matches LLMServingTuner's vLLM target
+schedulers:
+  - scheduler: vllm
+  # Optional: sarathi scheduler with chunked prefill for comparison
+  # - scheduler: sarathi
+  #   chunk_size: 512
+  # - scheduler: sarathi
+  #   chunk_size: 1024
+  # - scheduler: sarathi
+  #   chunk_size: 2048
+
+# ============================================================================
+# Trace Configuration
+# ============================================================================
+# Note: Update trace_file path to point to your exported trace
+# Use export_trace_for_vidur.py to create traces from benchmark datasets
+traces:
+  # ShareGPT-like workload (general chat)
+  - name: benchmark_chat
+    trace_file: "./data/traces/benchmark_trace.csv"  # Export from sharegpt
+    max_seq_len: 8192       # Based on MAX_NUM_BATCHED_TOKENS min (8192)
+    num_requests: 1000      # Same as LLMServingTuner config
+    start_qps: 100          # Based on REQUESTRATE default value
+  # Higher throughput variant
+  - name: benchmark_high_tokens
+    trace_file: "./data/traces/benchmark_trace.csv"
+    max_seq_len: 32768      # Mid-range of MAX_NUM_BATCHED_TOKENS
+    num_requests: 1000
+    start_qps: 50
+  # Max tokens variant
+  - name: benchmark_max_tokens
+    trace_file: "./data/traces/benchmark_trace.csv"
+    max_seq_len: 65536      # Based on MAX_NUM_BATCHED_TOKENS max (65536)
+    num_requests: 1000
+    start_qps: 20
+
+# ============================================================================
+# Search Space Parameters
+# ============================================================================
+# batch_sizes maps to MAX_NUM_SEQS (32-512 in LLMServingTuner)
+batch_sizes: [32, 64, 128, 256, 512]
+
+# Tensor parallel dimensions
+tp_dimensions: [1, 2, 4, 8]
+
+# Pipeline parallel dimensions
+pp_dimensions: [1, 2]
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+models:
+  # Qwen3-30B-A3B - the model from LLMServingTuner config.toml
+  - name: qwen3-30b-a3b
+    identifier: Qwen/Qwen3-30B-A3B
+    exclude_tp_dims: [1]  # Model too large for single GPU
+
+  # Additional models for comparison (optional, uncomment as needed)
+  # - name: qwen3-8b
+  #   identifier: Qwen/Qwen3-8B
+  # - name: llama-3.1-8b
+  #   identifier: meta-llama/Llama-3.1-8B
+  # - name: llama-2-7b
+  #   identifier: meta-llama/Llama-2-7b-hf

@@ -288,7 +288,7 @@ class Simulate:
                 # logger.debug("Simulate: (ms) predicted={}, run_s={:.6f}, sleep_s={:.6f}",
                 #                 _pre_v, _run_time, _wait_time)
                 if _wait_time > 0:
-                    time.sleep(_wait_time)
+                    time.sleep(_wait_time / 1000)
                 return _pre_v
             else:
                 return _pre_v
