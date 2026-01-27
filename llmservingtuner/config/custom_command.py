@@ -2,6 +2,7 @@
 # Copyright (c) Huawei Technologies Co., Ltd. 2025-2025. All rights reserved.
 import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Optional
 from loguru import logger
@@ -56,25 +57,42 @@ class VllmBenchmarkCommandConfig(BaseModel):
  
 class VllmBenchmarkCommand:
     def __init__(self, benchmark_command_config: VllmBenchmarkCommandConfig):
-        self.process = shutil.which("vllm")
-        if self.process is None:
-            raise ValueError("Error: The 'vllm' executable was not found in the system PATH.")
         self.benchmark_command_config = benchmark_command_config
  
     @property
     def command(self):
-        cmd = [self.process, 
-                "bench", "serve",
-                "--host", self.benchmark_command_config.host,
-                "--port", self.benchmark_command_config.port,
-                "--model", self.benchmark_command_config.model,
-                "--served-model-name", self.benchmark_command_config.served_model_name,
-                "--dataset-name", self.benchmark_command_config.dataset_name,
-                "--num-prompts", str(self.benchmark_command_config.num_prompts),
-                "--max-concurrency", "$CONCURRENCY",
-                "--request-rate", "$REQUESTRATE",
-                "--result-dir", self.benchmark_command_config.result_dir,
-                "--save-result"]
+        if self.benchmark_command_config.serving:
+            script_path = Path(self.benchmark_command_config.serving).expanduser().resolve()
+            cmd = [sys.executable, str(script_path),
+                   "--backend", self.benchmark_command_config.backend,
+                   "--host", self.benchmark_command_config.host,
+                   "--port", self.benchmark_command_config.port,
+                   "--model", self.benchmark_command_config.model,
+                   "--served-model-name", self.benchmark_command_config.served_model_name,
+                   "--dataset-name", self.benchmark_command_config.dataset_name,
+                   "--num-prompts", str(self.benchmark_command_config.num_prompts),
+                   "--max-concurrency", "$CONCURRENCY",
+                   "--request-rate", "$REQUESTRATE",
+                   "--result-dir", self.benchmark_command_config.result_dir,
+                   "--save-result"]
+        else:
+            self.process = shutil.which("vllm")
+            if self.process is None:
+                raise ValueError("Error: The 'vllm' executable was not found in the system PATH.")
+            cmd = [self.process,
+                   "bench", "serve",
+                   "--host", self.benchmark_command_config.host,
+                   "--port", self.benchmark_command_config.port,
+                   "--model", self.benchmark_command_config.model,
+                   "--served-model-name", self.benchmark_command_config.served_model_name,
+                   "--dataset-name", self.benchmark_command_config.dataset_name,
+                   "--num-prompts", str(self.benchmark_command_config.num_prompts),
+                   "--max-concurrency", "$CONCURRENCY",
+                   "--request-rate", "$REQUESTRATE",
+                   "--result-dir", self.benchmark_command_config.result_dir,
+                   "--save-result"]
+        if self.benchmark_command_config.dataset_path:
+            cmd.extend(["--dataset-path", self.benchmark_command_config.dataset_path])
         if self.benchmark_command_config.others:
             cmd.extend(self.benchmark_command_config.others.split())
         return cmd

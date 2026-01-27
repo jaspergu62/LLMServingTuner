@@ -42,8 +42,9 @@ pso_top_k = 0
 
 # -------------------------测评工具相关配置------------------------------------------------
 [vllm_benchmark.command]
+serving = "/cache/simserving/LLMServingTuner-merge3/examples/benchmark/vllm_benchmark_v0.10.1/benchmark_serving.py"
 host = "127.0.0.1"
-port = "8000"
+port = "8010"
 model = "/cache/pretrained_models/Llama-3.1-8B-Instruct/"
 served_model_name = "Llama-3.1-8B-Instruct"
 dataset_name = "vidur"
@@ -84,10 +85,10 @@ value = 100
 [[vllm.target_field]]
 name = "REQUESTRATE" 
 config_position = "env"
-min = 2.3
-max = 2.3
+min = 1
+max = 30
 dtype = "float"
-value = 2.3
+value = 3
 
 # -------------------------mindie相关配置------------------------------------------------
 [mindie]
@@ -152,7 +153,6 @@ min = 1
 max = 1001
 dtype = "float"
 value = 100
-
 
 # ----------------------latency model相关配置------------------------------------------------
 [latency_model]
