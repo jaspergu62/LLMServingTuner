@@ -9,18 +9,19 @@ Compare performance metrics between multiple benchmark results:
 - Request completion progress over time
 
 Supports multiple vLLM and Vidur results for comparison.
+vLLM results can be JSON or CSV files.
 
 Usage:
-    # Compare two results
+    # Compare using CSV files
     python compare_benchmarks.py \
-        --result vllm:/path/to/vllm_result.json:vLLM-Real \
+        --result vllm:/path/to/vllm_requests.csv:vLLM-Real \
         --result vidur:/path/to/vidur_output/:Vidur-Sim \
         --output-dir ./comparison_output
 
-    # Compare multiple results
+    # Compare multiple results (JSON or CSV)
     python compare_benchmarks.py \
-        --result vllm:/path/to/vllm_qps1.json:vLLM-QPS1 \
-        --result vllm:/path/to/vllm_qps2.json:vLLM-QPS2 \
+        --result vllm:/path/to/result1.json:vLLM-QPS1 \
+        --result vllm:/path/to/result2_requests.csv:vLLM-QPS2 \
         --result vidur:/path/to/vidur_qps1/:Vidur-QPS1 \
         --result vidur:/path/to/vidur_qps2/:Vidur-QPS2 \
         --output-dir ./comparison_output
@@ -75,17 +76,96 @@ class BenchmarkMetrics:
     request_finish_times: Optional[List[float]] = None
 
 
-def load_vllm_benchmark(json_path: str, name: str, csv_path: Optional[str] = None) -> BenchmarkMetrics:
+def load_vllm_benchmark(file_path: str, name: str, csv_path: Optional[str] = None) -> BenchmarkMetrics:
     """
-    Load vLLM benchmark results from JSON and optionally CSV files.
+    Load vLLM benchmark results from JSON or CSV file.
 
     Args:
-        json_path: Path to the vLLM benchmark JSON result file
+        file_path: Path to the vLLM benchmark result file (JSON or CSV)
         name: Display name for this benchmark
-        csv_path: Optional path to the per-request CSV file
+        csv_path: Optional path to the per-request CSV file (only used with JSON)
 
     Returns:
         BenchmarkMetrics object with vLLM results
+    """
+    # Detect file type
+    is_csv = file_path.lower().endswith('.csv')
+
+    if is_csv:
+        # Load directly from CSV (per-request data)
+        return _load_vllm_from_csv(file_path, name)
+    else:
+        # Load from JSON
+        return _load_vllm_from_json(file_path, name, csv_path)
+
+
+def _load_vllm_from_csv(csv_path: str, name: str) -> BenchmarkMetrics:
+    """
+    Load vLLM benchmark results from per-request CSV file.
+
+    Expected columns: request_id, prompt_len, output_len, ttft, tpot, latency, submit_time, finish_time
+    """
+    df = pd.read_csv(csv_path)
+
+    # Calculate metrics from per-request data
+    # TTFT in milliseconds (CSV stores in seconds, convert to ms)
+    if 'ttft' in df.columns:
+        ttft_values = df['ttft'].values * 1000  # s -> ms
+        ttft_mean = np.mean(ttft_values)
+        ttft_p90 = np.percentile(ttft_values, 90)
+        ttft_p99 = np.percentile(ttft_values, 99)
+    else:
+        ttft_mean = ttft_p90 = ttft_p99 = 0
+
+    # TPOT in milliseconds
+    if 'tpot' in df.columns:
+        tpot_values = df['tpot'].values * 1000  # s -> ms
+        tpot_mean = np.mean(tpot_values)
+        tpot_p90 = np.percentile(tpot_values, 90)
+        tpot_p99 = np.percentile(tpot_values, 99)
+    else:
+        tpot_mean = tpot_p90 = tpot_p99 = 0
+
+    # Calculate totals
+    total_requests = len(df)
+    total_input = df['prompt_len'].sum() if 'prompt_len' in df.columns else 0
+    total_output = df['output_len'].sum() if 'output_len' in df.columns else 0
+    total_tokens = total_input + total_output
+
+    # Per-request timing data
+    submit_times = df['submit_time'].tolist() if 'submit_time' in df.columns else None
+    finish_times = df['finish_time'].tolist() if 'finish_time' in df.columns else None
+
+    # Calculate throughput
+    if submit_times and finish_times:
+        total_time = max(finish_times) - min(submit_times)
+        request_throughput = total_requests / total_time if total_time > 0 else 0
+        throughput_tps = total_output / total_time if total_time > 0 else 0
+    else:
+        request_throughput = 0
+        throughput_tps = 0
+
+    return BenchmarkMetrics(
+        name=name,
+        source_type='vllm',
+        ttft_mean=ttft_mean,
+        ttft_p90=ttft_p90,
+        ttft_p99=ttft_p99,
+        tpot_mean=tpot_mean,
+        tpot_p90=tpot_p90,
+        tpot_p99=tpot_p99,
+        throughput_tps=throughput_tps,
+        request_throughput=request_throughput,
+        total_requests=total_requests,
+        total_tokens=int(total_tokens),
+        request_submit_times=submit_times,
+        request_finish_times=finish_times,
+    )
+
+
+def _load_vllm_from_json(json_path: str, name: str, csv_path: Optional[str] = None) -> BenchmarkMetrics:
+    """
+    Load vLLM benchmark results from JSON file.
     """
     with open(json_path, 'r') as f:
         data = json.load(f)

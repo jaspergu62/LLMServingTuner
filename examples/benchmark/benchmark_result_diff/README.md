@@ -62,12 +62,13 @@ python compare_benchmarks.py \
 type:path:name
 
 - type:  'vllm' or 'vidur'
-- path:  Path to result file (vllm) or directory (vidur)
+- path:  Path to result file (vllm: JSON or CSV) or directory (vidur)
 - name:  Display name for legends (optional)
 ```
 
 Examples:
-- `vllm:./result.json:My-vLLM`
+- `vllm:./result.json:My-vLLM` (JSON file)
+- `vllm:./result_requests.csv:My-vLLM` (CSV file)
 - `vidur:./simulator_output/2024-01-01/:Vidur-Sim`
 - `vllm:./result.json` (name auto-generated as VLLM-1)
 
