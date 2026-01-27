@@ -52,24 +52,29 @@ schedulers:
 # Note: Update trace_file path to point to your exported trace
 # Use export_trace_for_vidur.py to create traces from benchmark datasets
 traces:
-  # ShareGPT-like workload (general chat)
-  - name: benchmark_chat
-    trace_file: "./data/traces/benchmark_trace.csv"  # Export from sharegpt
-    max_seq_len: 8192       # Based on MAX_NUM_BATCHED_TOKENS min (8192)
-    num_requests: 1000      # Same as LLMServingTuner config
-    start_qps: 100          # Based on REQUESTRATE default value
-  # Higher throughput variant
-  - name: benchmark_high_tokens
-    trace_file: "./data/traces/benchmark_trace.csv"
-    max_seq_len: 32768      # Mid-range of MAX_NUM_BATCHED_TOKENS
+  - name: benchmark_arxiv
+    trace_file: "/cache/simserving/LLMServingTuner-merge3/examples/benchmark/vllm_benchmark_v0.10.1/vidur_trace_arxiv_summarization_Llama-3.1-8B-Instruct.csv"
+    max_seq_len: 8192
     num_requests: 1000
-    start_qps: 50
-  # Max tokens variant
-  - name: benchmark_max_tokens
-    trace_file: "./data/traces/benchmark_trace.csv"
-    max_seq_len: 65536      # Based on MAX_NUM_BATCHED_TOKENS max (65536)
-    num_requests: 1000
-    start_qps: 20
+    start_qps: 3
+  # # ShareGPT-like workload (general chat)
+  # - name: benchmark_chat
+  #   trace_file: "./data/traces/benchmark_trace.csv"  # Export from sharegpt
+  #   max_seq_len: 8192       # Based on MAX_NUM_BATCHED_TOKENS min (8192)
+  #   num_requests: 1000      # Same as LLMServingTuner config
+  #   start_qps: 100          # Based on REQUESTRATE default value
+  # # Higher throughput variant
+  # - name: benchmark_high_tokens
+  #   trace_file: "./data/traces/benchmark_trace.csv"
+  #   max_seq_len: 32768      # Mid-range of MAX_NUM_BATCHED_TOKENS
+  #   num_requests: 1000
+  #   start_qps: 50
+  # # Max tokens variant
+  # - name: benchmark_max_tokens
+  #   trace_file: "./data/traces/benchmark_trace.csv"
+  #   max_seq_len: 65536      # Based on MAX_NUM_BATCHED_TOKENS max (65536)
+  #   num_requests: 1000
+  #   start_qps: 20
 
 # ============================================================================
 # Search Space Parameters
@@ -77,11 +82,11 @@ traces:
 # batch_sizes maps to MAX_NUM_SEQS (32-512 in LLMServingTuner)
 batch_sizes: [32, 64, 128, 256, 512]
 
-# Tensor parallel dimensions
-tp_dimensions: [1, 2, 4, 8]
+# Tensor parallel dimensions (must match profiling data's num_tensor_parallel_workers)
+tp_dimensions: [1]
 
 # Pipeline parallel dimensions
-pp_dimensions: [1, 2]
+pp_dimensions: [1]
 
 # ============================================================================
 # Model Configuration
@@ -90,7 +95,7 @@ models:
   # Qwen3-30B-A3B - the model from LLMServingTuner config.toml
   - name: qwen3-30b-a3b
     identifier: Qwen/Qwen3-30B-A3B
-    exclude_tp_dims: [1]  # Model too large for single GPU
+    # Note: removed exclude_tp_dims since profiling data only has TP=1
 
   # Additional models for comparison (optional, uncomment as needed)
   # - name: qwen3-8b
