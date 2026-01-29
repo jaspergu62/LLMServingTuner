@@ -159,7 +159,7 @@ value = 100
 predictor_type = "xgboost"
 
 # XGBoost configuration (used when predictor_type = "xgboost")
-model_path = "/tmp/latency_model/model/xgb_model.ubj"
+model_path = "/tmp/latency_model/arxiv_summarization/xgb_model.ubj"
 
 # Vidur configuration (used when predictor_type = "vidur")
 # predictor_type = "vidur"

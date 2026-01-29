@@ -58,8 +58,18 @@ class SimpleRequest:
     def prefill_tokens(self) -> int:
         return self._prefill_tokens
 
+    # Vidur may use num_prefill_tokens instead of prefill_tokens
+    @property
+    def num_prefill_tokens(self) -> int:
+        return self._prefill_tokens
+
     @property
     def decode_tokens(self) -> int:
+        return self._decode_tokens
+
+    # Vidur may use num_decode_tokens instead of decode_tokens
+    @property
+    def num_decode_tokens(self) -> int:
         return self._decode_tokens
 
     @property
@@ -69,6 +79,11 @@ class SimpleRequest:
     @property
     def num_processed_tokens(self) -> int:
         return self._num_processed_tokens
+
+    @property
+    def total_tokens(self) -> int:
+        """Total tokens = prefill + decode tokens."""
+        return self._prefill_tokens + self._decode_tokens
 
     @property
     def completed(self) -> bool:
@@ -112,9 +127,14 @@ class SimpleBatch:
         self._num_prefill_tokens = sum(
             t for r, t in zip(requests, num_tokens) if not r.is_prefill_complete
         )
+        self._num_decode_tokens = self._total_num_tokens - self._num_prefill_tokens
         self._total_num_tokens_rounded = (self._total_num_tokens + 7) // 8 * 8
         self._scheduled = False
         self._completed = False
+
+        # Compute prefill and decode request lists
+        self._prefill_requests = [r for r in requests if not r.is_prefill_complete]
+        self._decode_requests = [r for r in requests if r.is_prefill_complete]
 
     @property
     def id(self) -> int:
@@ -126,6 +146,11 @@ class SimpleBatch:
 
     @property
     def requests(self) -> List[SimpleRequest]:
+        return self._requests
+
+    # Vidur may use all_requests
+    @property
+    def all_requests(self) -> List[SimpleRequest]:
         return self._requests
 
     @property
@@ -142,7 +167,7 @@ class SimpleBatch:
 
     @property
     def num_decode_tokens(self) -> int:
-        return self._total_num_tokens - self._num_prefill_tokens
+        return self._num_decode_tokens
 
     @property
     def size(self) -> int:
@@ -151,6 +176,22 @@ class SimpleBatch:
     @property
     def request_ids(self) -> List[int]:
         return [r.id for r in self._requests]
+
+    @property
+    def prefill_requests(self) -> List[SimpleRequest]:
+        return self._prefill_requests
+
+    @property
+    def decode_requests(self) -> List[SimpleRequest]:
+        return self._decode_requests
+
+    @property
+    def num_prefill_requests(self) -> int:
+        return len(self._prefill_requests)
+
+    @property
+    def num_decode_requests(self) -> int:
+        return len(self._decode_requests)
 
 
 @dataclass
@@ -303,35 +344,76 @@ class VidurStateEvaluate:
 
         logger.info(f"Created Vidur predictor: {self.config.predictor_type}")
         logger.info(f"Model: {self.config.model_name}, Device: {self.config.device}")
+        logger.info(f"Profiling files - compute: {self.config.compute_input_file}, "
+                    f"attention: {self.config.attention_input_file}")
 
         return predictor
 
-    def _convert_to_batch(self, input_data: "InputData") -> SimpleBatch:
+    def _convert_to_batch(self, input_data: "InputData"):
         """
-        Convert LLMServingTuner InputData to SimpleBatch for Vidur prediction.
+        Convert LLMServingTuner InputData to Vidur Batch for prediction.
+
+        Tries to use Vidur's native Request/Batch classes first, falls back
+        to SimpleBatch/SimpleRequest if import fails.
 
         Args:
             input_data: InputData from LLMServingTuner containing batch and request info
 
         Returns:
-            SimpleBatch compatible with Vidur's execution time predictor
+            Batch compatible with Vidur's execution time predictor
         """
         batch_field = input_data.batch_field
         request_fields = input_data.request_field
 
         is_prefill = batch_field.batch_stage.lower() == self.prefill_type
 
+        # Try to use Vidur's native entities
+        try:
+            from vidur.entities import Request as VidurRequest, Batch as VidurBatch
+
+            requests = []
+            num_tokens = []
+
+            for req_field in request_fields:
+                prefill_tokens = req_field.input_length
+                decode_tokens = req_field.output_length
+
+                # Create Vidur native Request
+                request = VidurRequest(
+                    arrived_at=0.0,
+                    num_prefill_tokens=prefill_tokens,
+                    num_decode_tokens=decode_tokens,
+                )
+
+                # If decode stage, mark prefill as complete
+                if not is_prefill:
+                    request._is_prefill_complete = True
+                    request._num_processed_tokens = decode_tokens
+
+                requests.append(request)
+
+                # num_tokens is the number of tokens to process in this batch
+                if is_prefill:
+                    num_tokens.append(prefill_tokens)
+                else:
+                    num_tokens.append(1)
+
+            return VidurBatch(
+                replica_id=0,
+                requests=requests,
+                num_tokens=num_tokens,
+            )
+
+        except ImportError:
+            logger.warning("Could not import Vidur native entities, using SimpleBatch adapter")
+
+        # Fallback to SimpleBatch/SimpleRequest
         requests = []
         num_tokens = []
 
         for req_field in request_fields:
-            # input_length: original input tokens (prefill tokens)
-            # output_length: number of generated tokens so far
             prefill_tokens = req_field.input_length
             decode_tokens = req_field.output_length
-
-            # For prefill stage, request is not complete
-            # For decode stage, prefill is complete
             is_prefill_complete = not is_prefill
 
             request = SimpleRequest(
@@ -341,12 +423,9 @@ class VidurStateEvaluate:
             )
             requests.append(request)
 
-            # num_tokens is the number of tokens to process in this batch
             if is_prefill:
-                # During prefill, process the input tokens
                 num_tokens.append(prefill_tokens)
             else:
-                # During decode, process 1 token per request
                 num_tokens.append(1)
 
         return SimpleBatch(requests=requests, num_tokens=num_tokens)
@@ -379,10 +458,22 @@ class VidurStateEvaluate:
             # Convert total_time from seconds to milliseconds
             time_ms = execution_time.total_time * 1000
 
+            # Warn if prediction is 0 (likely missing profiling data)
+            if time_ms == 0:
+                logger.warning(
+                    f"Vidur returned 0ms for {stage} stage with "
+                    f"{len(batch.requests)} requests, {batch.total_num_tokens} tokens. "
+                    "This may indicate missing profiling data files."
+                )
+
         except Exception as e:
+            import traceback
             logger.error(f"Vidur prediction failed: {e}")
-            # Return a default value on error
-            time_ms = 10.0  # 10ms default
+            logger.error(f"Batch info: stage={stage}, size={batch.size}, "
+                        f"total_tokens={batch.total_num_tokens}, "
+                        f"prefill_tokens={batch.num_prefill_tokens}")
+            logger.debug(f"Full traceback:\n{traceback.format_exc()}")
+            raise  # Re-raise to let caller handle it
 
         # Return in (Up, Ud) format based on stage
         if stage == self.prefill_type:

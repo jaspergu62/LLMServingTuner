@@ -150,7 +150,7 @@ def plot_results(
     x = df['batch_size'].values
     y_truth = df['model_execute_time'].values
 
-    plt.figure(figsize=(10, 5))
+    plt.figure(figsize=(10, 4))
     plt.plot(x, y_truth, marker='o', label='Ground Truth', linewidth=1.5)
 
     if predictor in ['xgboost', 'both'] and 'xgboost_prediction' in df.columns:
@@ -159,15 +159,16 @@ def plot_results(
     if predictor in ['vidur', 'both'] and 'vidur_prediction' in df.columns:
         plt.plot(x, df['vidur_prediction'].values, marker='^', label='Vidur', linewidth=1.5)
 
-    plt.xlabel('Batch size (bs)')
-    plt.ylabel('Time (ms)')
-    plt.title(f'Predictor Accuracy by Batch Size ({stage_label})')
+    plt.xlabel('Batch size (bs)', fontsize=13)
+    plt.ylabel('Time (ms)', fontsize=13)
     if ymax is not None and ymax > 0:
         plt.ylim(bottom=0, top=ymax)
     plt.grid(True, alpha=0.3)
-    plt.legend()
+    plt.legend(fontsize=12)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
+    plt.savefig(output_path, dpi=200)
     plt.close()
 
     print(f"Plot saved to {output_path}")
