@@ -33,21 +33,33 @@ python evaluate_predictors.py \
 
 ### Test Data Format
 
-The test data CSV should contain the following columns:
+#### vLLM Profile CSV Format (Input)
+
+The vLLM profile CSV has **two columns with tuple values**:
+
+| Column | Description |
+|--------|-------------|
+| `"('batch_stage', 'batch_size', 'total_need_blocks', 'total_prefill_token', 'max_seq_len', 'model_execute_time')"` | Batch-level info as tuple |
+| `"('input_length', 'need_blocks', 'output_length')"` | Per-request info as tuple of tuples |
+
+Example row values:
+- Column 1: `('BatchStage.PREFILL', 4, 128, 2048, 512, 15.234)`
+- Column 2: `((512, 32, 0), (512, 32, 0), (512, 32, 0), (512, 32, 0))`
+
+#### Processed Test Data Format (Output)
+
+After processing with `generate_test_data.py`, the output CSV has these columns:
 
 | Column | Description |
 |--------|-------------|
 | `batch_stage` | "prefill" or "decode" |
 | `batch_size` | Number of requests in batch |
-| `input_length` | Input token count (prefill tokens) |
-| `output_length` | Output token count (decode tokens) |
+| `total_need_blocks` | Total KV cache blocks needed |
+| `total_prefill_token` | Total prefill tokens in batch |
+| `max_seq_len` | Maximum sequence length |
 | `model_execute_time` | Ground truth latency in milliseconds |
-| `max_seq_len` | Maximum sequence length (optional) |
-
-Alternative column names are also supported:
-- `num_prefill_tokens` → `input_length`
-- `num_decode_tokens` → `output_length`
-- `latency_ms` or `latency` → `model_execute_time`
+| `input_length` | Aggregated input tokens from all requests |
+| `output_length` | Aggregated output tokens from all requests |
 
 ### Output
 
@@ -101,29 +113,30 @@ Vidur - ALL
 
 ## Creating Test Data
 
-You can create test data from vLLM profiling:
+### From vLLM Profiling
+
+Enable profiling in vLLM simulation to collect execution times:
 
 ```python
-import pandas as pd
+from llmservingtuner.inference.simulate_vllm import SimulateVllm
 
-# Load profiling data
-df = pd.read_csv("vllm_profile.csv")
-
-# Select relevant columns and rename
-test_data = df[[
-    'batch_stage',
-    'batch_size',
-    'num_prefill_tokens',
-    'num_decode_tokens',
-    'model_execute_time'
-]].copy()
-
-test_data.to_csv("test_data.csv", index=False)
+# Initialize with profiling enabled
+SimulateVllm.init(profile_flag=True)
+# Profile data will be saved to /tmp/profile/<timestamp>.csv
 ```
 
-Or from Vidur simulation output:
-```python
-# Use the request_metrics.csv from vidur simulation
-df = pd.read_csv("simulator_output/.../request_metrics.csv")
-# Map fields appropriately
+Then convert to test data format:
+
+```bash
+python generate_test_data.py \
+    --profile-csv /tmp/profile/20240101-1200.csv \
+    --output test_data.csv
+```
+
+### Generate Synthetic Data
+
+For quick testing without real profiling data:
+
+```bash
+python generate_test_data.py --synthetic -n 1000 -o test_data.csv
 ```

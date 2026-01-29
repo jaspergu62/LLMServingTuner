@@ -3,6 +3,10 @@
 """
 Generate test data for predictor accuracy evaluation from vLLM profiling data.
 
+The vLLM profile CSV has two columns with tuple values:
+- Column 1: "('batch_stage', 'batch_size', 'total_need_blocks', 'total_prefill_token', 'max_seq_len', 'model_execute_time')"
+- Column 2: "('input_length', 'need_blocks', 'output_length')"
+
 Usage:
     python generate_test_data.py \
         --profile-csv /path/to/vllm_profile.csv \
@@ -11,11 +15,30 @@ Usage:
 """
 
 import argparse
+import ast
 import sys
 from pathlib import Path
 
 import pandas as pd
 import numpy as np
+
+
+# Column names in the vLLM profile CSV
+BATCH_COLUMN = "('batch_stage', 'batch_size', 'total_need_blocks', 'total_prefill_token', 'max_seq_len', 'model_execute_time')"
+REQUEST_COLUMN = "('input_length', 'need_blocks', 'output_length')"
+
+
+def parse_tuple_value(value):
+    """Parse a tuple string like "(1, 2, 3)" into an actual tuple."""
+    if isinstance(value, tuple):
+        return value
+    if pd.isna(value):
+        return None
+    try:
+        return ast.literal_eval(str(value))
+    except (ValueError, SyntaxError) as e:
+        print(f"Warning: Failed to parse tuple value: {value}, error: {e}")
+        return None
 
 
 def generate_test_data(
@@ -27,6 +50,10 @@ def generate_test_data(
     """
     Generate test data from vLLM profiling data.
 
+    The vLLM profile CSV has two columns:
+    1. Batch info tuple: (batch_stage, batch_size, total_need_blocks, total_prefill_token, max_seq_len, model_execute_time)
+    2. Request info tuple of tuples: ((input_length, need_blocks, output_length), ...)
+
     Args:
         profile_csv: Path to vLLM profile CSV
         output_csv: Output path for test data
@@ -37,85 +64,113 @@ def generate_test_data(
     df = pd.read_csv(profile_csv)
 
     print(f"Original data shape: {df.shape}")
+    print(f"Columns: {list(df.columns)}")
 
-    # Identify and rename columns
-    column_mapping = {
-        'num_prefill_tokens': 'input_length',
-        'num_decode_tokens': 'output_length',
-        'latency_ms': 'model_execute_time',
-        'latency': 'model_execute_time',
-        'execution_time_ms': 'model_execute_time',
-    }
-
-    for old_name, new_name in column_mapping.items():
-        if old_name in df.columns and new_name not in df.columns:
-            df[new_name] = df[old_name]
-
-    # Required columns
-    required_cols = ['batch_stage', 'model_execute_time']
-    missing = [c for c in required_cols if c not in df.columns]
-    if missing:
-        print(f"Error: Missing required columns: {missing}")
+    # Verify expected columns
+    if BATCH_COLUMN not in df.columns:
+        print(f"Error: Expected column '{BATCH_COLUMN}' not found")
         print(f"Available columns: {list(df.columns)}")
         sys.exit(1)
 
-    # Select relevant columns
-    output_cols = [
-        'batch_stage',
-        'batch_size',
-        'input_length',
-        'output_length',
-        'max_seq_len',
-        'model_execute_time',
-    ]
+    if REQUEST_COLUMN not in df.columns:
+        print(f"Error: Expected column '{REQUEST_COLUMN}' not found")
+        print(f"Available columns: {list(df.columns)}")
+        sys.exit(1)
 
-    # Add default values for missing optional columns
-    if 'batch_size' not in df.columns:
-        df['batch_size'] = 1
-    if 'input_length' not in df.columns:
-        df['input_length'] = 128
-    if 'output_length' not in df.columns:
-        df['output_length'] = 1
-    if 'max_seq_len' not in df.columns:
-        df['max_seq_len'] = df['input_length'] + df['output_length']
+    # Parse the tuple columns
+    records = []
+    for idx, row in df.iterrows():
+        batch_tuple = parse_tuple_value(row[BATCH_COLUMN])
+        request_tuple = parse_tuple_value(row[REQUEST_COLUMN])
 
-    # Keep only valid columns that exist
-    output_cols = [c for c in output_cols if c in df.columns]
+        if batch_tuple is None:
+            print(f"Warning: Skipping row {idx} due to invalid batch tuple")
+            continue
 
-    # Filter invalid rows
-    df = df[df['model_execute_time'] > 0]
-    df = df[df['batch_stage'].isin(['prefill', 'decode'])]
+        # Unpack batch tuple
+        # (batch_stage, batch_size, total_need_blocks, total_prefill_token, max_seq_len, model_execute_time)
+        batch_stage, batch_size, total_need_blocks, total_prefill_token, max_seq_len, model_execute_time = batch_tuple
 
-    print(f"After filtering: {len(df)} samples")
-    print(f"  Prefill: {len(df[df['batch_stage'] == 'prefill'])}")
-    print(f"  Decode: {len(df[df['batch_stage'] == 'decode'])}")
+        # Clean batch_stage (remove quotes if present)
+        if isinstance(batch_stage, str):
+            batch_stage = batch_stage.strip("'\"").lower()
+            # Normalize batch stage names
+            if 'prefill' in batch_stage.lower():
+                batch_stage = 'prefill'
+            elif 'decode' in batch_stage.lower():
+                batch_stage = 'decode'
+
+        # Calculate aggregated input/output lengths from request tuples
+        total_input_length = 0
+        total_output_length = 0
+        total_need_blocks_from_req = 0
+
+        if request_tuple:
+            # request_tuple is a tuple of tuples: ((input_length, need_blocks, output_length), ...)
+            for req in request_tuple:
+                if len(req) >= 3:
+                    input_len, need_blocks, output_len = req[0], req[1], req[2]
+                    total_input_length += input_len
+                    total_need_blocks_from_req += need_blocks
+                    total_output_length += output_len
+
+        # Convert model_execute_time to float
+        try:
+            model_execute_time = float(model_execute_time)
+        except (ValueError, TypeError):
+            print(f"Warning: Invalid model_execute_time at row {idx}: {model_execute_time}")
+            continue
+
+        # Skip invalid rows
+        if model_execute_time <= 0:
+            continue
+
+        records.append({
+            'batch_stage': batch_stage,
+            'batch_size': int(batch_size),
+            'total_need_blocks': int(total_need_blocks),
+            'total_prefill_token': int(total_prefill_token),
+            'max_seq_len': int(max_seq_len),
+            'model_execute_time': model_execute_time,
+            # Aggregated from request tuples
+            'input_length': total_input_length,
+            'output_length': total_output_length,
+        })
+
+    output_df = pd.DataFrame(records)
+
+    print(f"Parsed {len(output_df)} valid samples")
+
+    # Filter by batch_stage
+    output_df = output_df[output_df['batch_stage'].isin(['prefill', 'decode'])]
+    print(f"After filtering by batch_stage: {len(output_df)} samples")
+    print(f"  Prefill: {len(output_df[output_df['batch_stage'] == 'prefill'])}")
+    print(f"  Decode: {len(output_df[output_df['batch_stage'] == 'decode'])}")
 
     # Sample if requested
-    if sample_size and sample_size < len(df):
+    if sample_size and sample_size < len(output_df):
         np.random.seed(random_seed)
 
         # Stratified sampling by batch_stage
-        prefill_df = df[df['batch_stage'] == 'prefill']
-        decode_df = df[df['batch_stage'] == 'decode']
+        prefill_df = output_df[output_df['batch_stage'] == 'prefill']
+        decode_df = output_df[output_df['batch_stage'] == 'decode']
 
-        prefill_ratio = len(prefill_df) / len(df)
+        prefill_ratio = len(prefill_df) / len(output_df) if len(output_df) > 0 else 0.5
         prefill_samples = int(sample_size * prefill_ratio)
         decode_samples = sample_size - prefill_samples
 
         sampled_prefill = prefill_df.sample(
             n=min(prefill_samples, len(prefill_df)),
             random_state=random_seed
-        )
+        ) if len(prefill_df) > 0 else pd.DataFrame()
+
         sampled_decode = decode_df.sample(
             n=min(decode_samples, len(decode_df)),
             random_state=random_seed
-        )
+        ) if len(decode_df) > 0 else pd.DataFrame()
 
-        df = pd.concat([sampled_prefill, sampled_decode])
-        print(f"Sampled to {len(df)} samples")
-
-    # Select output columns
-    output_df = df[output_cols].copy()
+        output_df = pd.concat([sampled_prefill, sampled_decode])
+        print(f"Sampled to {len(output_df)} samples")
 
     # Save
     output_df.to_csv(output_csv, index=False)
@@ -132,8 +187,8 @@ def generate_test_data(
             print(f"    Latency mean: {stage_df['model_execute_time'].mean():.2f} ms")
             print(f"    Latency std:  {stage_df['model_execute_time'].std():.2f} ms")
             print(f"    Latency range: [{stage_df['model_execute_time'].min():.2f}, {stage_df['model_execute_time'].max():.2f}] ms")
-            if 'input_length' in stage_df.columns:
-                print(f"    Input length range: [{stage_df['input_length'].min()}, {stage_df['input_length'].max()}]")
+            print(f"    Batch size range: [{stage_df['batch_size'].min()}, {stage_df['batch_size'].max()}]")
+            print(f"    Max seq len range: [{stage_df['max_seq_len'].min()}, {stage_df['max_seq_len'].max()}]")
 
 
 def generate_synthetic_test_data(
@@ -156,6 +211,7 @@ def generate_synthetic_test_data(
         batch_size = np.random.choice([1, 2, 4, 8, 16, 32])
         input_length = np.random.randint(32, 2048)
         output_length = np.random.randint(1, 512)
+        max_seq_len = input_length + output_length
 
         # Synthetic latency model (rough approximation)
         base_latency = 5.0  # base overhead in ms
@@ -168,10 +224,12 @@ def generate_synthetic_test_data(
         records.append({
             'batch_stage': 'prefill',
             'batch_size': batch_size,
-            'input_length': input_length,
-            'output_length': output_length,
-            'max_seq_len': input_length + output_length,
+            'total_need_blocks': (input_length + output_length) // 16 * batch_size,
+            'total_prefill_token': input_length * batch_size,
+            'max_seq_len': max_seq_len,
             'model_execute_time': latency,
+            'input_length': input_length * batch_size,
+            'output_length': output_length * batch_size,
         })
 
     # Generate decode samples
@@ -180,6 +238,7 @@ def generate_synthetic_test_data(
         batch_size = np.random.choice([1, 4, 8, 16, 32, 64, 128])
         input_length = np.random.randint(32, 2048)
         output_length = np.random.randint(1, 512)
+        max_seq_len = input_length + output_length
 
         # Synthetic decode latency
         base_latency = 2.0
@@ -192,10 +251,12 @@ def generate_synthetic_test_data(
         records.append({
             'batch_stage': 'decode',
             'batch_size': batch_size,
-            'input_length': input_length,
-            'output_length': output_length,
-            'max_seq_len': input_length + output_length,
+            'total_need_blocks': (input_length + output_length) // 16 * batch_size,
+            'total_prefill_token': 0,
+            'max_seq_len': max_seq_len,
             'model_execute_time': latency,
+            'input_length': input_length * batch_size,
+            'output_length': output_length * batch_size,
         })
 
     df = pd.DataFrame(records)

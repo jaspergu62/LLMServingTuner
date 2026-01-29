@@ -267,9 +267,9 @@ def predict_with_vidur(
 
     # Create Vidur config
     vidur_config = VidurPredictorConfig(
-        model_name=latency_config.get('vidur_model_name', 'meta-llama/Llama-2-7b-hf'),
-        device=latency_config.get('vidur_device', 'a100'),
-        network_device=latency_config.get('vidur_network_device', 'a100_pairwise_nvlink'),
+        model_name=latency_config.get('vidur_model_name', 'meta-llama/Llama-3.1-8B'),
+        device=latency_config.get('vidur_device', 'h20'),
+        network_device=latency_config.get('vidur_network_device', 'h20_pairwise_nvlink'),
         tensor_parallel_size=latency_config.get('vidur_tensor_parallel_size', 1),
         num_pipeline_stages=latency_config.get('vidur_num_pipeline_stages', 1),
         block_size=latency_config.get('vidur_block_size', 16),
@@ -277,9 +277,18 @@ def predict_with_vidur(
         cache_dir=latency_config.get('vidur_cache_dir', 'cache'),
         prediction_max_batch_size=latency_config.get('vidur_prediction_max_batch_size', 128),
         prediction_max_tokens_per_request=latency_config.get('vidur_prediction_max_tokens_per_request', 4096),
+        # Profiling data files (required for accurate predictions)
+        compute_input_file=latency_config.get('vidur_compute_input_file'),
+        attention_input_file=latency_config.get('vidur_attention_input_file'),
+        all_reduce_input_file=latency_config.get('vidur_all_reduce_input_file'),
+        send_recv_input_file=latency_config.get('vidur_send_recv_input_file'),
+        cpu_overhead_input_file=latency_config.get('vidur_cpu_overhead_input_file'),
     )
 
     print(f"Vidur config: model={vidur_config.model_name}, device={vidur_config.device}")
+    print(f"  Profiling files:")
+    print(f"    compute: {vidur_config.compute_input_file}")
+    print(f"    attention: {vidur_config.attention_input_file}")
 
     # Reset singleton for fresh initialization
     VidurStateEvaluate._instance = None
@@ -294,20 +303,35 @@ def predict_with_vidur(
         try:
             batch_stage = row['batch_stage']
             batch_size = int(row.get('batch_size', 1))
+            input_length = int(row.get('input_length', row.get('num_prefill_tokens', 128)))
+            output_length = int(row.get('output_length', row.get('num_decode_tokens', 1)))
+
+            # Estimate need_blocks (assuming block_size=16)
+            block_size = 16
+            need_blocks_per_req = (input_length + output_length + block_size - 1) // block_size
 
             # Build request fields
+            # RequestField = (input_length, need_blocks, output_length)
             request_fields = []
             for _ in range(batch_size):
                 req = RequestField(
-                    input_length=int(row.get('input_length', row.get('num_prefill_tokens', 128))),
-                    output_length=int(row.get('output_length', row.get('num_decode_tokens', 1))),
+                    input_length=input_length,
+                    need_blocks=need_blocks_per_req,
+                    output_length=output_length,
                 )
                 request_fields.append(req)
 
+            # Calculate batch totals
+            total_need_blocks = need_blocks_per_req * batch_size
+            total_prefill_token = input_length * batch_size if batch_stage == 'prefill' else 0
+
             # Build batch field
+            # BatchField = (batch_stage, batch_size, total_need_blocks, total_prefill_token, max_seq_len)
             batch_field = BatchField(
                 batch_stage=batch_stage,
                 batch_size=batch_size,
+                total_need_blocks=total_need_blocks,
+                total_prefill_token=total_prefill_token,
                 max_seq_len=int(row.get('max_seq_len', 2048)),
             )
 
@@ -331,6 +355,8 @@ def predict_with_vidur(
         except Exception as e:
             if errors < 5:
                 print(f"Warning: Prediction failed for row {idx}: {e}")
+                import traceback
+                traceback.print_exc()
             errors += 1
             predictions.append(0.0)
 
